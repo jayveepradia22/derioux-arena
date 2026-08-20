@@ -5,6 +5,13 @@ import {
   KeyRound, LogOut, Package, Pause, Play, RotateCcw, ShieldCheck, Shirt, ShoppingBag, Sparkles, Swords, Timer, Trophy,
   UserRound, X, Zap,
 } from 'lucide-react';
+import { auth, db } from "./firebase";
+import {
+  createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged,
+  updateProfile as updateAuthProfile, updateEmail as updateAuthEmail, updatePassword as updateAuthPassword,
+  reauthenticateWithCredential, EmailAuthProvider, type User,
+} from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
   /* Base64-embedded brand art: keeps the component fully self-contained (no separate asset pipeline). */
   const LOGO_ICON = 'data:image/webp;base64,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';
@@ -2117,6 +2124,133 @@ import {
     }
   }
 
+  /* --- CAMPUS EXPLORER (roam-to-find-quest 3D view) ---
+   * Built with the app's own panel/amber/cyan/coral palette so it matches the rest of
+   * the UI, not a separate visual style. */
+  .campus-frame {
+    padding: 0;
+    overflow: hidden;
+    position: relative;
+    height: min(74vh, 640px);
+    background: #05070d;
+  }
+  .campus-world {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+  .campus-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  .campus-hud-bar {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    right: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .campus-chip {
+    background: rgba(15, 20, 36, .88);
+    border: 1px solid rgba(248, 184, 78, .35);
+    color: var(--amber);
+    padding: 7px 13px;
+    border-radius: 7px;
+    font: 10px var(--app-font-mono);
+    letter-spacing: .08em;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, .4);
+    backdrop-filter: blur(8px);
+    pointer-events: auto;
+  }
+  .campus-exit-btn {
+    pointer-events: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(239, 117, 103, .14);
+    color: var(--coral);
+    border: 1px solid rgba(239, 117, 103, .4);
+    padding: 7px 12px;
+    border-radius: 7px;
+    font-size: 10px;
+    font-weight: 600;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, .4);
+    backdrop-filter: blur(8px);
+  }
+  .campus-prompt {
+    position: absolute;
+    top: 18%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(15, 20, 36, .92);
+    border: 1px solid var(--cyan);
+    color: #f4f0e7;
+    padding: 11px 22px;
+    border-radius: 8px;
+    font: 11px var(--app-font-mono);
+    text-align: center;
+    display: none;
+    pointer-events: none;
+    text-shadow: 0 0 8px rgba(103, 205, 209, .6);
+    box-shadow: 0 0 25px rgba(103, 205, 209, .22);
+    z-index: 10;
+    backdrop-filter: blur(10px);
+  }
+  .campus-tap-start {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #f4f0e7;
+    text-align: center;
+    font: 12px var(--app-font-mono);
+    letter-spacing: .06em;
+    z-index: 8;
+    pointer-events: none;
+    text-shadow: 0 0 14px rgba(0, 0, 0, .8);
+  }
+  .campus-tap-start span {
+    display: block;
+    margin-top: 8px;
+    color: #9ca7c4;
+    font-size: 10px;
+  }
+  .campus-joystick-zone {
+    position: absolute;
+    bottom: 0;
+    width: 50%;
+    height: 50%;
+    pointer-events: auto;
+    z-index: 5;
+  }
+  .campus-joystick-zone.left { left: 0; }
+  .campus-joystick-zone.right { right: 0; }
+  .campus-joystick-base {
+    position: absolute;
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    background: rgba(103, 205, 209, .1);
+    border: 2px solid rgba(103, 205, 209, .28);
+    display: none;
+    pointer-events: none;
+  }
+  .campus-joystick-thumb {
+    position: absolute;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: rgba(103, 205, 209, .3);
+    border: 2px solid rgba(103, 205, 209, .55);
+    display: none;
+    pointer-events: none;
+  }
+
   /* ===== PHONE (<=640px) ===== */
   @media (max-width: 640px) {
     .derioux-shell {
@@ -2306,6 +2440,9 @@ import {
     .profile-avatar .pixel-avatar {
       transform: scale(1.05);
     }
+    .campus-frame {
+      height: min(64vh, 480px);
+    }
   }
   `;
 
@@ -2336,10 +2473,10 @@ import {
   type Quest = { id: string; title: string; meta: string; rewardXp: number; rewardCoins: number; done: boolean };
   type ShopItem = { id: string; name: string; copy: string; price: number; icon: typeof Crosshair; category: 'Gear' | 'Consumables' | 'Cosmetics'; requiredQuestId?: string };
   type GameState = { coins: number; xp: number; quests: Quest[]; owned: string[]; equipped: string | null; studyMinutes: number; activityDates: string[] };
-  type StoredAccount = { password: string; profile: Profile; game: GameState };
+  // No `password` field anymore — Firebase Auth owns credentials entirely; this is now
+  // purely the Firestore document shape for `players/{uid}`.
+  type StoredAccount = { profile: Profile; game: GameState };
 
-  const STORAGE_KEY = 'derioux-player-v3';
-  const ACCOUNTS_KEY = 'derioux-accounts-v2';
   const avatarColors = ['#e9af54', '#67cdd1', '#ef7567', '#9b8ed4', '#77b85c', '#d998b3'];
   const strands: [string, string][] = [
     ['STEM', 'Science, technology, engineering, and mathematics.'],
@@ -2372,6 +2509,42 @@ import {
     { question: 'What is the derivative of x²?', options: ['x', '2', '2x', 'x²'], answer: 2 },
     { question: 'Which force keeps planets in orbit around the sun?', options: ['Friction', 'Gravity', 'Magnetism', 'Tension'], answer: 1 },
   ];
+
+  /**
+   * Immersive battle mode — fullscreen + landscape lock while the player is anywhere
+   * inside the "Enter battle" flow (roaming -> briefing -> battle), released the moment
+   * they leave it. Orientation lock only works while the page is actually fullscreen
+   * (and only on devices/browsers that support the Screen Orientation API), so both
+   * calls are wrapped and best-effort: if either is unavailable or blocked, the battle
+   * still plays fine windowed/portrait, it just skips the immersive treatment.
+   */
+  const enterImmersiveBattle = async () => {
+    try {
+      const root = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> };
+      if (!document.fullscreenElement) {
+        if (root.requestFullscreen) await root.requestFullscreen();
+        else if (root.webkitRequestFullscreen) await root.webkitRequestFullscreen();
+      }
+    } catch { /* fullscreen can be denied (desktop without a gesture, iframe, etc.) — non-fatal */ }
+    try {
+      const orientation = window.screen?.orientation as (ScreenOrientation & { lock?: (o: string) => Promise<void> }) | undefined;
+      if (orientation?.lock) await orientation.lock('landscape');
+    } catch { /* orientation lock needs fullscreen + mobile support — non-fatal elsewhere */ }
+  };
+
+  const exitImmersiveBattle = () => {
+    try {
+      const orientation = window.screen?.orientation as (ScreenOrientation & { unlock?: () => void }) | undefined;
+      orientation?.unlock?.();
+    } catch { /* ignore */ }
+    try {
+      const doc = document as Document & { webkitExitFullscreen?: () => Promise<void>; webkitFullscreenElement?: Element };
+      if (document.fullscreenElement || doc.webkitFullscreenElement) {
+        if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+        else if (doc.webkitExitFullscreen) doc.webkitExitFullscreen();
+      }
+    } catch { /* ignore */ }
+  };
 
   const FOCUS_DURATION_SECONDS = 25 * 60;
   const FOCUS_XP_REWARD = 100;
@@ -2415,11 +2588,40 @@ import {
     return days;
   };
 
-  const readAccounts = (): Record<string, StoredAccount> => {
-    try { return JSON.parse(window.localStorage.getItem(ACCOUNTS_KEY) || '{}') as Record<string, StoredAccount>; } catch { return {}; }
+  // Firestore helpers for the `players/{uid}` document. Kept thin and separate from the
+  // React state layer below so the App component can stay focused on optimistic local
+  // updates + background syncing rather than raw Firestore calls everywhere.
+  const loadPlayerDoc = async (uid: string): Promise<StoredAccount | null> => {
+    const snap = await getDoc(doc(db, 'players', uid));
+    return snap.exists() ? (snap.data() as StoredAccount) : null;
   };
-  const writeAccounts = (accounts: Record<string, StoredAccount>) => {
-    try { window.localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts)); } catch { /* ignore */ }
+  const savePlayerDoc = (uid: string, data: StoredAccount) => setDoc(doc(db, 'players', uid), data);
+
+  // Firebase throws structured errors with a `.code` like 'auth/wrong-password'. This
+  // maps the ones players are actually likely to hit into copy that matches the app's
+  // voice, and falls back to the raw Firebase message for anything unexpected.
+  const authErrorMessage = (err: unknown): string => {
+    const code = (err as { code?: string })?.code ?? '';
+    switch (code) {
+      case 'auth/invalid-credential':
+      case 'auth/wrong-password':
+      case 'auth/user-not-found':
+        return 'Incorrect email or password.';
+      case 'auth/email-already-in-use':
+        return 'An account with that email already exists. Try logging in instead.';
+      case 'auth/invalid-email':
+        return 'That email address doesn\'t look right.';
+      case 'auth/weak-password':
+        return 'Use at least 6 characters to protect your player file.';
+      case 'auth/too-many-requests':
+        return 'Too many attempts — please wait a moment and try again.';
+      case 'auth/network-request-failed':
+        return 'Network error — check your connection and try again.';
+      case 'auth/requires-recent-login':
+        return 'For security, please log out and back in before changing this.';
+      default:
+        return (err as { message?: string })?.message ?? 'Something went wrong. Please try again.';
+    }
   };
 
   /* =====================================================================================
@@ -2530,11 +2732,10 @@ import {
   * AUTH FLOW
   * ===================================================================================== */
   function Auth({
-    login, checkEmailAvailable, completeSignup, notify,
+    login, completeSignup, notify,
   }: {
-    login: (email: string, password: string) => { ok: boolean; message?: string };
-    checkEmailAvailable: (email: string) => boolean;
-    completeSignup: (profile: Profile, password: string) => void;
+    login: (email: string, password: string) => Promise<{ ok: boolean; message?: string }>;
+    completeSignup: (profile: Profile, password: string) => Promise<{ ok: boolean; message?: string }>;
     notify: (title: string, copy: string, tone?: ToastItem['tone']) => void;
   }) {
     const [step, setStep] = useState<AuthStep>('welcome');
@@ -2544,37 +2745,49 @@ import {
     const [avatar, setAvatar] = useState<AvatarConfig>(makeDefaultAvatar());
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
     const goBack = () => setStep(step === 'strand' ? 'signup' : step === 'avatar' ? 'strand' : step === 'confirm' ? 'avatar' : 'welcome');
 
     // Step 1 (new user) / the only step (returning user): collect + validate credentials.
-    // Signup does NOT write anything to localStorage yet — it only moves the user on to
-    // strand/avatar setup. The account is only actually created at the end (see the
-    // 'confirm' screen below), once the full profile is ready. Login, by contrast, checks
-    // the entered email + password straight against what's already stored.
-    const submitCredentials = (event: FormEvent) => {
+    // Signup does NOT create the Firebase account yet — it only moves the user on to
+    // strand/avatar setup. The account (and the "email already in use" check, which
+    // Firebase can only really do at creation time — see the setup guide) only happens
+    // at the end, on the 'confirm' screen, once the full profile is ready. Login, by
+    // contrast, hands the entered email + password straight to Firebase Auth.
+    const submitCredentials = async (event: FormEvent) => {
       event.preventDefault();
       const trimmedEmail = email.trim().toLowerCase();
       if (!trimmedEmail || !password.trim()) return;
       if (step === 'login') {
-        const result = login(trimmedEmail, password);
+        setSubmitting(true);
+        const result = await login(trimmedEmail, password);
+        setSubmitting(false);
         if (!result.ok) notify('Login failed', result.message ?? 'Please check your email and password and try again.', 'error');
         return;
       }
       if (!name.trim()) { notify('Username required', 'Enter a username for your player file.', 'error'); return; }
-      if (!checkEmailAvailable(trimmedEmail)) { notify('Player file already exists', 'An account with that email already exists. Try logging in instead.', 'error'); return; }
       if (password.length < 6) { notify('Password too short', 'Use at least 6 characters to protect your player file.', 'error'); return; }
       setStep('strand');
     };
 
+    const submitSignup = async () => {
+      setSubmitting(true);
+      const newProfile: Profile = { name: name.trim() || 'Alex Rivera', email: email.trim().toLowerCase(), strand, avatar };
+      const result = await completeSignup(newProfile, password);
+      setSubmitting(false);
+      if (!result.ok) notify('Could not create player file', result.message ?? 'Something went wrong. Please try again.', 'error');
+    };
+
+
     if (step === 'welcome') return <div className="auth-screen"><div className="ambient-orb one" /><div className="ambient-orb two" /><div className="auth-card"><HeroLogo /><div className="eyebrow">YOUR NEXT RUN STARTS HERE</div><h1 className="auth-title">Make focus<br /><span>feel like play.</span></h1><p className="auth-copy">DERIOUX turns the work you keep avoiding into a world you want to return to. Build your streak, defeat the backlog, and level up your real life.</p><div className="auth-actions"><button className="btn-primary flex-1" onClick={() => setStep('signup')}>Start a new run <ChevronRight size={15} /></button><button className="btn-secondary" onClick={() => setStep('login')}>Log in</button></div><div className="auth-meta"><span><span className="status-dot" /> local player file</span><span>v0.9 // night shift</span></div><p className="auth-foot">A quiet place for loud progress.</p></div></div>;
 
-    if (step === 'login' || step === 'signup') return <div className="auth-screen"><div className="ambient-orb one" /><div className="auth-card"><Logo /><button className="back-link" onClick={() => setStep('welcome')}><ChevronRight size={13} className="rotate-180" /> Back to start</button><div className="eyebrow">{step === 'login' ? 'WELCOME BACK, PLAYER' : 'CREATE YOUR PLAYER FILE'}</div><h1 className="auth-title">{step === 'login' ? <>Resume your<br /><span>run.</span></> : <>Choose to<br /><span>begin.</span></>}</h1><form className="auth-form mt-7" onSubmit={submitCredentials}><label className="field-label">Email<input className="field-input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="alex@campus.edu" required autoComplete="email" /></label>{step === 'signup' && <label className="field-label">Username<input className="field-input" value={name} onChange={(event) => setName(event.target.value)} placeholder="Alex Rivera" required autoComplete="username" /></label>}<label className="field-label">Password<div className="password-field"><input className="field-input" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 6 characters" required autoComplete={step === 'login' ? 'current-password' : 'new-password'} /><button type="button" className="password-toggle" aria-label="Toggle password visibility" onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={15} /> : <Eye size={15} />}</button></div></label><button className="btn-primary mt-2" type="submit">{step === 'login' ? 'Enter DERIOUX' : 'Continue'} <ChevronRight size={15} /></button></form><p className="auth-foot"><button className="text-button" onClick={goBack}>Back to start</button></p></div></div>;
+    if (step === 'login' || step === 'signup') return <div className="auth-screen"><div className="ambient-orb one" /><div className="auth-card"><Logo /><button className="back-link" onClick={() => setStep('welcome')}><ChevronRight size={13} className="rotate-180" /> Back to start</button><div className="eyebrow">{step === 'login' ? 'WELCOME BACK, PLAYER' : 'CREATE YOUR PLAYER FILE'}</div><h1 className="auth-title">{step === 'login' ? <>Resume your<br /><span>run.</span></> : <>Choose to<br /><span>begin.</span></>}</h1><form className="auth-form mt-7" onSubmit={submitCredentials}><label className="field-label">Email<input className="field-input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="alex@campus.edu" required autoComplete="email" /></label>{step === 'signup' && <label className="field-label">Username<input className="field-input" value={name} onChange={(event) => setName(event.target.value)} placeholder="Alex Rivera" required autoComplete="username" /></label>}<label className="field-label">Password<div className="password-field"><input className="field-input" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 6 characters" required autoComplete={step === 'login' ? 'current-password' : 'new-password'} /><button type="button" className="password-toggle" aria-label="Toggle password visibility" onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={15} /> : <Eye size={15} />}</button></div></label><button className="btn-primary mt-2" type="submit" disabled={submitting}>{submitting ? 'Checking…' : step === 'login' ? 'Enter DERIOUX' : 'Continue'} <ChevronRight size={15} /></button></form><p className="auth-foot"><button className="text-button" onClick={goBack}>Back to start</button></p></div></div>;
 
     if (step === 'strand') return <div className="auth-screen"><div className="auth-card wide"><Logo /><button className="back-link" onClick={goBack}><ChevronRight size={13} className="rotate-180" /> Back</button><div className="eyebrow">01 // SELECT YOUR STRAND</div><h1 className="auth-title">What are you<br /><span>training for?</span></h1><p className="auth-copy">Your strand tunes the first set of quests. You can change your loadout anytime.</p><div className="strand-grid">{strands.map(([title, copy]) => <button className={`strand-btn ${strand === title ? 'selected' : ''}`} key={title} onClick={() => setStrand(title)}><strong>{title}</strong><small>{copy}</small></button>)}</div><button className="btn-primary w-full" onClick={() => setStep('avatar')}>Lock in strand <ChevronRight size={15} /></button></div></div>;
 
     if (step === 'avatar') return <div className="auth-screen"><div className="auth-card wide"><Logo /><button className="back-link" onClick={goBack}><ChevronRight size={13} className="rotate-180" /> Back to strand</button><div className="eyebrow">02 // BUILD YOUR AVATAR</div><h1 className="auth-title">Put a face to<br /><span>the focus.</span></h1><div className="avatar-editor"><div className="avatar-stage-large"><AvatarFigure avatar={avatar} initials={getInitials(name || 'Alex Rivera')} size="large" /></div><AvatarSelectors avatar={avatar} setAvatar={setAvatar} /></div><button className="btn-primary w-full mt-8" onClick={() => setStep('confirm')}>Preview player file <ChevronRight size={15} /></button></div></div>;
 
-    return <div className="auth-screen"><div className="auth-card confirm-card"><Logo /><div className="confirm-avatar"><AvatarFigure avatar={avatar} initials={getInitials(name || 'Alex Rivera')} size="large" /></div><div className="eyebrow">PLAYER FILE READY</div><h1 className="auth-title">Welcome to<br /><span>the night shift.</span></h1><p className="auth-copy">{name || 'Alex Rivera'} · Level 1 · {strand} strand</p><button className="btn-primary w-full" onClick={() => { const newProfile: Profile = { name: name.trim() || 'Alex Rivera', email: email.trim().toLowerCase(), strand, avatar }; completeSignup(newProfile, password); }}>Enter dashboard <ChevronRight size={15} /></button></div></div>;
+    return <div className="auth-screen"><div className="auth-card confirm-card"><Logo /><div className="confirm-avatar"><AvatarFigure avatar={avatar} initials={getInitials(name || 'Alex Rivera')} size="large" /></div><div className="eyebrow">PLAYER FILE READY</div><h1 className="auth-title">Welcome to<br /><span>the night shift.</span></h1><p className="auth-copy">{name || 'Alex Rivera'} · Level 1 · {strand} strand</p><button className="btn-primary w-full" disabled={submitting} onClick={submitSignup}>{submitting ? 'Creating player file…' : 'Enter dashboard'} <ChevronRight size={15} /></button></div></div>;
   }
 
   /* =====================================================================================
@@ -2644,14 +2857,26 @@ import {
     const week = lastSevenDays();
     const activitySet = new Set(activityDates);
     const goalMinutes = 180;
-    
+
     const completedCount = achievementsList.filter(a => a.unlocked || (a.requiredQuestId && quests.find(q => q.id === a.requiredQuestId)?.done)).length;
+
+    // Live clock: greeting/date-time reflect the person's actual local time, refreshed
+    // every 30s so it never drifts stale during a long dashboard session.
+    const [now, setNow] = useState(() => new Date());
+    useEffect(() => {
+      const interval = window.setInterval(() => setNow(new Date()), 30000);
+      return () => window.clearInterval(interval);
+    }, []);
+    const hour = now.getHours();
+    const greeting = hour < 5 ? 'Good night' : hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : hour < 21 ? 'Good evening' : 'Good night';
+    const dayName = now.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
+    const timeLabel = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 
     return (
       <>
         <div className="page-wrap">
-          <div className="eyebrow">TODAY // RUN 014</div>
-          <h1 className="page-title">Good evening, <em>{profile.name.split(' ')[0]}.</em></h1>
+          <div className="eyebrow">{dayName} // {timeLabel} // RUN 014</div>
+          <h1 className="page-title">{greeting}, <em>{profile.name.split(' ')[0]}.</em></h1>
           <p className="muted text-sm mt-3">The noise is outside. Your next move is in here.</p>
           <Stats studyMinutes={studyMinutes} xp={xp} coins={coins} streak={streak} />
           
@@ -2787,7 +3012,375 @@ import {
    * lucide-react icons so it matches the rest of the app instead of introducing a
    * separate visual style.
    */
-  function QuestBriefing({ onAccept, onLeave }: { onAccept: () => void; onLeave: () => void }) {
+  /**
+   * Roam-to-find-quest 3D campus. Ported from the standalone raycasting engine (map,
+   * DDA raycasting, WASD/pointer-lock look, touch joysticks) — the simulation logic
+   * itself is unchanged, just re-homed into a React component: canvas/DOM lookups
+   * became refs, the module-level mutable state became a single ref object, and the
+   * animation loop is started/stopped from an effect instead of running as a bare
+   * top-level script. Walk up to a challenger and press E (or tap the prompt) to
+   * start their quest.
+   */
+  type CampusChallenger = { id: string; name: string; area: string; statement: string };
+
+  const CAMPUS_MAP = [
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,1,4,4,4,4,4,4,1,0,0,0,0,0,1,0,0,0,0,1],
+    [1,0,1,2,0,0,1,4,4,4,4,4,4,1,0,0,2,1,0,1,0,3,1,0,1],
+    [1,0,3,1,0,0,2,4,4,4,4,4,4,2,0,0,1,3,0,1,0,0,0,0,1],
+    [1,0,0,0,0,0,1,4,4,4,4,4,4,1,0,0,0,0,0,1,0,1,1,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,2,1,1,1,1,0,0,1,1,1,1,0,0,1,1,2,1,1,1,1,2,1,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,3,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,2,1,1,1,1,0,0,1,1,1,1,0,0,1,1,2,1,1,1,1,2,1,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,1],
+    [1,0,2,0,2,0,0,0,0,0,0,0,0,2,0,0,2,0,0,1,0,2,0,0,1],
+    [1,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,1],
+    [1,0,1,3,0,0,0,0,0,0,0,0,0,0,0,3,1,0,0,0,0,3,1,0,1],
+    [1,0,3,1,0,0,0,0,0,0,0,0,0,0,0,1,3,0,0,0,0,1,3,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  ];
+  const CAMPUS_CHALLENGERS: (CampusChallenger & { x: number; y: number; dir: number })[] = [
+    { id: 'npc_1', x: 9.5, y: 2.0, name: 'Rival Student Alex', area: 'East Wing: Science Labs', statement: 'Heh! Think you can pass the laboratory research assessment? Prove it!', dir: 1 },
+    { id: 'npc_2', x: 3.5, y: 3.5, name: 'Elite Scholar Beta', area: 'West Wing: Business Pavilion', statement: 'Halt! You must pass my specialized strand quiz to earn passage through the pavilion!', dir: -1 },
+    { id: 'npc_3', x: 15.5, y: 3.5, name: 'Rival Prefect Gamma', area: 'North Corridor: Humanities & Arts', statement: 'Rule enforcement time! Answer my philosophy and literature questions or face discipline!', dir: 1 },
+    { id: 'npc_4', x: 21.5, y: 8.5, name: "Dean's Assistant Delta", area: 'Central Atrium: Grand Hall', statement: 'Welcome to the Grand Hall! Only top scholars complete my mastery examination.', dir: -1 },
+  ];
+
+  function CampusExplorer({ level, defeatedIds, onChallengerFound, onExit }: { level: number; defeatedIds: string[]; onChallengerFound: (challenger: CampusChallenger) => void; onExit: () => void }) {
+    const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const worldRef = useRef<HTMLDivElement | null>(null);
+    const promptRef = useRef<HTMLDivElement | null>(null);
+    const tapStartRef = useRef<HTMLDivElement | null>(null);
+    const leftBaseRef = useRef<HTMLDivElement | null>(null);
+    const leftThumbRef = useRef<HTMLDivElement | null>(null);
+    const rightBaseRef = useRef<HTMLDivElement | null>(null);
+    const rightThumbRef = useRef<HTMLDivElement | null>(null);
+    const leftZoneRef = useRef<HTMLDivElement | null>(null);
+    const rightZoneRef = useRef<HTMLDivElement | null>(null);
+    const defeatedIdsRef = useRef(defeatedIds);
+    defeatedIdsRef.current = defeatedIds;
+    const onFoundRef = useRef(onChallengerFound);
+    onFoundRef.current = onChallengerFound;
+
+    useEffect(() => {
+      const canvas = canvasRef.current;
+      const world = worldRef.current;
+      const prompt = promptRef.current;
+      const tapStart = tapStartRef.current;
+      if (!canvas || !world || !prompt || !tapStart) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const map = CAMPUS_MAP;
+      const mapWidth = map[0].length;
+      const mapHeight = map.length;
+      const challengers = CAMPUS_CHALLENGERS.map((c) => ({ ...c, active: true }));
+
+      let playerX = 9.0;
+      let playerY = 10.0;
+      let playerAngle = 0;
+      let pointerLocked = false;
+      let roamingActive = true;
+      let raf = 0;
+      let activeTerminalTarget: (typeof challengers)[number] | null = null;
+
+      const keys: Record<string, boolean> = {};
+      let mouseDX = 0;
+      const isMobile = 'ontouchstart' in window;
+      const moveSpeed = 3.0;
+      const sensitivity = 1.0;
+
+      let leftJoy = { active: false, id: null as number | null, startX: 0, startY: 0, dx: 0, dy: 0 };
+      let rightJoy = { active: false, id: null as number | null, startX: 0, startY: 0, dx: 0, dy: 0 };
+
+      const resizeCanvas = () => {
+        canvas.width = world.clientWidth;
+        canvas.height = world.clientHeight;
+      };
+      resizeCanvas();
+      window.addEventListener('resize', resizeCanvas);
+
+      if (isMobile) {
+        tapStart.innerHTML = 'TAP TO START EXPLORING<span>Left stick: move | Right stick: look</span>';
+        tapStart.style.display = 'none';
+      }
+
+      const interact = (target: (typeof challengers)[number]) => {
+        if (!target.active) return;
+        if (defeatedIdsRef.current.includes(target.id)) {
+          prompt.innerText = `[${target.area}] ${target.name} — QUEST ALREADY COMPLETED`;
+          return;
+        }
+        roamingActive = false;
+        if (document.pointerLockElement === canvas) document.exitPointerLock();
+        onFoundRef.current({ id: target.id, name: target.name, area: target.area, statement: target.statement });
+      };
+
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (!roamingActive) return;
+        const key = e.key.toLowerCase();
+        if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'e'].includes(key)) {
+          keys[key] = true;
+          if (key === 'e' && activeTerminalTarget) interact(activeTerminalTarget);
+        }
+      };
+      const handleKeyUp = (e: KeyboardEvent) => { keys[e.key.toLowerCase()] = false; };
+      const handleMouseMove = (e: MouseEvent) => { if (pointerLocked) mouseDX += e.movementX; };
+      const handleCanvasClick = () => { if (!pointerLocked && !isMobile && roamingActive) canvas.requestPointerLock(); };
+      const handlePointerLockChange = () => {
+        pointerLocked = document.pointerLockElement === canvas;
+        if (pointerLocked) tapStart.style.display = 'none';
+        else if (!isMobile && roamingActive) tapStart.style.display = 'block';
+      };
+      const handlePromptTap = () => { if (activeTerminalTarget) interact(activeTerminalTarget); };
+
+      document.addEventListener('keydown', handleKeyDown);
+      document.addEventListener('keyup', handleKeyUp);
+      document.addEventListener('mousemove', handleMouseMove);
+      canvas.addEventListener('click', handleCanvasClick);
+      document.addEventListener('pointerlockchange', handlePointerLockChange);
+      prompt.addEventListener('click', handlePromptTap);
+
+      const joyCleanups: Array<() => void> = [];
+      if (isMobile) {
+        const leftZone = leftZoneRef.current, rightZone = rightZoneRef.current;
+        const leftBase = leftBaseRef.current, leftThumb = leftThumbRef.current;
+        const rightBase = rightBaseRef.current, rightThumb = rightThumbRef.current;
+        if (leftZone && rightZone && leftBase && leftThumb && rightBase && rightThumb) {
+          const start = (e: TouchEvent, joy: typeof leftJoy, base: HTMLDivElement, thumb: HTMLDivElement, zone: HTMLDivElement) => {
+            const touch = e.changedTouches[0];
+            joy.active = true; joy.id = touch.identifier;
+            const rect = zone.getBoundingClientRect();
+            joy.startX = touch.clientX - rect.left; joy.startY = touch.clientY - rect.top;
+            base.style.display = 'block'; base.style.left = (joy.startX - 55) + 'px'; base.style.top = (joy.startY - 55) + 'px';
+            thumb.style.display = 'block'; thumb.style.left = (joy.startX - 26) + 'px'; thumb.style.top = (joy.startY - 26) + 'px';
+          };
+          const move = (e: TouchEvent, joy: typeof leftJoy, thumb: HTMLDivElement, zone: HTMLDivElement) => {
+            for (let i = 0; i < e.changedTouches.length; i++) {
+              const touch = e.changedTouches[i];
+              if (touch.identifier === joy.id) {
+                const rect = zone.getBoundingClientRect();
+                let dx = touch.clientX - rect.left - joy.startX;
+                let dy = touch.clientY - rect.top - joy.startY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const maxDist = 50;
+                if (dist > maxDist) { dx = (dx / dist) * maxDist; dy = (dy / dist) * maxDist; }
+                joy.dx = dx / maxDist; joy.dy = dy / maxDist;
+                thumb.style.left = (joy.startX + dx - 26) + 'px'; thumb.style.top = (joy.startY + dy - 26) + 'px';
+              }
+            }
+          };
+          const end = (e: TouchEvent, joy: typeof leftJoy, base: HTMLDivElement, thumb: HTMLDivElement) => {
+            for (let i = 0; i < e.changedTouches.length; i++) {
+              if (e.changedTouches[i].identifier === joy.id) {
+                joy.active = false; joy.dx = 0; joy.dy = 0;
+                base.style.display = 'none'; thumb.style.display = 'none';
+              }
+            }
+          };
+          const lStart = (e: TouchEvent) => { e.preventDefault(); start(e, leftJoy, leftBase, leftThumb, leftZone); };
+          const lMove = (e: TouchEvent) => { e.preventDefault(); move(e, leftJoy, leftThumb, leftZone); };
+          const lEnd = (e: TouchEvent) => end(e, leftJoy, leftBase, leftThumb);
+          const rStart = (e: TouchEvent) => { e.preventDefault(); start(e, rightJoy, rightBase, rightThumb, rightZone); };
+          const rMove = (e: TouchEvent) => { e.preventDefault(); move(e, rightJoy, rightThumb, rightZone); };
+          const rEnd = (e: TouchEvent) => end(e, rightJoy, rightBase, rightThumb);
+          leftZone.addEventListener('touchstart', lStart); leftZone.addEventListener('touchmove', lMove); leftZone.addEventListener('touchend', lEnd);
+          rightZone.addEventListener('touchstart', rStart); rightZone.addEventListener('touchmove', rMove); rightZone.addEventListener('touchend', rEnd);
+          joyCleanups.push(() => {
+            leftZone.removeEventListener('touchstart', lStart); leftZone.removeEventListener('touchmove', lMove); leftZone.removeEventListener('touchend', lEnd);
+            rightZone.removeEventListener('touchstart', rStart); rightZone.removeEventListener('touchmove', rMove); rightZone.removeEventListener('touchend', rEnd);
+          });
+        }
+      }
+
+      function castRayDDA(angle: number) {
+        const dirX = Math.cos(angle), dirY = Math.sin(angle);
+        let mapX = Math.floor(playerX), mapY = Math.floor(playerY);
+        const deltaDistX = Math.abs(1 / (dirX || 0.00001));
+        const deltaDistY = Math.abs(1 / (dirY || 0.00001));
+        let stepX: number, stepY: number, sideDistX: number, sideDistY: number;
+        if (dirX < 0) { stepX = -1; sideDistX = (playerX - mapX) * deltaDistX; } else { stepX = 1; sideDistX = (mapX + 1.0 - playerX) * deltaDistX; }
+        if (dirY < 0) { stepY = -1; sideDistY = (playerY - mapY) * deltaDistY; } else { stepY = 1; sideDistY = (mapY + 1.0 - playerY) * deltaDistY; }
+        let side = 0, hitVal = 0, maxSteps = 50;
+        while (hitVal === 0 && maxSteps > 0) {
+          if (sideDistX < sideDistY) { sideDistX += deltaDistX; mapX += stepX; side = 0; } else { sideDistY += deltaDistY; mapY += stepY; side = 1; }
+          maxSteps--;
+          if (mapX < 0 || mapX >= mapWidth || mapY < 0 || mapY >= mapHeight) return { dist: 20, side: 0, tile: 1 };
+          hitVal = map[mapY][mapX];
+        }
+        const dist = side === 0 ? (mapX - playerX + (1 - stepX) / 2) / dirX : (mapY - playerY + (1 - stepY) / 2) / dirY;
+        return { dist: Math.max(dist, 0.01), side, tile: hitVal };
+      }
+
+      function render() {
+        const w = canvas!.width, h = canvas!.height;
+        const fov = Math.PI / 3;
+        const ceilGrad = ctx!.createLinearGradient(0, 0, 0, h / 2);
+        ceilGrad.addColorStop(0, '#070b14'); ceilGrad.addColorStop(1, '#0f172a');
+        ctx!.fillStyle = ceilGrad; ctx!.fillRect(0, 0, w, h / 2);
+        const floorGrad = ctx!.createLinearGradient(0, h / 2, 0, h);
+        floorGrad.addColorStop(0, '#0f172a'); floorGrad.addColorStop(1, '#070b14');
+        ctx!.fillStyle = floorGrad; ctx!.fillRect(0, h / 2, w, h / 2);
+
+        const numRays = Math.min(w, 360);
+        const stripWidth = w / numRays;
+        const zBuffer = new Array(numRays);
+
+        for (let i = 0; i < numRays; i++) {
+          const rayAngle = playerAngle - fov / 2 + (i / numRays) * fov;
+          const result = castRayDDA(rayAngle);
+          const correctedDist = result.dist * Math.cos(rayAngle - playerAngle);
+          zBuffer[i] = correctedDist;
+          const wallHeight = h / correctedDist;
+          const wallTop = (h - wallHeight) / 2;
+          const brightness = Math.max(0, 1 - correctedDist / 15);
+          let r: number, g: number, b: number;
+          if (result.tile === 2) { r = Math.floor(120 * brightness); g = Math.floor(80 * brightness); b = Math.floor(40 * brightness); }
+          else if (result.tile === 3) { r = Math.floor(56 * brightness); g = Math.floor(189 * brightness); b = Math.floor(248 * brightness); }
+          else if (result.tile === 4) { r = Math.floor(160 * brightness); g = Math.floor(160 * brightness); b = Math.floor(180 * brightness); }
+          else if (result.side === 0) { r = Math.floor(45 * brightness); g = Math.floor(55 * brightness); b = Math.floor(80 * brightness); }
+          else { r = Math.floor(30 * brightness); g = Math.floor(40 * brightness); b = Math.floor(60 * brightness); }
+          ctx!.fillStyle = `rgb(${r},${g},${b})`;
+          ctx!.fillRect(Math.floor(i * stripWidth), wallTop, Math.ceil(stripWidth) + 1, wallHeight);
+        }
+
+        challengers.forEach((term) => {
+          term.x += term.dir * 0.005;
+          if (term.x < 2 || term.x > 23) term.dir *= -1;
+          const spriteX = term.x - playerX, spriteY = term.y - playerY;
+          const transformX = Math.cos(playerAngle) * spriteX + Math.sin(playerAngle) * spriteY;
+          const transformY = -Math.sin(playerAngle) * spriteX + Math.cos(playerAngle) * spriteY;
+          if (transformX > 0.1) {
+            const spriteScreenX = Math.floor((w / 2) * (1 + transformY / transformX));
+            const spriteSize = Math.abs(Math.floor(h / transformX));
+            const drawX = spriteScreenX - spriteSize * 0.25;
+            const drawY = (h - spriteSize) / 2;
+            const rayIdx = Math.floor((spriteScreenX / w) * numRays);
+            if (rayIdx >= 0 && rayIdx < numRays && transformX < zBuffer[rayIdx]) {
+              const bWidth = spriteSize * 0.5, bHeight = spriteSize * 0.8;
+              const isFinished = defeatedIdsRef.current.includes(term.id);
+              ctx!.fillStyle = isFinished ? '#059669' : term.active ? '#1e293b' : '#334155';
+              ctx!.fillRect(drawX + bWidth * 0.2, drawY + bHeight * 0.4, bWidth * 0.6, bHeight * 0.6);
+              ctx!.fillStyle = isFinished ? '#34d399' : term.active ? '#38bdf8' : '#64748b';
+              ctx!.fillRect(drawX + bWidth * 0.3, drawY + bHeight * 0.45, bWidth * 0.4, bHeight * 0.3);
+              if (term.active && !isFinished) {
+                ctx!.fillStyle = '#ffffff';
+                ctx!.font = 'bold 18px sans-serif';
+                ctx!.fillText('⚔', spriteScreenX - 8, drawY - 10);
+              }
+            }
+          }
+        });
+
+        activeTerminalTarget = null;
+        for (const term of challengers) {
+          const distToTerm = Math.hypot(playerX - term.x, playerY - term.y);
+          if (distToTerm < 1.5 && term.active) {
+            activeTerminalTarget = term;
+            const alreadyDone = defeatedIdsRef.current.includes(term.id);
+            prompt.innerText = alreadyDone ? `[${term.area}] ${term.name} — QUEST ALREADY COMPLETED` : `[${term.area}] PRESS 'E' OR TAP TO CHALLENGE: ${term.name}`;
+            prompt.style.display = 'block';
+            break;
+          }
+        }
+        if (!activeTerminalTarget && prompt.style.display === 'block') prompt.style.display = 'none';
+      }
+
+      function canMove(nx: number, ny: number) {
+        const radius = 0.25;
+        const testPoints = [[nx, ny], [nx - radius, ny], [nx + radius, ny], [nx, ny - radius], [nx, ny + radius]];
+        for (const [cx, cy] of testPoints) {
+          const mx = Math.floor(cx), my = Math.floor(cy);
+          if (mx < 0 || mx >= mapWidth || my < 0 || my >= mapHeight) return false;
+          if (map[my][mx] === 1) return false;
+        }
+        return true;
+      }
+
+      let lastTime = performance.now();
+      function gameLoop(timestamp: number) {
+        const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
+        lastTime = timestamp;
+        if (roamingActive) {
+          if (pointerLocked) { playerAngle += mouseDX * 0.002 * sensitivity; mouseDX = 0; }
+          playerAngle = playerAngle % (Math.PI * 2);
+          if (rightJoy.active) playerAngle += rightJoy.dx * 3.0 * sensitivity * dt;
+          let moveX = 0, moveY = 0;
+          if (keys['w'] || keys['arrowup']) { moveX += Math.cos(playerAngle); moveY += Math.sin(playerAngle); }
+          if (keys['s'] || keys['arrowdown']) { moveX -= Math.cos(playerAngle); moveY -= Math.sin(playerAngle); }
+          if (keys['a'] || keys['arrowleft']) { moveX += Math.cos(playerAngle - Math.PI / 2); moveY += Math.sin(playerAngle - Math.PI / 2); }
+          if (keys['d'] || keys['arrowright']) { moveX += Math.cos(playerAngle + Math.PI / 2); moveY += Math.sin(playerAngle + Math.PI / 2); }
+          if (leftJoy.active) {
+            const forward = leftJoy.dy * -1, strafe = leftJoy.dx;
+            moveX += Math.cos(playerAngle) * forward + Math.cos(playerAngle + Math.PI / 2) * strafe;
+            moveY += Math.sin(playerAngle) * forward + Math.sin(playerAngle + Math.PI / 2) * strafe;
+          }
+          const len = Math.sqrt(moveX * moveX + moveY * moveY);
+          if (len > 0) {
+            moveX = (moveX / len) * moveSpeed * dt; moveY = (moveY / len) * moveSpeed * dt;
+            const nx = playerX + moveX, ny = playerY + moveY;
+            if (canMove(nx, playerY)) playerX = nx;
+            if (canMove(playerX, ny)) playerY = ny;
+          }
+          render();
+        }
+        raf = requestAnimationFrame(gameLoop);
+      }
+      raf = requestAnimationFrame(gameLoop);
+
+      return () => {
+        cancelAnimationFrame(raf);
+        window.removeEventListener('resize', resizeCanvas);
+        document.removeEventListener('keydown', handleKeyDown);
+        document.removeEventListener('keyup', handleKeyUp);
+        document.removeEventListener('mousemove', handleMouseMove);
+        canvas.removeEventListener('click', handleCanvasClick);
+        document.removeEventListener('pointerlockchange', handlePointerLockChange);
+        prompt.removeEventListener('click', handlePromptTap);
+        joyCleanups.forEach((fn) => fn());
+        if (document.pointerLockElement === canvas) document.exitPointerLock();
+      };
+    }, []);
+
+    return (
+      <div className="page-wrap">
+        <div className="page-toolbar">
+          <div>
+            <div className="eyebrow">MISSION CONTROL // LIVE CAMPUS</div>
+            <h1 className="page-title">Find your <em>challenger.</em></h1>
+            <p className="muted text-sm mt-3">Walk the halls. Quest-givers wave a blade icon when they're ready for you — get close and press E (or tap the prompt).</p>
+          </div>
+        </div>
+        <div className="panel campus-frame">
+          <div ref={worldRef} className="campus-world">
+            <canvas ref={canvasRef} className="campus-canvas" />
+            <div className="campus-hud-bar">
+              <div className="campus-chip">LEVEL {level}</div>
+              <button className="campus-exit-btn" onClick={onExit}><X size={12} /> Exit campus</button>
+            </div>
+            <div ref={promptRef} className="campus-prompt" />
+            <div className="campus-joystick-zone left" ref={leftZoneRef}>
+              <div className="campus-joystick-base" ref={leftBaseRef} />
+              <div className="campus-joystick-thumb" ref={leftThumbRef} />
+            </div>
+            <div className="campus-joystick-zone right" ref={rightZoneRef}>
+              <div className="campus-joystick-base" ref={rightBaseRef} />
+              <div className="campus-joystick-thumb" ref={rightThumbRef} />
+            </div>
+            <div ref={tapStartRef} className="campus-tap-start">CLICK TO LOOK AROUND<span>WASD to move, mouse to look</span></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function QuestBriefing({ challenger, onAccept, onLeave }: { challenger: CampusChallenger; onAccept: () => void; onLeave: () => void }) {
     return (
       <div className="page-wrap">
         <div className="page-toolbar">
@@ -2800,18 +3393,18 @@ import {
         </div>
         <div className="panel battle-arena">
           <div className="battle-top">
-            <span className="battle-label">BOSS ENCOUNTER // SECTOR 03</span>
+            <span className="battle-label">{challenger.area.toUpperCase()}</span>
           </div>
           <div className="combatants" style={{ gridTemplateColumns: '.6fr 1.4fr' }}>
             <div className="combatant">
               <div className="combatant-avatar enemy"><UserRound size={30} /></div>
-              <div className="combatant-name">The Procrastination Hydra</div>
+              <div className="combatant-name">{challenger.name}</div>
             </div>
             <div style={{ textAlign: 'left' }}>
               <div className="feedback" style={{ fontStyle: 'italic' }}>
-                "Heh! Think you have what it takes to be the top student? Deal me in a duel first!"
+                "{challenger.statement}"
               </div>
-              <p className="muted text-sm mt-3">Three heads, one deadline. Answer the knowledge check under pressure and prove you can keep your attention when the questions get sharp.</p>
+              <p className="muted text-sm mt-3">Answer the knowledge check under pressure and prove you can keep your attention when the questions get sharp.</p>
               <div className="quest-tags mt-3">
                 <span className="tag"><Gem size={10} className="inline mr-1" />+300 XP</span>
                 <span className="tag"><Coins size={10} className="inline mr-1" />+150 credits</span>
@@ -2970,7 +3563,7 @@ import {
     );
   }
 
-  function Profile({ profile, xp, setAvatar, owned, equipped, updateProfileCredentials, notify }: { profile: Profile; xp: number; setAvatar: (value: AvatarConfig) => void; owned: string[]; equipped: string | null; updateProfileCredentials: (newEmail: string, newPass: string) => boolean; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void }) {
+  function Profile({ profile, xp, setAvatar, owned, equipped, updateProfileCredentials, notify }: { profile: Profile; xp: number; setAvatar: (value: AvatarConfig) => void; owned: string[]; equipped: string | null; updateProfileCredentials: (currentPassword: string, newEmail: string, newPass: string) => Promise<{ ok: boolean; message?: string }>; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void }) {
     const [sound, setSound] = useState(true);
     const [feedback, setFeedback] = useState(false);
     const [editingAvatar, setEditingAvatar] = useState(false);
@@ -2984,7 +3577,7 @@ import {
 
     const { level, floorXp, ceilingXp, progressPct } = getLevelInfo(xp);
 
-    const handleSavePassword = (e: FormEvent) => {
+    const handleSavePassword = async (e: FormEvent) => {
       e.preventDefault();
       if (!currentPassword) {
         notify('Password required', 'Please enter your current password.', 'error');
@@ -2998,15 +3591,15 @@ import {
         notify('Mismatch', 'New password and confirm password do not match.', 'error');
         return;
       }
-      const success = updateProfileCredentials(emailInput, newPassword);
-      if (success) {
+      const result = await updateProfileCredentials(currentPassword, emailInput, newPassword);
+      if (result.ok) {
         notify('Security updated', 'Your email and password settings have been saved successfully.');
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
         setIsEditingEmail(false);
       } else {
-        notify('Update failed', 'Incorrect current password or invalid details.', 'error');
+        notify('Update failed', result.message ?? 'Incorrect current password or invalid details.', 'error');
       }
     };
 
@@ -3091,14 +3684,51 @@ import {
   * APP CONTAINER
   * ===================================================================================== */
   function App() {
-    const [session, setSession] = useState<{ email: string } | null>(() => {
-      try { const raw = window.localStorage.getItem(STORAGE_KEY + '-session'); return raw ? JSON.parse(raw) : null; } catch { return null; }
-    });
-    const [accounts, setAccounts] = useState<Record<string, StoredAccount>>(() => readAccounts());
-    const currentAccount = session ? accounts[session.email] : null;
+    // `authUser` is Firebase's own signed-in user object (or null when logged out).
+    // `authLoading` covers the brief window on first load while Firebase checks whether
+    // a session is already persisted (see firebase.ts — browserLocalPersistence is what
+    // makes that session survive a full browser restart, not just a page refresh).
+    const [authUser, setAuthUser] = useState<User | null>(null);
+    const [authLoading, setAuthLoading] = useState(true);
+    useEffect(() => {
+      const unsubscribe = onAuthStateChanged(auth, (user) => {
+        setAuthUser(user);
+        setAuthLoading(false);
+      });
+      return unsubscribe;
+    }, []);
+
+    // `accountData` is the Firestore `players/{uid}` document — profile + game state —
+    // loaded once per sign-in. It's kept in React state as the source of truth for
+    // rendering (instant, no per-keystroke network round trip); every mutation below
+    // updates it locally AND fires a background Firestore write via updateAccountData.
+    const [accountData, setAccountData] = useState<StoredAccount | null>(null);
+    const [accountLoading, setAccountLoading] = useState(false);
+    useEffect(() => {
+      if (!authUser) { setAccountData(null); return; }
+      let cancelled = false;
+      setAccountLoading(true);
+      loadPlayerDoc(authUser.uid).then(async (existing) => {
+        if (cancelled) return;
+        if (existing) {
+          setAccountData(existing);
+        } else {
+          // Auth account exists but no Firestore doc yet (e.g. it was deleted, or this
+          // is the moment right after signup — see completeSignup below, which writes
+          // the doc itself so this branch is mostly a safety net for edge cases).
+          const fresh: StoredAccount = { profile: makeDefaultProfile(), game: makeFreshGameState() };
+          await savePlayerDoc(authUser.uid, fresh);
+          if (!cancelled) setAccountData(fresh);
+        }
+        if (!cancelled) setAccountLoading(false);
+      });
+      return () => { cancelled = true; };
+    }, [authUser]);
 
     const [screen, setScreen] = useState<Screen>('dashboard');
-    const [questStage, setQuestStage] = useState<'list' | 'briefing' | 'battle'>('list');
+    const [questStage, setQuestStage] = useState<'list' | 'roaming' | 'briefing' | 'battle'>('list');
+    const [foundChallenger, setFoundChallenger] = useState<CampusChallenger | null>(null);
+    const [defeatedChallengerIds, setDefeatedChallengerIds] = useState<string[]>([]);
     const [toasts, setToasts] = useState<ToastItem[]>([]);
     const [timerRunning, setTimerRunning] = useState(false);
     const [secondsLeft, setSecondsLeft] = useState(FOCUS_DURATION_SECONDS);
@@ -3109,11 +3739,20 @@ import {
       setTimeout(() => { setToasts((prev) => prev.filter((t) => t.id !== id)); }, 4200);
     };
 
+    // Every quest claim, purchase, timer completion, etc. calls this. It updates local
+    // state immediately (so the UI never waits on the network) and pushes the same
+    // change to Firestore in the background — that write is what makes progress durable
+    // across sessions; if it fails (e.g. offline), the player sees a toast but keeps
+    // playing normally on the local copy and the next successful update will catch Firestore up.
     const updateAccountData = (updater: (acc: StoredAccount) => StoredAccount) => {
-      if (!session || !accounts[session.email]) return;
-      setAccounts((prev) => {
-        const updated = { ...prev, [session.email]: updater(prev[session.email]) };
-        writeAccounts(updated);
+      if (!authUser || !accountData) return;
+      setAccountData((prev) => {
+        if (!prev) return prev;
+        const updated = updater(prev);
+        savePlayerDoc(authUser.uid, updated).catch((err) => {
+          console.error('Failed to save progress to Firestore', err);
+          notify('Sync issue', 'Your progress is safe locally but failed to sync — check your connection.', 'error');
+        });
         return updated;
       });
     };
@@ -3136,39 +3775,73 @@ import {
       return () => window.removeEventListener('popstate', handlePopState);
     }, []);
 
+    /* Immersive battle mode is entered explicitly (see the Quests "Enter battle" button,
+     * a direct user gesture — required for requestFullscreen to succeed). Releasing it is
+     * handled here instead, centrally, so every way out of the flow works the same: the
+     * roaming screen's Quit button, switching sidebar tabs, logging out, or the browser/OS
+     * kicking the page out of fullscreen on its own (Esc, back gesture, etc). */
+    useEffect(() => {
+      if (!(screen === 'quests' && questStage !== 'list')) {
+        exitImmersiveBattle();
+      }
+    }, [screen, questStage]);
+
+    useEffect(() => {
+      const handleFullscreenChange = () => {
+        if (!document.fullscreenElement) {
+          try {
+            const orientation = window.screen?.orientation as (ScreenOrientation & { unlock?: () => void }) | undefined;
+            orientation?.unlock?.();
+          } catch { /* ignore */ }
+        }
+      };
+      document.addEventListener('fullscreenchange', handleFullscreenChange);
+      document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+      return () => {
+        document.removeEventListener('fullscreenchange', handleFullscreenChange);
+        document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      };
+    }, []);
+
     // Bumped on every logout to force <Auth key={authResetKey} /> to fully remount, so any
     // email/password/username typed during the previous session is guaranteed gone — not
     // just relying on the implicit unmount that already happens when `session` clears.
     const [authResetKey, setAuthResetKey] = useState(0);
 
-    const login = (email: string, pass: string) => {
-      const found = accounts[email];
-      if (!found) return { ok: false, message: 'No player file found with that email.' };
-      if (found.password !== pass) return { ok: false, message: 'Incorrect password.' };
-      setSession({ email });
-      try { window.localStorage.setItem(STORAGE_KEY + '-session', JSON.stringify({ email })); } catch { /* ignore */ }
-      notify('Welcome back', `Resuming file for ${found.profile.name}.`);
-      return { ok: true };
+    // login/completeSignup are async and return { ok, message } (rather than throwing)
+    // so the Auth component can show a friendly toast either way without a try/catch of
+    // its own. Session restoration on refresh/relaunch is NOT handled here — that's the
+    // onAuthStateChanged effect above, which is what makes "stay logged in until logout"
+    // work even after closing the browser entirely.
+    const login = async (email: string, pass: string) => {
+      try {
+        await signInWithEmailAndPassword(auth, email, pass);
+        notify('Welcome back', 'Resuming your player file.');
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, message: authErrorMessage(err) };
+      }
     };
 
-    const logout = () => {
-      setSession(null);
+    const logout = async () => {
+      await signOut(auth);
       setAuthResetKey((value) => value + 1);
-      try { window.localStorage.removeItem(STORAGE_KEY + '-session'); } catch { /* ignore */ }
       notify('Logged out', 'Player session safely saved.');
     };
 
-    const completeSignup = (profile: Profile, password: string) => {
-      const newStored: StoredAccount = { password, profile, game: makeFreshGameState() };
-      const updated = { ...accounts, [profile.email]: newStored };
-      setAccounts(updated);
-      writeAccounts(updated);
-      setSession({ email: profile.email });
-      try { window.localStorage.setItem(STORAGE_KEY + '-session', JSON.stringify({ email: profile.email })); } catch { /* ignore */ }
-      notify('Player file created', `Welcome to DERIOUX, ${profile.name}.`);
+    const completeSignup = async (profile: Profile, password: string) => {
+      try {
+        const credential = await createUserWithEmailAndPassword(auth, profile.email, password);
+        await updateAuthProfile(credential.user, { displayName: profile.name });
+        const newStored: StoredAccount = { profile, game: makeFreshGameState() };
+        await savePlayerDoc(credential.user.uid, newStored);
+        setAccountData(newStored);
+        notify('Player file created', `Welcome to DERIOUX, ${profile.name}.`);
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, message: authErrorMessage(err) };
+      }
     };
-
-    const checkEmailAvailable = (email: string) => !accounts[email];
 
     // Timer Effect
     useEffect(() => {
@@ -3199,18 +3872,32 @@ import {
         });
       }, 1000);
       return () => window.clearInterval(interval);
-    }, [timerRunning, session]);
+    }, [timerRunning, authUser]);
 
-    if (!session || !currentAccount) {
+    // Still checking whether a session is already persisted (or, once we know the user
+    // is signed in, still fetching their Firestore doc): show a loading state instead of
+    // flashing the login screen first.
+    if (authLoading || (authUser && accountLoading)) {
+      return (
+        <div className="auth-screen">
+          <div className="auth-card text-center">
+            <Logo />
+            <p className="auth-copy">Loading your player file…</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (!authUser || !accountData) {
       return (
         <ErrorBoundary>
-          <Auth key={authResetKey} login={login} checkEmailAvailable={checkEmailAvailable} completeSignup={completeSignup} notify={notify} />
+          <Auth key={authResetKey} login={login} completeSignup={completeSignup} notify={notify} />
           <Toasts items={toasts} onDismiss={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
         </ErrorBoundary>
       );
     }
 
-    const { profile, game } = currentAccount;
+    const { profile, game } = accountData;
     const streak = computeStreak(game.activityDates);
 
     const claimQuest = (id: string) => {
@@ -3234,7 +3921,9 @@ import {
         game: { ...acc.game, xp: acc.game.xp + 300, coins: acc.game.coins + 150 },
       }));
       notify('Boss encounter cleared', 'Received +300 XP and +150 credits.');
-      setQuestStage('list');
+      if (foundChallenger) setDefeatedChallengerIds((ids) => (ids.includes(foundChallenger.id) ? ids : [...ids, foundChallenger.id]));
+      setFoundChallenger(null);
+      setQuestStage('roaming');
     };
 
     const buyItem = (id: string, price: number, name: string) => {
@@ -3262,26 +3951,20 @@ import {
       notify('Avatar updated', 'Changes saved to player file.');
     };
 
-    const updateProfileCredentials = (newEmail: string, newPass: string) => {
-      if (!session) return false;
-      const currentEmail = session.email;
-      if (newEmail !== currentEmail && accounts[newEmail]) return false;
-
-      setAccounts((prev) => {
-        const updated = { ...prev };
-        const currentAcc = updated[currentEmail];
-        delete updated[currentEmail];
-        updated[newEmail] = {
-          ...currentAcc,
-          password: newPass,
-          profile: { ...currentAcc.profile, email: newEmail },
-        };
-        writeAccounts(updated);
-        return updated;
-      });
-      setSession({ email: newEmail });
-      try { window.localStorage.setItem(STORAGE_KEY + '-session', JSON.stringify({ email: newEmail })); } catch { /* ignore */ }
-      return true;
+    const updateProfileCredentials = async (currentPassword: string, newEmail: string, newPass: string) => {
+      if (!authUser || !authUser.email) return { ok: false, message: 'Not signed in.' };
+      try {
+        // Firebase requires a recent sign-in before allowing email/password changes —
+        // re-authenticating with the current password satisfies that and also doubles
+        // as verifying the player actually knows their current password.
+        await reauthenticateWithCredential(authUser, EmailAuthProvider.credential(authUser.email, currentPassword));
+        if (newEmail !== authUser.email) await updateAuthEmail(authUser, newEmail);
+        if (newPass) await updateAuthPassword(authUser, newPass);
+        updateAccountData((acc) => ({ ...acc, profile: { ...acc.profile, email: newEmail } }));
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, message: authErrorMessage(err) };
+      }
     };
 
     return (
@@ -3290,7 +3973,7 @@ import {
           <div className="ambient-orb one" />
           <div className="ambient-orb two" />
           <div className="app-grid">
-            <Sidebar screen={screen} setScreen={(next) => { setQuestStage('list'); setScreen(next); }} onLogout={logout} profile={profile} xp={game.xp} quests={game.quests} />
+            <Sidebar screen={screen} setScreen={(next) => { setQuestStage('list'); setFoundChallenger(null); setScreen(next); }} onLogout={logout} profile={profile} xp={game.xp} quests={game.quests} />
             <div className="main-area">
               <Topbar screen={screen} onNotify={() => notify('System status', 'All parameters stable. Ready for your next run.')} />
               {screen === 'dashboard' && (
@@ -3311,13 +3994,21 @@ import {
                 />
               )}
               {screen === 'quests' && questStage === 'list' && (
-                <Quests quests={game.quests} claimQuest={claimQuest} onBattle={() => setQuestStage('briefing')} />
+                <Quests quests={game.quests} claimQuest={claimQuest} onBattle={() => { enterImmersiveBattle(); setQuestStage('roaming'); }} />
               )}
-              {screen === 'quests' && questStage === 'briefing' && (
-                <QuestBriefing onAccept={() => setQuestStage('battle')} onLeave={() => setQuestStage('list')} />
+              {screen === 'quests' && questStage === 'roaming' && (
+                <CampusExplorer
+                  level={getLevelInfo(game.xp).level}
+                  defeatedIds={defeatedChallengerIds}
+                  onChallengerFound={(challenger) => { setFoundChallenger(challenger); setQuestStage('briefing'); }}
+                  onExit={() => setQuestStage('list')}
+                />
+              )}
+              {screen === 'quests' && questStage === 'briefing' && foundChallenger && (
+                <QuestBriefing challenger={foundChallenger} onAccept={() => setQuestStage('battle')} onLeave={() => { setFoundChallenger(null); setQuestStage('roaming'); }} />
               )}
               {screen === 'quests' && questStage === 'battle' && (
-                <Battle onExit={() => setQuestStage('list')} onComplete={completeBattle} notify={notify} />
+                <Battle onExit={() => { setFoundChallenger(null); setQuestStage('roaming'); }} onComplete={completeBattle} notify={notify} />
               )}
               {screen === 'shop' && <Shop coins={game.coins} owned={game.owned} equipped={game.equipped} buyItem={buyItem} equipItem={equipItem} quests={game.quests} />}
               {screen === 'achievements' && <AchievementsView quests={game.quests} />}
