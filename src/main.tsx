@@ -471,6 +471,13 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     color: var(--coral);
   }
 
+  /* Mobile-only logout button rendered at the bottom of the Profile page — see the
+   * 640px breakpoint below for where it's switched on. Hidden by default because the
+   * sidebar's own logout control already covers desktop/tablet layouts. */
+  .profile-mobile-logout {
+    display: none;
+  }
+
   /* Main Area & Topbar */
   .main-area {
     min-width: 0;
@@ -2316,6 +2323,19 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
       overflow-y: auto;
       padding: 0 14px 0 14px;
     }
+    .profile-mobile-logout {
+      display: flex;
+      width: 100%;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      color: var(--coral);
+      border-color: rgba(239, 117, 103, .35);
+      margin-bottom: calc(20px + var(--safe-bottom));
+    }
+    .profile-mobile-logout:hover {
+      background: rgba(239, 117, 103, .1);
+    }
       .sidebar {
       position: fixed;
       z-index: 100;
@@ -3563,7 +3583,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     );
   }
 
-  function Profile({ profile, xp, setAvatar, owned, equipped, updateProfileCredentials, notify }: { profile: Profile; xp: number; setAvatar: (value: AvatarConfig) => void; owned: string[]; equipped: string | null; updateProfileCredentials: (currentPassword: string, newEmail: string, newPass: string) => Promise<{ ok: boolean; message?: string }>; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void }) {
+  function Profile({ profile, xp, setAvatar, owned, equipped, updateProfileCredentials, notify, onLogout }: { profile: Profile; xp: number; setAvatar: (value: AvatarConfig) => void; owned: string[]; equipped: string | null; updateProfileCredentials: (currentPassword: string, newEmail: string, newPass: string) => Promise<{ ok: boolean; message?: string }>; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void; onLogout: () => void }) {
     const [sound, setSound] = useState(true);
     const [feedback, setFeedback] = useState(false);
     const [editingAvatar, setEditingAvatar] = useState(false);
@@ -3676,6 +3696,14 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
             </div>
           </div>
         </div>
+
+        {/* On mobile the sidebar collapses into a bottom tab bar and its logout control
+          * (in .sidebar-bottom) is hidden along with it — this button is the mobile-only
+          * replacement, so signing out is always reachable from the Profile page. Hidden
+          * on desktop/tablet via CSS, where the sidebar's own button already covers it. */}
+        <button className="btn-secondary profile-mobile-logout mt-5" onClick={onLogout}>
+          <LogOut size={14} /> Log out
+        </button>
       </div>
     );
   }
@@ -3727,6 +3755,14 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 
     const [screen, setScreen] = useState<Screen>('dashboard');
     const [questStage, setQuestStage] = useState<'list' | 'roaming' | 'briefing' | 'battle'>('list');
+
+    // `.main-area` (not the window) is the actual scroll container — see its CSS
+    // (overflow-y: auto). Every time the visible page changes, scroll it back to the
+    // top so the new page never opens mid-scroll from wherever the last one left off.
+    const mainAreaRef = useRef<HTMLDivElement | null>(null);
+    useEffect(() => {
+      mainAreaRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    }, [screen, questStage]);
     const [foundChallenger, setFoundChallenger] = useState<CampusChallenger | null>(null);
     const [defeatedChallengerIds, setDefeatedChallengerIds] = useState<string[]>([]);
     const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -3738,6 +3774,35 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
       setToasts((prev) => [...prev, { id, title, copy, tone }]);
       setTimeout(() => { setToasts((prev) => prev.filter((t) => t.id !== id)); }, 4200);
     };
+
+    // --- Loading fallback timeout ---
+    // Firebase is usually near-instant, but a slow/unreachable network can leave either
+    // gate above stuck open indefinitely, trapping the player on "Loading your player
+    // file…" forever. After a few seconds we force our way past whichever gate is still
+    // closed instead of waiting any longer:
+    //  - `authLoading` stuck  → treat it as "not signed in yet" and show the login screen.
+    //    The onAuthStateChanged listener stays subscribed, so if Firebase does eventually
+    //    respond with a real session it will still resolve normally.
+    //  - `accountLoading` stuck (auth resolved, Firestore doc still pending) → drop the
+    //    player into a fresh local profile/game state so they can start using the app
+    //    immediately. The original Firestore fetch keeps running in the background and,
+    //    if it later succeeds, will overwrite this local placeholder with their real save.
+    const LOADING_FALLBACK_MS = 6000;
+    useEffect(() => {
+      const isStuck = authLoading || (!!authUser && accountLoading && !accountData);
+      if (!isStuck) return;
+      const timer = window.setTimeout(() => {
+        if (authLoading) {
+          setAuthLoading(false);
+          notify('Taking longer than expected', 'Continuing without waiting on Firebase — sign in when ready.', 'error');
+        } else if (authUser && !accountData) {
+          setAccountData({ profile: makeDefaultProfile(), game: makeFreshGameState() });
+          setAccountLoading(false);
+          notify('Taking longer than expected', 'Continuing with a temporary player file — your real save will sync in once Firebase responds.', 'error');
+        }
+      }, LOADING_FALLBACK_MS);
+      return () => window.clearTimeout(timer);
+    }, [authLoading, authUser, accountLoading, accountData]);
 
     // Every quest claim, purchase, timer completion, etc. calls this. It updates local
     // state immediately (so the UI never waits on the network) and pushes the same
@@ -3974,7 +4039,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
           <div className="ambient-orb two" />
           <div className="app-grid">
             <Sidebar screen={screen} setScreen={(next) => { setQuestStage('list'); setFoundChallenger(null); setScreen(next); }} onLogout={logout} profile={profile} xp={game.xp} quests={game.quests} />
-            <div className="main-area">
+            <div className="main-area" ref={mainAreaRef}>
               <Topbar screen={screen} onNotify={() => notify('System status', 'All parameters stable. Ready for your next run.')} />
               {screen === 'dashboard' && (
                 <Dashboard
@@ -4021,6 +4086,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
                   equipped={game.equipped}
                   updateProfileCredentials={updateProfileCredentials}
                   notify={notify}
+                  onLogout={logout}
                 />
               )}
             </div>
