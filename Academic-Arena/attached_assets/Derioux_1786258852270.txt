@@ -1,0 +1,2859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DERIOUX: Procrastinate Killer</title>
+    <!-- Minecraftia Font Applied Globally -->
+    <link href="https://cdn.jsdelivr.net/gh/South-Paw/typeface-minecraftia@master/index.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Exact Icons via FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --bg-dark: #070b14;
+            --bg-card: #0f172a;
+            --border-color: rgba(255, 255, 255, 0.08);
+            --border-glow: rgba(56, 189, 248, 0.4);
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --accent: #38bdf8;
+            --accent-glow: rgba(56, 189, 248, 0.25);
+            --danger: #ef4444;
+            --radius-lg: 24px;
+            --radius-md: 14px;
+            --radius-sm: 8px;
+            --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Minecraftia', sans-serif;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(56, 189, 248, 0.07) 0%, transparent 45%),
+                radial-gradient(circle at 90% 85%, rgba(99, 102, 241, 0.06) 0%, transparent 45%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .screen {
+            display: none;
+            width: 100%;
+            max-width: 980px;
+            min-height: 640px;
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(7, 11, 20, 0.95) 100%);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(16px);
+            overflow: hidden;
+            padding: 36px 40px;
+            flex-direction: column;
+            justify-content: space-between;
+            animation: fadeIn 0.3s ease-in-out forwards;
+            position: relative;
+        }
+
+        .screen.active {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h1, h2, h3 {
+            color: var(--text-main);
+            letter-spacing: -0.025em;
+        }
+
+        /* --- FLOATING ALERT BANNER STYLES --- */
+        .floating-banner {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid var(--accent);
+            color: var(--text-main);
+            padding: 12px 20px;
+            border-radius: var(--radius-sm);
+            font-size: 0.7rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5), 0 0 15px rgba(56, 189, 248, 0.3);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+            text-align: center;
+            max-width: 90%;
+        }
+
+        .floating-banner.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .floating-banner.error {
+            border-color: var(--danger);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5), 0 0 15px rgba(239, 68, 68, 0.3);
+        }
+
+        /* --- LOGO IMAGE STYLING --- */
+        .app-logo {
+            width: 100%;
+            max-width: 260px;
+            height: auto;
+            display: block;
+            margin: 0 auto 4px auto;
+            filter: drop-shadow(0 4px 16px rgba(56, 189, 248, 0.25));
+        }
+
+        .register-header-area .app-logo {
+            max-width: 200px;
+            margin-bottom: 0;
+        }
+
+        /* --- LOGIN PAGE --- */
+        #login-screen {
+            text-align: center;
+            justify-content: center;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .input-group {
+            width: 100%;
+            max-width: 360px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .input-with-icon {
+            position: relative;
+            width: 100%;
+        }
+
+        .input-with-icon i {
+            position: absolute;
+            left: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            pointer-events: none;
+            transition: var(--transition);
+        }
+
+        .input-with-icon input:focus ~ i,
+        .input-with-icon input:not(:placeholder-shown) ~ i {
+            color: var(--accent);
+        }
+
+        .input-with-icon input {
+            padding-left: 48px;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.95rem;
+            transition: var(--transition);
+            z-index: 10;
+        }
+
+        .password-toggle:hover {
+            color: var(--accent);
+        }
+
+        input[type="text"], input[type="password"] {
+            padding: 14px 18px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-color);
+            background-color: rgba(7, 11, 20, 0.6);
+            color: var(--text-main);
+            font-size: 0.8rem;
+            outline: none;
+            width: 100%;
+            transition: var(--transition);
+        }
+
+        input[type="text"]:focus, input[type="password"]:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
+        }
+
+        button {
+            padding: 14px 24px;
+            border-radius: var(--radius-sm);
+            border: none;
+            background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+            color: white;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            width: 100%;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.35);
+        }
+        
+        button:hover {
+            opacity: 0.95;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.45);
+        }
+
+        button:active {
+            transform: translateY(1px);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-color);
+            box-shadow: none;
+            color: var(--text-main);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.15);
+            box-shadow: none;
+        }
+
+        /* --- REGISTER PAGE REDESIGN LAYOUT --- */
+        #register-screen {
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .register-container {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            width: 100%;
+            height: 100%;
+            min-height: 640px;
+        }
+
+        .register-left-col {
+            padding: 48px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .register-header-area {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .subtitle-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 500;
+        }
+
+        .subtitle-badge::before,
+        .subtitle-badge::after {
+            content: "";
+            height: 1px;
+            width: 30px;
+            background: var(--border-color);
+        }
+
+        .register-form-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+
+        .register-form-area .input-group {
+            max-width: 100%;
+        }
+
+        .register-footer-area {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border-color);
+            padding-top: 16px;
+        }
+
+        .register-right-col {
+            position: relative;
+            background-color: var(--bg-card);
+            border-left: 1px solid var(--border-color);
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .pixel-student-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center bottom;
+            filter: contrast(1.05) brightness(0.95);
+        }
+
+        /* --- STRAND SELECTION --- */
+        #strand-screen {
+            gap: 20px;
+            text-align: center;
+        }
+
+        .strand-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 14px;
+            margin-top: 5px;
+        }
+
+        .strand-card {
+            background-color: rgba(7, 11, 20, 0.4);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 18px 20px;
+            cursor: pointer;
+            transition: var(--transition);
+            text-align: left;
+        }
+
+        .strand-card:hover {
+            border-color: var(--accent);
+            background-color: rgba(56, 189, 248, 0.04);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+        }
+
+        .strand-card h3 {
+            color: var(--accent);
+            margin-bottom: 6px;
+            font-size: 0.95rem;
+        }
+
+        .strand-card p {
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            line-height: 1.4;
+        }
+
+        /* --- DASHBOARD --- */
+        .dashboard-header {
+            font-size: 1.2rem;
+            font-weight: 500;
+            color: var(--text-main);
+            margin-bottom: 20px;
+        }
+
+        .dashboard-layout {
+            display: grid;
+            grid-template-columns: 360px 1fr;
+            gap: 24px;
+            align-items: start;
+        }
+
+        .profile-card {
+            background: rgba(15, 23, 42, 0.65);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: var(--radius-lg);
+            padding: 28px 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+            position: relative;
+        }
+
+        .avatar-clean-view {
+            width: 140px;
+            height: 220px;
+            background-color: rgba(7, 11, 20, 0.4);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.4);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .profile-name {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 2px;
+            text-transform: lowercase;
+        }
+
+        .profile-strand {
+            color: var(--accent);
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 14px;
+        }
+
+        .profile-rank {
+            color: #94a3b8;
+            font-size: 0.7rem;
+            margin-bottom: 14px;
+            font-weight: 500;
+        }
+
+        .xp-container {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 20px;
+        }
+
+        .xp-bar-track {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 999px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .xp-bar-fill-1 {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 75%;
+            background: var(--accent);
+            border-radius: 999px;
+            box-shadow: 0 0 10px var(--accent);
+        }
+
+        .xp-label {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .profile-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .profile-actions button {
+            padding: 10px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            border-radius: var(--radius-sm);
+        }
+
+        .btn-logout-custom {
+            background: rgba(239, 68, 68, 0.08);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #f87171;
+            box-shadow: none;
+        }
+        .btn-logout-custom:hover {
+            background: rgba(239, 68, 68, 0.15);
+            box-shadow: none;
+        }
+
+        .dashboard-right-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .menu-row-btn {
+            width: 100%;
+            padding: 20px 24px;
+            background: rgba(15, 23, 42, 0.65);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: var(--radius-md);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: var(--text-main);
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .menu-row-btn:hover {
+            background: rgba(56, 189, 248, 0.06);
+            border-color: rgba(56, 189, 248, 0.35);
+            transform: translateX(4px);
+            box-shadow: 0 6px 20px rgba(56, 189, 248, 0.15);
+        }
+
+        .menu-row-content {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .menu-row-icon {
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .menu-arrow-icon {
+            width: 28px;
+            height: 28px;
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent);
+            font-size: 0.75rem;
+            transition: var(--transition);
+        }
+
+        .menu-row-btn:hover .menu-arrow-icon {
+            background: var(--accent);
+            color: #070b14;
+            transform: translateX(2px);
+        }
+
+        .sub-grid-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+
+        .info-card-box {
+            background: rgba(15, 23, 42, 0.65);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .info-card-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 4px;
+        }
+
+        .info-card-detail {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        /* --- CHARACTER CUSTOMIZATION --- */
+        .customizer-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            align-items: center;
+        }
+
+        .avatar-preview {
+            width: 220px;
+            height: 350px;
+            background-color: rgba(7, 11, 20, 0.6);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            margin: 0 auto;
+            box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.4);
+        }
+
+        .mc-head {
+            width: 70px;
+            height: 70px;
+            border-radius: 4px;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .mc-hair {
+            width: 74px;
+            height: 35px;
+            position: absolute;
+            top: -6px;
+            border-radius: 4px;
+            z-index: 2;
+        }
+
+        .mc-eyes {
+            display: flex;
+            gap: 14px;
+            position: absolute;
+            top: 28px;
+            z-index: 3;
+        }
+
+        .mc-eye {
+            width: 8px;
+            height: 8px;
+            background: #0f172a;
+            border-radius: 1px;
+        }
+
+        .mc-upper-body {
+            width: 80px;
+            height: 100px;
+            border-radius: 4px;
+            margin-top: 2px;
+            position: relative;
+            display: flex;
+            justify-content: center;
+        }
+
+        .mc-arms-container {
+            position: absolute;
+            width: 112px;
+            display: flex;
+            justify-content: space-between;
+            top: 5px;
+            left: -16px;
+        }
+
+        .mc-arm {
+            width: 16px;
+            height: 80px;
+            border-radius: 4px;
+        }
+
+        .mc-legs-container {
+            display: flex;
+            gap: 16px;
+            margin-top: 4px;
+        }
+
+        .mc-leg {
+            width: 22px;
+            height: 90px;
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+
+        .mc-foot {
+            width: 30px;
+            height: 14px;
+            border-radius: 2px;
+            position: relative;
+            left: -4px;
+        }
+
+        /* --- PIXELATED RETRO SHADER OVERLAYS --- */
+        .pixelated-avatar-canvas {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            filter: contrast(1.1) saturate(1.05);
+            box-shadow: inset 0 0 0 2px rgba(0,0,0,0.3);
+            background: repeating-linear-gradient(0deg, rgba(0,0,0,0.03), rgba(0,0,0,0.03) 2px, transparent 2px, transparent 4px);
+        }
+
+        .controls-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 420px;
+            overflow-y: auto;
+            padding-right: 6px;
+        }
+
+        .controls-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .controls-panel::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        .control-row {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .control-row label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        select, input[type="color"] {
+            padding: 10px;
+            border-radius: var(--radius-sm);
+            background-color: rgba(7, 11, 20, 0.6);
+            color: white;
+            border: 1px solid var(--border-color);
+            width: 100%;
+            outline: none;
+            transition: var(--transition);
+            font-family: 'Minecraftia', sans-serif;
+            font-size: 0.7rem;
+        }
+
+        select:focus, input[type="color"]:focus {
+            border-color: var(--accent);
+        }
+
+        input[type="color"] {
+            height: 42px;
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        /* --- 3D ROAMING GAME SCREEN STYLES --- */
+        #game-screen {
+            padding: 0;
+            position: relative;
+            background: #000;
+            overflow: hidden;
+            display: none;
+        }
+
+        #game-screen.active {
+            display: flex;
+        }
+
+        #game-world {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background-color: #1a1a2e;
+            flex: 1;
+        }
+
+        #game-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #game-hud-bar {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            right: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .hud-left-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            pointer-events: auto;
+        }
+
+        #hud-level {
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid rgba(56, 189, 248, 0.4);
+            color: var(--accent);
+            padding: 8px 16px;
+            font-family: 'Minecraftia', sans-serif;
+            border-radius: var(--radius-sm);
+            font-size: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(8px);
+        }
+
+        .game-quit-btn {
+            background: rgba(239, 68, 68, 0.15);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            padding: 6px 14px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.65rem;
+            pointer-events: auto;
+            transition: var(--transition);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(8px);
+            font-family: 'Minecraftia', sans-serif;
+        }
+        .game-quit-btn:hover {
+            background: rgba(239, 68, 68, 0.3);
+            border-color: rgba(239, 68, 68, 0.6);
+            transform: translateY(-1px);
+        }
+
+        #minimap-container {
+            position: absolute;
+            top: 70px;
+            left: 16px;
+            width: 150px;
+            height: 150px;
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            pointer-events: none;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+            display: none;
+            z-index: 5;
+            backdrop-filter: blur(8px);
+        }
+
+        #minimap-canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        #quest-notification {
+            position: absolute;
+            top: 18%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(15, 23, 42, 0.92);
+            border: 1px solid var(--accent);
+            color: var(--text-main);
+            font-family: 'Minecraftia', sans-serif;
+            padding: 12px 24px;
+            border-radius: var(--radius-sm);
+            font-size: 11px;
+            text-align: center;
+            display: none;
+            pointer-events: none;
+            text-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+            box-shadow: 0 0 25px rgba(56, 189, 248, 0.25);
+            z-index: 10;
+            backdrop-filter: blur(10px);
+        }
+
+        /* --- INTERACTIVE 4-STAGE FLOW OVERLAYS --- */
+        #game-overlay-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(7, 11, 20, 0.88);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            pointer-events: auto;
+            backdrop-filter: blur(12px);
+        }
+
+        .game-modal-box {
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.96) 0%, rgba(7, 11, 20, 0.98) 100%);
+            border: 1px solid rgba(56, 189, 248, 0.4);
+            border-radius: var(--radius-lg);
+            width: 94%;
+            max-width: 900px;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 32px;
+            color: #fff;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9), 0 0 35px rgba(56, 189, 248, 0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .modal-header-tag {
+            font-size: 0.65rem;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* STAGE 1: ACCEPT QUEST */
+        .stage-accept-layout {
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            gap: 24px;
+            align-items: center;
+        }
+
+        .challenger-pixel-card {
+            background: rgba(7, 11, 20, 0.6);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 10px;
+        }
+
+        /* --- PIXELATED FULL VIEW VILLAIN ANIMATION STYLES --- */
+        .villain-full-card {
+            width: 140px;
+            height: 220px;
+            background-color: rgba(7, 11, 20, 0.8);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            border-radius: var(--radius-md);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.6), 0 0 15px rgba(239,68,68,0.2);
+            animation: villainHover 2s ease-in-out infinite;
+        }
+
+        @keyframes villainHover {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
+
+        .villain-pixel-head {
+            width: 50px;
+            height: 50px;
+            background-color: #fca5a5;
+            border-radius: 4px;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 2px;
+            box-shadow: inset 0 -4px 0 rgba(0,0,0,0.15);
+            animation: headBob 1s ease-in-out infinite alternate;
+        }
+
+        @keyframes headBob {
+            0% { transform: rotate(-2deg); }
+            100% { transform: rotate(2deg); }
+        }
+
+        .villain-pixel-hair {
+            width: 54px;
+            height: 22px;
+            background-color: #7f1d1d;
+            position: absolute;
+            top: -4px;
+            border-radius: 4px;
+        }
+
+        .villain-pixel-eyes {
+            display: flex;
+            gap: 8px;
+            position: absolute;
+            top: 20px;
+        }
+
+        .villain-pixel-eye {
+            width: 6px;
+            height: 6px;
+            background: #ef4444;
+            box-shadow: 0 0 4px #ef4444;
+            border-radius: 1px;
+        }
+
+        .villain-pixel-torso {
+            width: 64px;
+            height: 80px;
+            background-color: #991b1b;
+            border-radius: 4px;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            box-shadow: inset 0 4px 0 rgba(255,255,255,0.1);
+        }
+
+        .villain-pixel-arms {
+            position: absolute;
+            width: 84px;
+            display: flex;
+            justify-content: space-between;
+            top: 4px;
+            left: -10px;
+        }
+
+        .villain-pixel-arm {
+            width: 12px;
+            height: 60px;
+            background-color: #7f1d1d;
+            border-radius: 4px;
+        }
+
+        .villain-pixel-legs {
+            display: flex;
+            gap: 10px;
+            margin-top: 2px;
+        }
+
+        .villain-pixel-leg {
+            width: 16px;
+            height: 70px;
+            background-color: #1e1b4b;
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+
+        .villain-pixel-foot {
+            width: 22px;
+            height: 10px;
+            background-color: #0f172a;
+            border-radius: 2px;
+            position: relative;
+            left: -3px;
+        }
+
+        .speech-bubble {
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid var(--accent);
+            padding: 14px;
+            border-radius: var(--radius-md);
+            position: relative;
+            font-size: 0.75rem;
+            color: var(--text-main);
+            text-align: left;
+            line-height: 1.4;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+        }
+
+        .quest-brief-box {
+            background: rgba(7, 11, 20, 0.4);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .rewards-row {
+            display: flex;
+            gap: 16px;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            align-items: center;
+        }
+
+        .reward-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-main);
+            font-weight: 600;
+        }
+
+        /* STAGE 2: KNOWLEDGE PHASE */
+        .knowledge-layout {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 20px;
+        }
+
+        .questions-col {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .question-card {
+            background: rgba(7, 11, 20, 0.5);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .question-card.correct-card {
+            border-color: rgba(34, 197, 94, 0.5);
+            background: rgba(34, 197, 94, 0.04);
+        }
+
+        .question-card.wrong-card {
+            border-color: rgba(239, 68, 68, 0.5);
+            background: rgba(239, 68, 68, 0.04);
+        }
+
+        .q-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .options-grid-4 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            margin-top: 6px;
+        }
+
+        .opt-btn {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            border-radius: var(--radius-sm);
+            font-size: 0.65rem;
+            color: var(--text-main);
+            text-align: left;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .opt-btn:hover {
+            border-color: var(--accent);
+            background: rgba(56, 189, 248, 0.08);
+        }
+
+        .opt-btn.correct-choice {
+            background: rgba(34, 197, 94, 0.2);
+            border-color: #22c55e;
+            color: #4ade80;
+        }
+
+        .opt-btn.wrong-choice {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: #ef4444;
+            color: #f87171;
+        }
+
+        .knowledge-summary-panel {
+            background: rgba(7, 11, 20, 0.6);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            justify-content: space-between;
+        }
+
+        /* STAGE 3: COMBAT PHASE */
+        .combat-stage-layout {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .combat-arenas-header {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 16px;
+            align-items: center;
+            background: rgba(7, 11, 20, 0.6);
+            padding: 16px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-color);
+        }
+
+        .combatant-card-box {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-size: 0.7rem;
+        }
+
+        .combatant-card-box.right {
+            text-align: right;
+        }
+
+        .health-bar-track {
+            width: 100%;
+            background: rgba(255,255,255,0.1);
+            height: 10px;
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .health-bar-fill {
+            height: 100%;
+            background: #22c55e;
+            width: 100%;
+            transition: width 0.3s ease;
+        }
+
+        .combat-arena-visual {
+            width: 100%;
+            height: 180px;
+            background: linear-gradient(180deg, rgba(15,23,42,0.8) 0%, rgba(7,11,20,0.95) 100%);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            padding: 20px 40px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .fighting-avatar {
+            font-size: 3rem;
+            transition: transform 0.2s ease;
+        }
+
+        .combat-skills-deck {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr) auto;
+            gap: 10px;
+        }
+
+        .skill-card-btn {
+            background: rgba(7, 11, 20, 0.8);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            padding: 12px 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            transition: var(--transition);
+            color: var(--text-main);
+            font-size: 0.65rem;
+            text-align: center;
+        }
+
+        .skill-card-btn:hover {
+            border-color: var(--accent);
+            background: rgba(56, 189, 248, 0.1);
+            transform: translateY(-2px);
+        }
+
+        /* STAGE 4: VICTORY + COMPLETION */
+        .victory-stage-layout {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            text-align: center;
+        }
+
+        .victory-title-banner {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #fbbf24;
+            text-shadow: 0 0 20px rgba(251, 191, 36, 0.5);
+            letter-spacing: 2px;
+        }
+
+        .joystick-zone {
+            position: absolute;
+            bottom: 0;
+            width: 50%;
+            height: 50%;
+            pointer-events: auto;
+            z-index: 5;
+        }
+
+        #left-joystick-zone { left: 0; }
+        #right-joystick-zone { right: 0; }
+
+        .joystick-base {
+            position: absolute;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: rgba(56, 189, 248, 0.1);
+            border: 2px solid rgba(56, 189, 248, 0.25);
+            display: none;
+            pointer-events: none;
+        }
+
+        .joystick-thumb {
+            position: absolute;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: rgba(56, 189, 248, 0.3);
+            border: 2px solid rgba(56, 189, 248, 0.5);
+            display: none;
+            pointer-events: none;
+        }
+
+        #tap-to-start {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--text-main);
+            font-family: 'Minecraftia', sans-serif;
+            font-size: 1.1rem;
+            text-align: center;
+            pointer-events: none;
+            text-shadow: 0 0 12px rgba(56,189,248,0.5);
+            z-index: 10;
+        }
+
+        #tap-to-start span {
+            display: block;
+            font-size: 0.7rem;
+            font-family: 'Minecraftia', sans-serif;
+            margin-top: 12px;
+            color: var(--text-muted);
+            letter-spacing: normal;
+        }
+
+        /* --- SCORES SCREEN --- */
+        .scores-box {
+            background-color: rgba(7, 11, 20, 0.4);
+            padding: 24px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-color);
+            margin-top: 10px;
+        }
+
+        .score-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 14px 0;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+
+        .score-row:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 1. LOGIN PAGE -->
+    <div id="login-screen" class="screen active">
+        <div class="floating-banner" id="login-banner"></div>
+        <div>
+            <img src="/public/images/logo.png" alt="DERIOUX: Explorer's Academy Logo" class="app-logo">
+            <p style="color: var(--text-muted); font-size: 0.75rem;">Let's end your boredom</p>
+        </div>
+        <div class="input-group">
+            <input type="text" id="login-username" placeholder="Username">
+            <input type="password" id="login-password" placeholder="Password">
+            <button onclick="handleLogin()">Log In</button>
+            <button class="btn-secondary" onclick="goToScreen('register-screen')">Create new account</button>
+        </div>
+        <div></div>
+    </div>
+
+    <!-- 1.5 REGISTRATION PAGE -->
+    <div id="register-screen" class="screen">
+        <div class="floating-banner" id="register-banner"></div>
+        <div class="register-container">
+            <div class="register-left-col">
+                <div class="register-header-area">
+                    <img src="/public/images/logo.png" alt="DERIOUX: Explorer's Academy Logo" class="app-logo">
+                    <div class="subtitle-badge">Create your new account</div>
+                </div>
+                <div class="register-form-area">
+                    <div class="input-group">
+                        <div class="input-with-icon">
+                            <input type="text" id="reg-name" placeholder="Full Name">
+                        </div>
+                        <div class="input-with-icon">
+                            <input type="text" id="reg-username" placeholder="Username">
+                        </div>
+                        <div class="input-with-icon">
+                            <input type="password" id="reg-password" placeholder="Password">
+                            <span class="password-toggle" onclick="togglePasswordVisibility()"></span>
+                        </div>
+                        <button onclick="handleRegisterSubmit()">Submit & Register</button>
+                        <button class="btn-secondary" onclick="goToScreen('login-screen')"><i class="fa-solid fa-arrow-left" style="margin-right: 8px;"></i> Back to Login</button>
+                    </div>
+                </div>
+                <div class="register-footer-area">
+                    <span>© 2026 DERIOUX STUDIOS</span>
+                    <i class="fa-solid fa-gamepad" style="color: var(--accent);"></i>
+                    <span>ALL RIGHTS RESERVED</span>
+                </div>
+            </div>
+            <div class="register-right-col">
+                <img src="/public/images/Student.png" alt="Pixel Student" class="pixel-student-img">
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. STRAND SELECTION -->
+    <div id="strand-screen" class="screen">
+        <div class="floating-banner" id="strand-banner"></div>
+        <div>
+            <h2>Select Your Academic Strand</h2>
+            <p style="color: var(--text-muted); margin-top: 4px; font-size: 0.75rem;">This will determine your specialized questions and quests.</p>
+        </div>
+        <div class="strand-grid">
+            <div class="strand-card" onclick="selectStrand('STEM')">
+                <h3>STEM</h3>
+                <p>Science, Technology, Engineering, and Mathematics. Master formulas, physics, and complex logic.</p>
+            </div>
+            <div class="strand-card" onclick="selectStrand('ABM')">
+                <h3>ABM</h3>
+                <p>Accountancy, Business, and Management. Conquer financial markets, accounting rules, and economics.</p>
+            </div>
+            <div class="strand-card" onclick="selectStrand('HUMSS')">
+                <h3>HUMSS</h3>
+                <p>Humanities and Social Sciences. Explore literature, world history, sociology, and philosophy.</p>
+            </div>
+            <div class="strand-card" onclick="selectStrand('General Knowledge')">
+                <h3>General Knowledge</h3>
+                <p>Versatile multi-disciplinary quests and critical thinking challenges across science, arts, and life skills.</p>
+            </div>
+        </div>
+        <button class="btn-secondary" style="max-width: 180px; margin: 0 auto; padding: 10px; font-size: 0.7rem;" onclick="goToScreen('login-screen')">Back to Login</button>
+    </div>
+
+    <!-- 3. CHARACTER CUSTOMIZATION -->
+    <div id="customize-screen" class="screen">
+        <div class="floating-banner" id="customize-banner"></div>
+        <h2>Customize Your Character</h2>
+        <div class="customizer-layout">
+            <div class="avatar-preview pixelated-avatar-canvas">
+                <div id="preview-head" class="mc-head" style="background-color: #f5d0b1;">
+                    <div id="preview-hair" class="mc-hair" style="background-color: #451a03;"></div>
+                    <div class="mc-eyes">
+                        <div class="mc-eye"></div>
+                        <div class="mc-eye"></div>
+                    </div>
+                </div>
+                <div id="preview-upper-body" class="mc-upper-body" style="background-color: #4f46e5;">
+                    <div class="mc-arms-container">
+                        <div id="preview-arm-left" class="mc-arm" style="background-color: #f5d0b1;"></div>
+                        <div id="preview-arm-right" class="mc-arm" style="background-color: #f5d0b1;"></div>
+                    </div>
+                </div>
+                <div class="mc-legs-container">
+                    <div id="preview-leg-left" class="mc-leg" style="background-color: #1e293b;">
+                        <div id="preview-foot-left" class="mc-foot" style="background-color: #111827;"></div>
+                    </div>
+                    <div id="preview-leg-right" class="mc-leg" style="background-color: #1e293b;">
+                        <div id="preview-foot-right" class="mc-foot" style="background-color: #111827;"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="controls-panel">
+                <div class="control-row">
+                    <label>Camera Perspective Mode</label>
+                    <select id="sel-perspective" onchange="updatePerspectiveMode()">
+                        <option value="third">Third-Person Perspective (Behind Character)</option>
+                        <option value="first">First-Person Perspective (Classic Raycaster)</option>
+                    </select>
+                </div>
+                <div class="control-row">
+                    <label>Gender Presentation Shape</label>
+                    <select id="sel-gender" onchange="updateAvatar()">
+                        <option value="Neutral">Neutral (Balanced)</option>
+                        <option value="Feminine">Feminine (Fitted Waist & Subtle Silhouette)</option>
+                    </select>
+                </div>
+                <div class="control-row">
+                    <label>Skin Tone</label>
+                    <input type="color" id="sel-skin" value="#f5d0b1" onchange="updateAvatar()">
+                </div>
+                <div class="control-row">
+                    <label>Hair Style</label>
+                    <select id="sel-hairstyle" onchange="updateAvatar()">
+                        <option value="short">Short Block Crop</option>
+                        <option value="long">Long Flowing Hair</option>
+                        <option value="curly">Curly Hair (Textured)</option>
+                        <option value="bald">Bald / Clean</option>
+                    </select>
+                </div>
+                <div class="control-row">
+                    <label>Hair Color</label>
+                    <input type="color" id="sel-haircolor" value="#451a03" onchange="updateAvatar()">
+                </div>
+                <div class="control-row">
+                    <label>Shirt Color</label>
+                    <input type="color" id="sel-shirt" value="#4f46e5" onchange="updateAvatar()">
+                </div>
+                <div class="control-row">
+                    <label>Pants Color</label>
+                    <input type="color" id="sel-pants" value="#1e293b" onchange="updateAvatar()">
+                </div>
+                <div class="control-row">
+                    <label>Shoes Color</label>
+                    <input type="color" id="sel-shoes" value="#111827" onchange="updateAvatar()">
+                </div>
+            </div>
+        </div>
+        <button onclick="saveCharacterAndProceed()">Start Journey</button>
+    </div>
+
+    <!-- 4. DASHBOARD -->
+    <div id="dashboard-screen" class="screen">
+        <div class="floating-banner" id="dashboard-banner"></div>
+        <div class="dashboard-header" id="dash-welcome-text">Welcome, Dian!</div>
+        <div class="dashboard-layout">
+            <div class="profile-card">
+                <div class="avatar-clean-view pixelated-avatar-canvas">
+                    <div id="dash-avatar-container" style="transform: scale(0.65); transform-origin: center; display: flex; flex-direction: column; align-items: center;"></div>
+                </div>
+                <div class="profile-name" id="dash-username">dian</div>
+                <div class="profile-strand" id="dash-strand">Strand: ABM</div>
+                <div class="profile-rank" id="dash-rank">Student Rank: Scholar Lvl 3</div>
+                
+                <div class="xp-container">
+                    <div class="xp-label">XP: 75% to Next Level</div>
+                    <div class="xp-bar-track">
+                        <div class="xp-bar-fill-1"></div>
+                    </div>
+                </div>
+
+                <div class="profile-actions">
+                    <button class="btn-secondary" onclick="goToScreen('customize-screen')">Customize</button>
+                    <button class="btn-logout-custom" onclick="logout()">Log Out</button>
+                </div>
+            </div>
+
+            <div class="dashboard-right-panel" id="dashboard-menu-options">
+                <!-- Dynamically rendered menu options -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. 3D GAME SCREEN (Roaming & 4-Stage Interactive Quest Flow) -->
+    <div id="game-screen" class="screen">
+        <div id="game-world">
+            <canvas id="game-canvas"></canvas>
+            
+            <div id="game-hud-bar">
+                <div class="hud-left-group">
+                    <div id="hud-level">LEVEL <span id="level-num">5</span></div>
+                </div>
+                <button class="game-quit-btn" onclick="quitToDashboard()">Quit to Dashboard</button>
+            </div>
+
+            <div id="minimap-container">
+                <canvas id="minimap-canvas"></canvas>
+            </div>
+            
+            <div id="quest-notification">PRESS 'E' OR TAP TO INTERACT WITH CHALLENGER</div>
+            
+            <!-- DYNAMIC 4-STAGE INTERACTIVE MODAL OVERLAY -->
+            <div id="game-overlay-container" style="display: none;">
+                <!-- STAGE 1: ACCEPT QUEST -->
+                <div id="stage-1-accept" class="game-modal-box" style="display: none;">
+                    <div class="modal-header-tag"><i class="fa-solid fa-flag"></i> 1 ACCEPT QUEST</div>
+                    <div class="stage-accept-layout">
+                        <!-- UPDATED FULL VIEW PIXELATED MOVING VILLAIN CHARACTER -->
+                        <div class="challenger-pixel-card">
+                            <div class="villain-full-card pixelated-avatar-canvas">
+                                <div class="villain-pixel-head">
+                                    <div class="villain-pixel-hair"></div>
+                                    <div class="villain-pixel-eyes">
+                                        <div class="villain-pixel-eye"></div>
+                                        <div class="villain-pixel-eye"></div>
+                                    </div>
+                                </div>
+                                <div class="villain-pixel-torso">
+                                    <div class="villain-pixel-arms">
+                                        <div class="villain-pixel-arm"></div>
+                                        <div class="villain-pixel-arm"></div>
+                                    </div>
+                                </div>
+                                <div class="villain-pixel-legs">
+                                    <div class="villain-pixel-leg">
+                                        <div class="villain-pixel-foot"></div>
+                                    </div>
+                                    <div class="villain-pixel-leg">
+                                        <div class="villain-pixel-foot"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <h3 style="font-size: 0.85rem;" id="modal-challenger-name">Rival Student</h3>
+                            <span style="font-size: 0.65rem; color: var(--text-muted);">Lv. 5 Challenger</span>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 14px;">
+                            <div class="speech-bubble">
+                                "Heh! Think you have what it takes to be the top student? Beat me in a duel first!"
+                            </div>
+                            <div class="quest-brief-box">
+                                <span style="font-size: 0.75rem; font-weight: 700; color: var(--accent);">Quest: Prove Your Knowledge</span>
+                                <p style="font-size: 0.7rem; color: var(--text-muted);">Defeat the rival student in a 3-question knowledge quiz followed by a tactical combat duel.</p>
+                                <div class="rewards-row">
+                                    <span>Reward:</span>
+                                    <div class="reward-badge"><i class="fa-solid fa-gem" style="color: var(--accent);"></i> 150</div>
+                                    <div class="reward-badge"><i class="fa-solid fa-coins" style="color: #fbbf24;"></i> 100</div>
+                                    <div class="reward-badge"><i class="fa-solid fa-book" style="color: #a855f7;"></i> x1</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px;">
+                        <button onclick="advanceToKnowledgeStage()">ACCEPT</button>
+                        <button class="btn-secondary" onclick="closeGameModal()">LEAVE</button>
+                    </div>
+                </div>
+
+                <!-- STAGE 2: KNOWLEDGE PHASE (3 QUESTIONS) -->
+                <div id="stage-2-knowledge" class="game-modal-box" style="display: none;">
+                    <div class="modal-header-tag"><i class="fa-solid fa-brain"></i> 2 KNOWLEDGE PHASE (3 QUESTIONS)</div>
+                    <div class="knowledge-layout">
+                        <div class="questions-col" id="knowledge-questions-list">
+                            <!-- Rendered dynamically -->
+                        </div>
+                        <div class="knowledge-summary-panel">
+                            <div>
+                                <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-main);">Knowledge Summary</span>
+                                <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 12px; font-size: 0.7rem; color: var(--text-muted);">
+                                    <div style="display: flex; justify-content: space-between;"><span>Correct Answers</span><span id="sum-correct" style="color: var(--text-main); font-weight: 600;">2/3</span></div>
+                                    <div style="display: flex; justify-content: space-between;"><span>Mana Gained</span><span id="sum-mana" style="color: var(--accent); font-weight: 600;">+40</span></div>
+                                    <div style="display: flex; justify-content: space-between;"><span>Attack Bonus</span><span id="sum-atk" style="color: #22c55e; font-weight: 600;">+20</span></div>
+                                    <div style="display: flex; justify-content: space-between;"><span>Enemy Advantage</span><span id="sum-enemy-adv" style="color: var(--danger); font-weight: 600;">+10%</span></div>
+                                </div>
+                            </div>
+                            <div style="text-align: center; border-top: 1px solid var(--border-color); padding-top: 14px;">
+                                <p style="font-size: 0.65rem; color: var(--text-muted); margin-bottom: 10px;">Prepare for battle!</p>
+                                <button onclick="advanceToCombatStage()" id="btn-start-combat" style="display: flex; align-items: center; justify-content: center; gap: 8px;"><i class="fa-solid fa-swords"></i> Start Combat Duel</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STAGE 3: COMBAT PHASE -->
+                <div id="stage-3-combat" class="game-modal-box" style="display: none;">
+                    <div class="modal-header-tag"><i class="fa-solid fa-shield-halved"></i> 3 COMBAT PHASE</div>
+                    <div class="combat-stage-layout">
+                        <div class="combat-arenas-header">
+                            <div class="combatant-card-box">
+                                <span style="font-weight: 700; color: var(--text-main);" id="c-player-name">dian</span>
+                                <span style="font-size: 0.6rem; color: var(--text-muted);">Lv. 5</span>
+                                <div class="health-bar-track"><div class="health-bar-fill" id="c-player-hp-fill" style="width: 80%;"></div></div>
+                                <span style="font-size: 0.6rem; color: var(--text-muted);">HP: <span id="c-player-hp">120</span>/150</span>
+                            </div>
+                            <div style="font-size: 1.1rem; font-weight: 700; color: var(--accent); letter-spacing: 2px;">VS</div>
+                            <div class="combatant-card-box right">
+                                <span style="font-weight: 700; color: var(--danger);" id="c-enemy-name">Rival Student</span>
+                                <span style="font-size: 0.6rem; color: var(--text-muted);">Lv. 5</span>
+                                <div class="health-bar-track"><div class="health-bar-fill" id="c-enemy-hp-fill" style="width: 100%; background: var(--danger);"></div></div>
+                                <span style="font-size: 0.6rem; color: var(--text-muted);">HP: <span id="c-enemy-hp">120</span>/120</span>
+                            </div>
+                        </div>
+
+                        <!-- FIGHTING SCENE VISUAL ARENA -->
+                        <div class="combat-arena-visual" id="combat-arena-screen">
+                            <div class="fighting-avatar" id="player-avatar-sprite" style="transform-origin: bottom left;">🧍‍♂️</div>
+                            <div style="position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); font-size: 0.65rem; color: var(--accent); background: rgba(7,11,20,0.8); padding: 4px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);" id="combat-action-log">
+                                Choose your combat action to defeat the rival!
+                            </div>
+                            <div class="fighting-avatar" id="enemy-avatar-sprite" style="transform: scaleX(-1); transform-origin: bottom right;">🧑‍🎓</div>
+                        </div>
+
+                        <!-- SKILLS DECK -->
+                        <div class="combat-skills-deck">
+                            <div class="skill-card-btn" onclick="executeCombatMove('basic')">
+                                <i class="fa-solid fa-sword" style="color: var(--accent); font-size: 1rem;"></i>
+                                <span>Basic Attack</span>
+                            </div>
+                            <div class="skill-card-btn" onclick="executeCombatMove('dash')">
+                                <i class="fa-solid fa-bolt" style="color: #fbbf24; font-size: 1rem;"></i>
+                                <span>Dash <span style="font-size: 0.55rem; color: var(--accent);">💧 20</span></span>
+                            </div>
+                            <div class="skill-card-btn" onclick="executeCombatMove('formula')">
+                                <i class="fa-solid fa-book-bookmark" style="color: #a855f7; font-size: 1rem;"></i>
+                                <span>Formula Strike <span style="font-size: 0.55rem; color: var(--accent);">💧 30</span></span>
+                            </div>
+                            <div class="skill-card-btn" onclick="executeCombatMove('shield')">
+                                <i class="fa-solid fa-shield" style="color: #38bdf8; font-size: 1rem;"></i>
+                                <span>Energy Shield <span style="font-size: 0.55rem; color: var(--accent);">💧 30</span></span>
+                            </div>
+                            <div class="skill-card-btn" onclick="executeCombatMove('ultimate')">
+                                <i class="fa-solid fa-fire" style="color: #ef4444; font-size: 1rem;"></i>
+                                <span>Ultimate Theory <span style="font-size: 0.55rem; color: var(--accent);">💧 50</span></span>
+                            </div>
+                            <button class="btn-secondary" style="width: auto; padding: 0 16px; font-size: 0.65rem;" onclick="skipCombatToVictory()">Skip Battle</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STAGE 4: VICTORY + COMPLETION -->
+                <div id="stage-4-victory" class="game-modal-box" style="display: none;">
+                    <div class="modal-header-tag"><i class="fa-solid fa-trophy"></i> 4 VICTORY + COMPLETION</div>
+                    <div class="victory-stage-layout">
+                        <div class="victory-title-banner">VICTORY!</div>
+                        <div style="background: rgba(7, 11, 20, 0.5); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 16px; display: flex; justify-content: space-around; align-items: center;">
+                            <span style="font-size: 0.75rem; color: var(--text-muted);">Rewards Obtained</span>
+                            <div class="rewards-row">
+                                <div class="reward-badge"><i class="fa-solid fa-gem" style="color: var(--accent);"></i> 150</div>
+                                <div class="reward-badge"><i class="fa-solid fa-coins" style="color: #fbbf24;"></i> 100</div>
+                                <div class="reward-badge"><i class="fa-solid fa-book" style="color: #a855f7;"></i> x1</div>
+                            </div>
+                        </div>
+
+                        <div style="background: rgba(7, 11, 20, 0.4); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 16px; text-align: left; display: flex; flex-direction: column; gap: 8px;">
+                            <span style="font-size: 0.7rem; font-weight: 700; color: var(--accent);">Knowledge Recovery</span>
+                            <p style="font-size: 0.65rem; color: var(--text-muted);">You missed some questions. Answer them correctly to complete the quest!</p>
+                            <div style="background: rgba(15,23,42,0.8); padding: 10px; border-radius: var(--radius-sm); border: 1px solid rgba(34,197,94,0.4); font-size: 0.65rem; display: flex; justify-content: space-between; align-items: center;">
+                                <span>Q3: What is the main function of the mitochondria in a cell? -> <strong style="color: #4ade80;">Energy production</strong></span>
+                                <i class="fa-solid fa-circle-check" style="color: #4ade80; font-size: 1rem;"></i>
+                            </div>
+                        </div>
+
+                        <button onclick="completeAndCloseQuest()" style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); font-size: 0.8rem; padding: 16px;"><i class="fa-solid fa-shield-check" style="margin-right: 8px;"></i> QUEST COMPLETE! Keep learning. Keep growing!</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="left-joystick-zone" class="joystick-zone">
+                <div id="left-base" class="joystick-base"></div>
+                <div id="left-thumb" class="joystick-thumb"></div>
+            </div>
+            <div id="right-joystick-zone" class="joystick-zone">
+                <div id="right-base" class="joystick-base"></div>
+                <div id="right-thumb" class="joystick-thumb"></div>
+            </div>
+            <div id="tap-to-start">CLICK TO START ACADEMY<span>WASD to move, Mouse to look</span></div>
+        </div>
+    </div>
+
+    <!-- 6. SCORES SCREEN -->
+    <div id="scores-screen" class="screen">
+        <div class="floating-banner" id="scores-banner"></div>
+        <h2>Your Academic Records</h2>
+        <div class="scores-box">
+            <div class="score-row">
+                <span>Total Quests Completed:</span>
+                <span id="stat-quests" style="font-weight: 600; color: var(--accent);">0</span>
+            </div>
+            <div class="score-row">
+                <span>Correct Answers:</span>
+                <span id="stat-correct" style="font-weight: 600; color: var(--accent);">0</span>
+            </div>
+            <div class="score-row">
+                <span>Current Score:</span>
+                <span id="stat-score" style="font-weight: 600; color: var(--accent);">0</span>
+            </div>
+            <div class="score-row">
+                <span>Chosen Strand:</span>
+                <span id="stat-strand" style="font-weight: 600; color: #818cf8;">ABM</span>
+            </div>
+        </div>
+        <button class="btn-secondary" style="max-width: 220px; margin: 0 auto; font-size: 0.7rem;" onclick="goToScreen('dashboard-screen')">Back to Dashboard</button>
+    </div>
+
+    <!-- 7. SETTINGS SCREEN -->
+    <div id="settings-screen" class="screen">
+        <div class="floating-banner" id="settings-banner"></div>
+        <h2>Settings</h2>
+        <div class="scores-box" style="display: flex; flex-direction: column; gap: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: var(--text-muted); font-size: 0.75rem;">Sound Effects & Audio</span>
+                <button class="btn-secondary" style="width: auto; padding: 8px 16px; font-size: 0.65rem;" onclick="showBanner('Audio toggled!', 'settings-screen', false)">Toggle</button>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: var(--text-muted); font-size: 0.75rem;">Reset Account Progress</span>
+                <button style="background-color: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); color: var(--danger); width: auto; padding: 8px 16px; font-size: 0.65rem;" onclick="resetAccount()">Reset Data</button>
+            </div>
+        </div>
+        <button class="btn-secondary" style="max-width: 220px; margin: 0 auto; font-size: 0.7rem;" onclick="goToScreen('dashboard-screen')">Back to Dashboard</button>
+    </div>
+
+    <script>
+        let gameState = {
+            name: 'Dian',
+            username: 'dian',
+            password: '',
+            strand: '',
+            score: 0,
+            correctCount: 0,
+            questsCompleted: 0,
+            inProgressGame: false,
+            perspective: 'third',
+            avatar: {
+                gender: 'Neutral',
+                skin: '#f5d0b1',
+                hairstyle: 'short',
+                haircolor: '#451a03',
+                shirt: '#4f46e5',
+                pants: '#1e293b',
+                shoes: '#111827'
+            }
+        };
+
+        window.gameConfig = {
+            settings: {
+                moveSpeed: 3.0,
+                cameraSensitivity: 1.0
+            }
+        };
+
+        let engineStarted = false;
+
+        /* Floating Alert Banner Function */
+        function showBanner(message, screenId, isError = false) {
+            const screen = document.getElementById(screenId);
+            if (!screen) return;
+            let banner = screen.querySelector('.floating-banner');
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.className = 'floating-banner';
+                screen.prepend(banner);
+            }
+            banner.innerText = message;
+            banner.className = `floating-banner ${isError ? 'error' : ''} show`;
+            
+            setTimeout(() => {
+                banner.classList.remove('show');
+            }, 3000);
+        }
+
+        function goToScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+            if (screenId === 'dashboard-screen') {
+                renderDashboard();
+            }
+            if (screenId === 'scores-screen') {
+                updateScoresDisplay();
+            }
+            if (screenId === 'game-screen') {
+                gameState.inProgressGame = true;
+                saveGameProgress();
+
+                if (!engineStarted) {
+                    init3DGameEngine();
+                    engineStarted = true;
+                }
+            }
+        }
+
+        function togglePasswordVisibility() {
+            const passwordInput = document.getElementById('reg-password');
+            const toggleIcon = document.getElementById('toggle-icon');
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                if (toggleIcon) {
+                    toggleIcon.classList.remove('fa-eye-slash');
+                    toggleIcon.classList.add('fa-eye');
+                }
+            } else {
+                passwordInput.type = 'password';
+                if (toggleIcon) {
+                    toggleIcon.classList.remove('fa-eye');
+                    toggleIcon.classList.add('fa-eye-slash');
+                }
+            }
+        }
+
+        function handleLogin() {
+            const usernameVal = document.getElementById('login-username').value.trim();
+            const passwordVal = document.getElementById('login-password').value.trim();
+
+            if (!usernameVal || !passwordVal) {
+                showBanner('Please enter both username and password.', 'login-screen', true);
+                return;
+            }
+
+            const savedData = localStorage.getItem('academia_save_' + usernameVal);
+            if (!savedData) {
+                showBanner('Account not found. Please create an account first.', 'login-screen', true);
+                return;
+            }
+
+            const parsedData = JSON.parse(savedData);
+            if (parsedData.password && parsedData.password !== passwordVal) {
+                showBanner('Incorrect password. Please try again.', 'login-screen', true);
+                return;
+            }
+
+            gameState = parsedData;
+            if (!gameState.perspective) gameState.perspective = 'third';
+
+            if (!gameState.strand) {
+                goToScreen('strand-screen');
+            } else {
+                goToScreen('dashboard-screen');
+            }
+        }
+
+        function handleRegisterSubmit() {
+            const nameVal = document.getElementById('reg-name').value.trim();
+            const usernameVal = document.getElementById('reg-username').value.trim();
+            const passwordVal = document.getElementById('reg-password').value.trim();
+
+            if (!nameVal || !usernameVal || !passwordVal) {
+                showBanner('Please fill in all fields (Name, Username, and Password).', 'register-screen', true);
+                return;
+            }
+
+            const existingData = localStorage.getItem('academia_save_' + usernameVal);
+            if (existingData) {
+                showBanner('Username already exists. Please choose a different one.', 'register-screen', true);
+                return;
+            }
+
+            const newUserState = {
+                name: nameVal,
+                username: usernameVal,
+                password: passwordVal,
+                strand: '', 
+                score: 0,
+                correctCount: 0,
+                questsCompleted: 0,
+                inProgressGame: false,
+                perspective: 'third',
+                avatar: {
+                    gender: 'Neutral',
+                    skin: '#f5d0b1',
+                    hairstyle: 'short',
+                    haircolor: '#451a03',
+                    shirt: '#4f46e5',
+                    pants: '#1e293b',
+                    shoes: '#111827'
+                }
+            };
+
+            localStorage.setItem('academia_save_' + usernameVal, JSON.stringify(newUserState));
+            
+            showBanner('Account successfully created! Please choose your strand.', 'register-screen', false);
+            
+            document.getElementById('reg-name').value = '';
+            document.getElementById('reg-username').value = '';
+            document.getElementById('reg-password').value = '';
+
+            gameState = newUserState;
+            setTimeout(() => goToScreen('strand-screen'), 1000);
+        }
+
+        function selectStrand(strandKey) {
+            gameState.strand = strandKey;
+            saveGameProgress();
+            goToScreen('customize-screen');
+        }
+
+        function updatePerspectiveMode() {
+            const selPersp = document.getElementById('sel-perspective');
+            if (selPersp) {
+                gameState.perspective = selPersp.value;
+            }
+        }
+
+        function updateAvatar() {
+            gameState.avatar.gender = document.getElementById('sel-gender').value;
+            gameState.avatar.skin = document.getElementById('sel-skin').value;
+            gameState.avatar.hairstyle = document.getElementById('sel-hairstyle').value;
+            gameState.avatar.haircolor = document.getElementById('sel-haircolor').value;
+            gameState.avatar.shirt = document.getElementById('sel-shirt').value;
+            gameState.avatar.pants = document.getElementById('sel-pants').value;
+            gameState.avatar.shoes = document.getElementById('sel-shoes').value;
+            updatePerspectiveMode();
+
+            applyAvatarStyles('preview-head', 'preview-hair', 'preview-arm-left', 'preview-arm-right', 'preview-upper-body', 'preview-leg-left', 'preview-leg-right', 'preview-foot-left', 'preview-foot-right', gameState.avatar);
+        }
+
+        function applyAvatarStyles(headId, hairId, armLId, armRId, torsoId, legLId, legRId, footLId, footRId, avatar) {
+            const head = document.getElementById(headId);
+            const hair = document.getElementById(hairId);
+            const armL = document.getElementById(armLId);
+            const armR = document.getElementById(armRId);
+            const torso = document.getElementById(torsoId);
+            const legL = document.getElementById(legLId);
+            const legR = document.getElementById(legRId);
+            const footL = document.getElementById(footLId);
+            const footR = document.getElementById(footRId);
+
+            if (head && hair && armL && armR && torso && legL && legR && footL && footR) {
+                head.style.backgroundColor = avatar.skin;
+                armL.style.backgroundColor = avatar.skin;
+                armR.style.backgroundColor = avatar.skin;
+                hair.style.backgroundColor = avatar.haircolor;
+                torso.style.backgroundColor = avatar.shirt;
+                legL.style.backgroundColor = avatar.pants;
+                legR.style.backgroundColor = avatar.pants;
+                footL.style.backgroundColor = avatar.shoes;
+                footR.style.backgroundColor = avatar.shoes;
+
+                if (avatar.gender === 'Feminine') {
+                    torso.style.width = '68px';
+                    torso.style.left = '6px';
+                } else {
+                    torso.style.width = '80px';
+                    torso.style.left = '0px';
+                }
+
+                if (avatar.hairstyle === 'bald') {
+                    hair.style.display = 'none';
+                } else {
+                    hair.style.display = 'block';
+                    if (avatar.hairstyle === 'long') hair.style.height = '50px';
+                    else hair.style.height = '35px';
+                }
+            }
+        }
+
+        function loadExistingCustomizationIntoForm() {
+            if (gameState.avatar) {
+                const selPersp = document.getElementById('sel-perspective');
+                if (selPersp) selPersp.value = gameState.perspective || 'third';
+
+                const selGender = document.getElementById('sel-gender');
+                if (selGender) selGender.value = gameState.avatar.gender || 'Neutral';
+
+                const selSkin = document.getElementById('sel-skin');
+                if (selSkin) selSkin.value = gameState.avatar.skin || '#f5d0b1';
+
+                const selHairstyle = document.getElementById('sel-hairstyle');
+                if (selHairstyle) selHairstyle.value = gameState.avatar.hairstyle || 'short';
+
+                const selHaircolor = document.getElementById('sel-haircolor');
+                if (selHaircolor) selHaircolor.value = gameState.avatar.haircolor || '#451a03';
+
+                const selShirt = document.getElementById('sel-shirt');
+                if (selShirt) selShirt.value = gameState.avatar.shirt || '#4f46e5';
+
+                const selPants = document.getElementById('sel-pants');
+                if (selPants) selPants.value = gameState.avatar.pants || '#1e293b';
+
+                const selShoes = document.getElementById('sel-shoes');
+                if (selShoes) selShoes.value = gameState.avatar.shoes || '#111827';
+
+                updateAvatar();
+            }
+        }
+
+        function saveCharacterAndProceed() {
+            saveGameProgress();
+            goToScreen('dashboard-screen');
+        }
+
+        function saveGameProgress() {
+            localStorage.setItem('academia_save_' + gameState.username, JSON.stringify(gameState));
+        }
+
+        function renderDashboard() {
+            const displayName = gameState.name ? gameState.name : (gameState.username.charAt(0).toUpperCase() + gameState.username.slice(1));
+            document.getElementById('dash-welcome-text').innerText = `Welcome, ${displayName}!`;
+            document.getElementById('dash-username').innerText = gameState.username.toLowerCase();
+            document.getElementById('dash-strand').innerText = "Strand: " + (gameState.strand || 'Not Set');
+
+            const dashContainer = document.getElementById('dash-avatar-container');
+            dashContainer.innerHTML = `
+                <div id="dash-head" class="mc-head" style="width: 70px; height: 70px;">
+                    <div id="dash-hair" class="mc-hair" style="height: 35px;"></div>
+                    <div class="mc-eyes">
+                        <div class="mc-eye"></div>
+                        <div class="mc-eye"></div>
+                    </div>
+                </div>
+                <div id="dash-upper-body" class="mc-upper-body" style="width: 80px; height: 100px;">
+                    <div class="mc-arms-container">
+                        <div id="dash-arm-left" class="mc-arm"></div>
+                        <div id="dash-arm-right" class="mc-arm"></div>
+                    </div>
+                </div>
+                <div class="mc-legs-container">
+                    <div id="dash-leg-left" class="mc-leg">
+                        <div id="dash-foot-left" class="mc-foot"></div>
+                    </div>
+                    <div id="dash-leg-right" class="mc-leg">
+                        <div id="dash-foot-right" class="mc-foot"></div>
+                    </div>
+                </div>
+            `;
+            applyAvatarStyles('dash-head', 'dash-hair', 'dash-arm-left', 'dash-arm-right', 'dash-upper-body', 'dash-leg-left', 'dash-leg-right', 'dash-foot-left', 'dash-foot-right', gameState.avatar);
+
+            const menuContainer = document.getElementById('dashboard-menu-options');
+            
+            let resumeButtonHTML = '';
+            if (gameState.inProgressGame) {
+                resumeButtonHTML = `
+                <button class="menu-row-btn" onclick="resumeGame()" style="background: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.4);">
+                    <div class="menu-row-content">
+                        <span class="menu-row-icon" style="color: var(--accent);">
+                            <i class="fa-solid fa-play"></i>
+                        </span>
+                        <span style="color: var(--accent); font-weight: 700;">Resume Quest (Continue Adventure)</span>
+                    </div>
+                    <div class="menu-arrow-icon" style="background: var(--accent); color: #070b14;">➔</div>
+                </button>`;
+            }
+
+            menuContainer.innerHTML = `
+                ${resumeButtonHTML}
+                <button class="menu-row-btn" onclick="startNewGame()">
+                    <div class="menu-row-content">
+                        <span class="menu-row-icon">
+                            <i class="fa-solid fa-gamepad"></i>
+                        </span>
+                        <span>New Game (Roam & Quests)</span>
+                    </div>
+                    <div class="menu-arrow-icon">➔</div>
+                </button>
+                <button class="menu-row-btn" onclick="goToScreen('scores-screen')">
+                    <div class="menu-row-content">
+                        <span class="menu-row-icon">
+                            <i class="fa-solid fa-trophy"></i>
+                        </span>
+                        <span>Academic Records</span>
+                    </div>
+                    <div class="menu-arrow-icon">➔</div>
+                </button>
+                <button class="menu-row-btn" onclick="goToScreen('settings-screen')">
+                    <div class="menu-row-content">
+                        <span class="menu-row-icon">
+                            <i class="fa-solid fa-gear"></i>
+                        </span>
+                        <span>Settings</span>
+                    </div>
+                    <div class="menu-arrow-icon">➔</div>
+                </button>
+                <div class="sub-grid-row">
+                    <div class="info-card-box">
+                        <div class="info-card-title">Quick Stats</div>
+                        <div class="info-card-detail">Quests Completed: <span style="color: var(--text-main); font-weight: 600;">${gameState.questsCompleted}</span></div>
+                    </div>
+                    <div class="info-card-box">
+                        <div class="info-card-detail">Current GPA: <span style="color: var(--accent); font-weight: 600;">3.8</span></div>
+                        <div class="info-card-detail">Game Streak: <span style="color: var(--accent); font-weight: 600;">14 Days</span></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function logout() {
+            document.getElementById('login-username').value = '';
+            document.getElementById('login-password').value = '';
+            goToScreen('login-screen');
+        }
+
+        function startNewGame() {
+            gameState.inProgressGame = true;
+            saveGameProgress();
+            goToScreen('game-screen');
+        }
+
+        function resumeGame() {
+            goToScreen('game-screen');
+        }
+
+        function quitToDashboard() {
+            if (document.pointerLockElement) {
+                document.exitPointerLock();
+            }
+            saveGameProgress();
+            goToScreen('dashboard-screen');
+        }
+
+        function updateScoresDisplay() {
+            document.getElementById('stat-quests').innerText = gameState.questsCompleted;
+            document.getElementById('stat-correct').innerText = gameState.correctCount;
+            document.getElementById('stat-score').innerText = gameState.score;
+            document.getElementById('stat-strand').innerText = gameState.strand || 'Not Set';
+        }
+
+        function resetAccount() {
+            if (confirm('Are you sure you want to reset your progress?')) {
+                localStorage.removeItem('academia_save_' + gameState.username);
+                location.reload();
+            }
+        }
+
+        // Override goToScreen to trigger loading customized form attributes when entering customize screen
+        const originalGoToScreen = goToScreen;
+        goToScreen = function(screenId) {
+            originalGoToScreen(screenId);
+            if (screenId === 'customize-screen') {
+                loadExistingCustomizationIntoForm();
+            }
+        };
+
+        /* --- 3D ROAMING & 4-STAGE QUEST ENGINE --- */
+        let activeTerminalTarget = null;
+        let questSessionData = {
+            challengerName: 'Rival Student',
+            playerHp: 120,
+            playerMaxHp: 150,
+            enemyHp: 120,
+            enemyMaxHp: 120,
+            mana: 80,
+            maxMana: 100,
+            atkBonus: 20,
+            correctAnswersCount: 2,
+            terminalRef: null
+        };
+
+        function init3DGameEngine() {
+            const gameWorld = document.getElementById('game-world');
+            const canvas = document.getElementById('game-canvas');
+            const ctx = canvas.getContext('2d');
+            const tapToStart = document.getElementById('tap-to-start');
+            const questNotification = document.getElementById('quest-notification');
+            const minimapContainer = document.getElementById('minimap-container');
+            const minimapCanvas = document.getElementById('minimap-canvas');
+            const miniCtx = minimapCanvas.getContext('2d');
+            const levelNumDisplay = document.getElementById('level-num');
+
+            function resizeCanvas() {
+                canvas.width = gameWorld.clientWidth;
+                canvas.height = gameWorld.clientHeight;
+                minimapCanvas.width = 150;
+                minimapCanvas.height = 150;
+            }
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+
+            const map = [
+                [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+                [1,0,0,0,0,0,1,3,3,3,3,3,3,1,0,0,0,0,0,1],
+                [1,0,1,1,0,0,1,3,3,3,3,3,3,1,0,0,1,1,0,1],
+                [1,0,1,1,0,0,2,3,3,3,3,3,3,2,0,0,1,1,0,1],
+                [1,0,0,0,0,0,1,3,3,3,3,3,3,1,0,0,0,0,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,1,2,1,1,1,1,0,0,1,1,1,1,0,0,1,1,2,1,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,1,2,1,1,1,1,0,0,1,1,1,1,0,0,1,1,2,1,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
+                [1,0,0,0,2,0,0,0,0,0,0,0,0,2,0,0,0,0,0,1],
+                [1,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
+                [1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,1],
+                [1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,1],
+                [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+                [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+            ];
+            const mapWidth = map[0].length;
+            const mapHeight = map.length;
+
+            const challengers = [
+                { x: 9.5, y: 2.0, name: "Rival Student" },
+                { x: 3.5, y: 3.5, name: "Elite Scholar Beta" },
+                { x: 15.5, y: 3.5, name: "Rival Prefect Gamma" }
+            ].map(c => ({ ...c, active: true }));
+
+            let playerX = 9.0;
+            let playerY = 10.0;
+            let playerAngle = 0;
+            let playerLevel = 5;
+            let pointerLocked = false;
+            let roamingActive = true;
+
+            const keys = {};
+            let mouseDX = 0;
+            let mouseDY = 0;
+
+            let leftJoy = { active: false, id: null, startX: 0, startY: 0, dx: 0, dy: 0 };
+            let rightJoy = { active: false, id: null, startX: 0, startY: 0, dx: 0, dy: 0 };
+            const isMobile = 'ontouchstart' in window;
+
+            if (isMobile) {
+                tapToStart.innerHTML = 'TAP TO START ACADEMY<span>Left stick: move | Right stick: look</span>';
+                minimapContainer.style.display = 'block';
+            }
+
+            document.addEventListener('keydown', e => { 
+                if (document.getElementById('game-screen').classList.contains('active') && roamingActive) {
+                    const keyLower = e.key.toLowerCase();
+                    if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'e'].includes(keyLower)) {
+                        keys[keyLower] = true;
+                        if (keyLower === 'e' && activeTerminalTarget) {
+                            openQuestStage1(activeTerminalTarget);
+                        }
+                    }
+                }
+            });
+            document.addEventListener('keyup', e => { 
+                const keyLower = e.key.toLowerCase();
+                keys[keyLower] = false; 
+            });
+
+            document.addEventListener('mousemove', e => {
+                if (pointerLocked) {
+                    mouseDX += e.movementX;
+                    mouseDY += e.movementY;
+                }
+            });
+
+            canvas.addEventListener('click', () => {
+                if (!pointerLocked && !isMobile && roamingActive) {
+                    canvas.requestPointerLock();
+                    minimapContainer.style.display = 'block';
+                }
+            });
+
+            document.addEventListener('pointerlockchange', () => {
+                pointerLocked = document.pointerLockElement === canvas;
+                if (pointerLocked) {
+                    tapToStart.style.display = 'none';
+                } else if (!isMobile && roamingActive) {
+                    tapToStart.style.display = 'block';
+                }
+            });
+
+            if (isMobile) {
+                tapToStart.style.display = 'none';
+                const leftZone = document.getElementById('left-joystick-zone');
+                const rightZone = document.getElementById('right-joystick-zone');
+                const leftBase = document.getElementById('left-base');
+                const leftThumb = document.getElementById('left-thumb');
+                const rightBase = document.getElementById('right-base');
+                const rightThumb = document.getElementById('right-thumb');
+
+                function handleJoyStart(e, joy, base, thumb, zone) {
+                    const touch = e.changedTouches[0];
+                    joy.active = true;
+                    joy.id = touch.identifier;
+                    const rect = zone.getBoundingClientRect();
+                    joy.startX = touch.clientX - rect.left;
+                    joy.startY = touch.clientY - rect.top;
+                    base.style.display = 'block';
+                    base.style.left = (joy.startX - 60) + 'px';
+                    base.style.top = (joy.startY - 60) + 'px';
+                    thumb.style.display = 'block';
+                    thumb.style.left = (joy.startX - 28) + 'px';
+                    thumb.style.top = (joy.startY - 28) + 'px';
+                }
+
+                function handleJoyMove(e, joy, thumb, zone) {
+                    for (let i = 0; i < e.changedTouches.length; i++) {
+                        const touch = e.changedTouches[i];
+                        if (touch.identifier === joy.id) {
+                            const rect = zone.getBoundingClientRect();
+                            const cx = touch.clientX - rect.left;
+                            const cy = touch.clientY - rect.top;
+                            let dx = cx - joy.startX;
+                            let dy = cy - joy.startY;
+                            const dist = Math.sqrt(dx*dx + dy*dy);
+                            const maxDist = 50;
+                            if (dist > maxDist) {
+                                dx = dx / dist * maxDist;
+                                dy = dy / dist * maxDist;
+                            }
+                            joy.dx = dx / maxDist;
+                            joy.dy = dy / maxDist;
+                            thumb.style.left = (joy.startX + dx - 28) + 'px';
+                            thumb.style.top = (joy.startY + dy - 28) + 'px';
+                        }
+                    }
+                }
+
+                function handleJoyEnd(e, joy, base, thumb) {
+                    for (let i = 0; i < e.changedTouches.length; i++) {
+                        if (e.changedTouches[i].identifier === joy.id) {
+                            joy.active = false;
+                            joy.dx = 0; joy.dy = 0;
+                            base.style.display = 'none';
+                            thumb.style.display = 'none';
+                        }
+                    }
+                }
+
+                leftZone.addEventListener('touchstart', e => { e.preventDefault(); handleJoyStart(e, leftJoy, leftBase, leftThumb, leftZone); });
+                leftZone.addEventListener('touchmove', e => { e.preventDefault(); handleJoyMove(e, leftJoy, leftThumb, leftZone); });
+                leftZone.addEventListener('touchend', e => { handleJoyEnd(e, leftJoy, leftBase, leftThumb); });
+
+                rightZone.addEventListener('touchstart', e => { e.preventDefault(); handleJoyStart(e, rightJoy, rightBase, rightThumb, rightZone); });
+                rightZone.addEventListener('touchmove', e => { e.preventDefault(); handleJoyMove(e, rightJoy, rightThumb, rightZone); });
+                rightZone.addEventListener('touchend', e => { handleJoyEnd(e, rightJoy, rightBase, rightThumb); });
+            }
+
+            /* --- 4-STAGE FLOW CONTROL FUNCTIONS --- */
+            window.openQuestStage1 = function(terminal) {
+                if (!terminal.active) return;
+                roamingActive = false;
+                if (document.pointerLockElement) document.exitPointerLock();
+
+                questSessionData.terminalRef = terminal;
+                questSessionData.challengerName = terminal.name;
+                questSessionData.playerHp = 120;
+                questSessionData.enemyHp = 120;
+
+                document.getElementById('modal-challenger-name').innerText = terminal.name;
+                document.getElementById('game-overlay-container').style.display = 'flex';
+                document.getElementById('stage-1-accept').style.display = 'flex';
+                document.getElementById('stage-2-knowledge').style.display = 'none';
+                document.getElementById('stage-3-combat').style.display = 'none';
+                document.getElementById('stage-4-victory').style.display = 'none';
+            };
+
+            window.closeGameModal = function() {
+                document.getElementById('game-overlay-container').style.display = 'none';
+                roamingActive = true;
+            };
+
+            window.advanceToKnowledgeStage = function() {
+                document.getElementById('stage-1-accept').style.display = 'none';
+                document.getElementById('stage-2-knowledge').style.display = 'flex';
+                renderKnowledgeQuestions();
+            };
+
+            function renderKnowledgeQuestions() {
+                const qList = document.getElementById('knowledge-questions-list');
+                qList.innerHTML = `
+                    <div class="question-card correct-card">
+                        <div class="q-header-row">
+                            <span>Q1: What is the value of 7x + 5 when x = 6?</span>
+                            <span style="color: #4ade80;"><i class="fa-solid fa-circle-check"></i> Correct!</span>
+                        </div>
+                        <div class="options-grid-4">
+                            <div class="opt-btn">A 37</div>
+                            <div class="opt-btn correct-choice">B 47</div>
+                            <div class="opt-btn">C 42</div>
+                            <div class="opt-btn">D 50</div>
+                        </div>
+                        <div style="font-size: 0.65rem; color: #4ade80; display: flex; gap: 12px; margin-top: 4px;">
+                            <span>Mana +20</span><span>Attack +10</span>
+                        </div>
+                    </div>
+                    <div class="question-card correct-card">
+                        <div class="q-header-row">
+                            <span>Q2: Which element has the atomic number 11?</span>
+                            <span style="color: #4ade80;"><i class="fa-solid fa-circle-check"></i> Correct!</span>
+                        </div>
+                        <div class="options-grid-4">
+                            <div class="opt-btn correct-choice">A Na</div>
+                            <div class="opt-btn">B Mg</div>
+                            <div class="opt-btn">C K</div>
+                            <div class="opt-btn">D Ca</div>
+                        </div>
+                        <div style="font-size: 0.65rem; color: #4ade80; display: flex; gap: 12px; margin-top: 4px;">
+                            <span>Mana +20</span><span>Attack +10</span>
+                        </div>
+                    </div>
+                    <div class="question-card wrong-card">
+                        <div class="q-header-row">
+                            <span>Q3: What is the main function of the mitochondria in a cell?</span>
+                            <span style="color: #ef4444;"><i class="fa-solid fa-circle-xmark"></i> Wrong!</span>
+                        </div>
+                        <div class="options-grid-4">
+                            <div class="opt-btn">A Protein synthesis</div>
+                            <div class="opt-btn wrong-choice">B Energy production</div>
+                            <div class="opt-btn">C Waste removal</div>
+                            <div class="opt-btn">D DNA storage</div>
+                        </div>
+                        <div style="font-size: 0.65rem; color: #ef4444; margin-top: 4px;">
+                            Enemy gains Advantage! (+10% ATK)
+                        </div>
+                    </div>
+                `;
+            }
+
+            window.advanceToCombatStage = function() {
+                document.getElementById('stage-2-knowledge').style.display = 'none';
+                document.getElementById('stage-3-combat').style.display = 'flex';
+                updateCombatHUDValues();
+            };
+
+            function updateCombatHUDValues() {
+                document.getElementById('c-player-name').innerText = gameState.name || gameState.username;
+                document.getElementById('c-enemy-name').innerText = questSessionData.challengerName;
+                document.getElementById('c-player-hp').innerText = questSessionData.playerHp;
+                document.getElementById('c-player-hp-fill').style.width = (questSessionData.playerHp / questSessionData.playerMaxHp * 100) + '%';
+                document.getElementById('c-enemy-hp').innerText = questSessionData.enemyHp;
+                document.getElementById('c-enemy-hp-fill').style.width = (questSessionData.enemyHp / questSessionData.enemyMaxHp * 100) + '%';
+            }
+
+            window.executeCombatMove = function(moveType) {
+                const playerSprite = document.getElementById('player-avatar-sprite');
+                const enemySprite = document.getElementById('enemy-avatar-sprite');
+                const logBox = document.getElementById('combat-action-log');
+
+                let dmg = 25;
+                let logText = "You strike the rival student!";
+
+                if (moveType === 'basic') {
+                    dmg = 20;
+                    logText = "Basic Attack lands cleanly for 20 damage!";
+                    playerSprite.style.transform = "translateX(40px) scale(1.1)";
+                } else if (moveType === 'dash') {
+                    dmg = 35;
+                    logText = "Swift Dash Strike catches the rival off-guard for 35 damage!";
+                    playerSprite.style.transform = "translateX(70px) scale(1.2)";
+                } else if (moveType === 'formula') {
+                    dmg = 45;
+                    logText = "Formula Strike unleashes academic brilliance for 45 damage!";
+                    playerSprite.style.transform = "translateX(50px) rotate(5deg)";
+                } else if (moveType === 'shield') {
+                    dmg = 10;
+                    questSessionData.playerHp = Math.min(questSessionData.playerMaxHp, questSessionData.playerHp + 25);
+                    logText = "Energy Shield deployed! Absorbed incoming blow and restored 25 HP.";
+                } else if (moveType === 'ultimate') {
+                    dmg = 70;
+                    logText = "ULTIMATE THEORY BURST! Crushing academic blow deals 70 damage!";
+                    playerSprite.style.transform = "translateX(80px) scale(1.3)";
+                }
+
+                setTimeout(() => { playerSprite.style.transform = "none"; }, 250);
+
+                questSessionData.enemyHp = Math.max(0, questSessionData.enemyHp - dmg);
+                logBox.innerText = logText;
+                updateCombatHUDValues();
+
+                if (questSessionData.enemyHp <= 0) {
+                    setTimeout(() => {
+                        document.getElementById('stage-3-combat').style.display = 'none';
+                        document.getElementById('stage-4-victory').style.display = 'flex';
+                    }, 1000);
+                    return;
+                }
+
+                // Rival Counterattack
+                setTimeout(() => {
+                    enemySprite.style.transform = "scaleX(-1) translateX(40px)";
+                    const enemyDmg = 18;
+                    questSessionData.playerHp = Math.max(0, questSessionData.playerHp - enemyDmg);
+                    logBox.innerText = `${questSessionData.challengerName} counterattacks for ${enemyDmg} damage!`;
+                    updateCombatHUDValues();
+                    setTimeout(() => { enemySprite.style.transform = "scaleX(-1) translateX(0)"; }, 250);
+                }, 800);
+            };
+
+            window.skipCombatToVictory = function() {
+                document.getElementById('stage-3-combat').style.display = 'none';
+                document.getElementById('stage-4-victory').style.display = 'flex';
+            };
+
+            window.completeAndCloseQuest = function() {
+                questSessionData.terminalRef.active = false;
+                playerLevel++;
+                gameState.score += 150;
+                gameState.correctCount += 2;
+                gameState.questsCompleted++;
+                levelNumDisplay.innerText = playerLevel;
+                saveGameProgress();
+
+                showBanner("Quest Completed successfully! Rewards added.", 'game-screen', false);
+                closeGameModal();
+                roamingActive = true;
+            };
+
+            function castRayDDA(angle) {
+                const dirX = Math.cos(angle);
+                const dirY = Math.sin(angle);
+
+                let mapX = Math.floor(playerX);
+                let mapY = Math.floor(playerY);
+
+                const deltaDistX = Math.abs(1 / (dirX || 0.00001));
+                const deltaDistY = Math.abs(1 / (dirY || 0.00001));
+
+                let stepX, stepY, sideDistX, sideDistY;
+
+                if (dirX < 0) {
+                    stepX = -1;
+                    sideDistX = (playerX - mapX) * deltaDistX;
+                } else {
+                    stepX = 1;
+                    sideDistX = (mapX + 1.0 - playerX) * deltaDistX;
+                }
+                if (dirY < 0) {
+                    stepY = -1;
+                    sideDistY = (playerY - mapY) * deltaDistY;
+                } else {
+                    stepY = 1;
+                    sideDistY = (mapY + 1.0 - playerY) * deltaDistY;
+                }
+
+                let side = 0;
+                let hitVal = 0;
+                let maxSteps = 50;
+
+                while (hitVal === 0 && maxSteps > 0) {
+                    if (sideDistX < sideDistY) {
+                        sideDistX += deltaDistX;
+                        mapX += stepX;
+                        side = 0;
+                    } else {
+                        sideDistY += deltaDistY;
+                        mapY += stepY;
+                        side = 1;
+                    }
+                    maxSteps--;
+                    if (mapX < 0 || mapX >= mapWidth || mapY < 0 || mapY >= mapHeight) {
+                        return { dist: 20, side: 0, tile: 1 };
+                    }
+                    hitVal = map[mapY][mapX];
+                }
+
+                let dist;
+                if (side === 0) {
+                    dist = (mapX - playerX + (1 - stepX) / 2) / dirX;
+                } else {
+                    dist = (mapY - playerY + (1 - stepY) / 2) / dirY;
+                }
+
+                return { dist: Math.max(dist, 0.01), side, tile: hitVal };
+            }
+
+            function render() {
+                const w = canvas.width;
+                const h = canvas.height;
+                const fov = Math.PI / 3;
+
+                const ceilGrad = ctx.createLinearGradient(0, 0, 0, h / 2);
+                ceilGrad.addColorStop(0, '#070b14');
+                ceilGrad.addColorStop(1, '#0f172a');
+                ctx.fillStyle = ceilGrad;
+                ctx.fillRect(0, 0, w, h / 2);
+
+                const floorGrad = ctx.createLinearGradient(0, h / 2, 0, h);
+                floorGrad.addColorStop(0, '#0f172a');
+                floorGrad.addColorStop(1, '#070b14');
+                ctx.fillStyle = floorGrad;
+                ctx.fillRect(0, h / 2, w, h / 2);
+
+                const numRays = Math.min(w, 360);
+                const stripWidth = w / numRays;
+                const zBuffer = new Array(numRays);
+
+                for (let i = 0; i < numRays; i++) {
+                    const rayAngle = playerAngle - fov / 2 + (i / numRays) * fov;
+                    const result = castRayDDA(rayAngle);
+
+                    const correctedDist = result.dist * Math.cos(rayAngle - playerAngle);
+                    zBuffer[i] = correctedDist;
+
+                    const wallHeight = h / correctedDist;
+                    const wallTop = (h - wallHeight) / 2;
+
+                    const brightness = Math.max(0, 1 - correctedDist / 15);
+                    let r, g, b;
+                    
+                    if (result.tile === 2) {
+                        r = Math.floor(99 * brightness);
+                        g = Math.floor(102 * brightness);
+                        b = Math.floor(241 * brightness);
+                    } else if (result.tile === 3) {
+                        r = Math.floor(56 * brightness);
+                        g = Math.floor(189 * brightness);
+                        b = Math.floor(248 * brightness);
+                    } else {
+                        if (result.side === 0) {
+                            r = Math.floor(30 * brightness);
+                            g = Math.floor(41 * brightness);
+                            b = Math.floor(59 * brightness);
+                        } else {
+                            r = Math.floor(15 * brightness);
+                            g = Math.floor(23 * brightness);
+                            b = Math.floor(42 * brightness);
+                        }
+                    }
+
+                    ctx.fillStyle = `rgb(${r},${g},${b})`;
+                    ctx.fillRect(Math.floor(i * stripWidth), wallTop, Math.ceil(stripWidth) + 1, wallHeight);
+                }
+
+                challengers.sort((a, b) => {
+                    const distA = Math.pow(playerX - a.x, 2) + Math.pow(playerY - a.y, 2);
+                    const distB = Math.pow(playerX - b.x, 2) + Math.pow(playerY - b.y, 2);
+                    return distB - distA;
+                });
+
+                challengers.forEach(term => {
+                    const spriteX = term.x - playerX;
+                    const spriteY = term.y - playerY;
+                    
+                    const transformX = Math.cos(playerAngle) * spriteX + Math.sin(playerAngle) * spriteY;
+                    const transformY = -Math.sin(playerAngle) * spriteX + Math.cos(playerAngle) * spriteY;
+
+                    if (transformX > 0.1) {
+                        const spriteScreenX = Math.floor((w / 2) * (1 + transformY / transformX));
+                        const spriteSize = Math.abs(Math.floor(h / transformX));
+                        const drawX = spriteScreenX - spriteSize * 0.25;
+                        const drawY = (h - spriteSize) / 2;
+
+                        const rayIdx = Math.floor((spriteScreenX / w) * numRays);
+                        if (rayIdx >= 0 && rayIdx < numRays && transformX < zBuffer[rayIdx]) {
+                            const bWidth = spriteSize * 0.5;
+                            const bHeight = spriteSize * 0.8;
+
+                            ctx.fillStyle = term.active ? '#1e293b' : '#334155';
+                            ctx.fillRect(drawX + bWidth * 0.2, drawY + bHeight * 0.4, bWidth * 0.6, bHeight * 0.6);
+
+                            ctx.fillStyle = term.active ? '#38bdf8' : '#64748b';
+                            ctx.fillRect(drawX + bWidth * 0.3, drawY + bHeight * 0.45, bWidth * 0.4, bHeight * 0.3);
+                        }
+                    }
+                });
+
+                // Render Third-Person Avatar if Perspective is Active
+                if (gameState.perspective === 'third') {
+                    const avatarScreenX = w / 2;
+                    const avatarScreenY = h * 0.72;
+                    const avatarScale = Math.min(1.8, Math.max(0.6, 120 / (h * 0.35)));
+
+                    ctx.save();
+                    ctx.translate(avatarScreenX, avatarScreenY);
+                    ctx.scale(avatarScale, avatarScale);
+
+                    // Torso
+                    ctx.fillStyle = gameState.avatar.shirt || '#4f46e5';
+                    ctx.fillRect(-22, -40, 44, 55);
+
+                    // Head
+                    ctx.fillStyle = gameState.avatar.skin || '#f5d0b1';
+                    ctx.fillRect(-18, -72, 36, 34);
+
+                    // Hair
+                    if (gameState.avatar.hairstyle !== 'bald') {
+                        ctx.fillStyle = gameState.avatar.haircolor || '#451a03';
+                        ctx.fillRect(-20, -78, 40, 14);
+                    }
+
+                    // Legs
+                    ctx.fillStyle = gameState.avatar.pants || '#1e293b';
+                    ctx.fillRect(-18, 15, 14, 35);
+                    ctx.fillRect(4, 15, 14, 35);
+
+                    ctx.restore();
+                }
+
+                // Render Minimap
+                miniCtx.clearRect(0, 0, 150, 150);
+                const miniScale = 150 / mapWidth;
+                for (let my = 0; my < mapHeight; my++) {
+                    for (let mx = 0; mx < mapWidth; mx++) {
+                        if (map[my][mx] > 0) {
+                            miniCtx.fillStyle = map[my][mx] === 2 ? '#6366f1' : '#38bdf8';
+                            miniCtx.fillRect(mx * miniScale, my * miniScale, miniScale + 0.5, miniScale + 0.5);
+                        }
+                    }
+                }
+                miniCtx.fillStyle = '#ef4444';
+                challengers.forEach(c => {
+                    if (c.active) {
+                        miniCtx.fillRect(c.x * miniScale - 3, c.y * miniScale - 3, 6, 6);
+                    }
+                });
+                miniCtx.fillStyle = '#22c55e';
+                miniCtx.beginPath();
+                miniCtx.arc(playerX * miniScale, playerY * miniScale, 4, 0, Math.PI * 2);
+                miniCtx.fill();
+            }
+
+            function update(dt) {
+                if (!roamingActive) return;
+
+                let moveSpeed = 3.5 * dt;
+                let rotSpeed = 2.2 * dt;
+
+                let fwd = 0;
+                let strafe = 0;
+
+                if (keys['w'] || keys['arrowup']) fwd += 1;
+                if (keys['s'] || keys['arrowdown']) fwd -= 1;
+                if (keys['a'] || keys['arrowleft']) strafe -= 1;
+                if (keys['d'] || keys['arrowright']) strafe += 1;
+
+                if (leftJoy.active) {
+                    fwd -= leftJoy.dy;
+                    strafe += leftJoy.dx;
+                }
+
+                if (pointerLocked) {
+                    playerAngle += mouseDX * 0.003 * window.gameConfig.settings.cameraSensitivity;
+                    mouseDX = 0;
+                }
+                if (rightJoy.active) {
+                    playerAngle += rightJoy.dx * 0.05;
+                }
+
+                const cos = Math.cos(playerAngle);
+                const sin = Math.sin(playerAngle);
+
+                let nextX = playerX + (fwd * cos - strafe * sin) * moveSpeed;
+                let nextY = playerY + (fwd * sin + strafe * cos) * moveSpeed;
+
+                const margin = 0.2;
+                if (map[Math.floor(playerY)][Math.floor(nextX + (nextX > playerX ? margin : -margin))] === 0) {
+                    playerX = nextX;
+                }
+                if (map[Math.floor(nextY + (nextY > playerY ? margin : -margin))][Math.floor(playerX)] === 0) {
+                    playerY = nextY;
+                }
+
+                activeTerminalTarget = null;
+                let nearTerminal = false;
+                challengers.forEach(term => {
+                    if (term.active) {
+                        const dist = Math.hypot(playerX - term.x, playerY - term.y);
+                        if (dist < 1.4) {
+                            nearTerminal = true;
+                            activeTerminalTarget = term;
+                        }
+                    }
+                });
+
+                if (nearTerminal) {
+                    questNotification.style.display = 'block';
+                } else {
+                    questNotification.style.display = 'none';
+                }
+            }
+
+            let lastTime = performance.now();
+            function gameLoop(now) {
+                const dt = (now - lastTime) / 1000;
+                lastTime = now;
+
+                if (document.getElementById('game-screen').classList.contains('active')) {
+                    update(dt);
+                    render();
+                }
+                requestAnimationFrame(gameLoop);
+            }
+            requestAnimationFrame(gameLoop);
+        }
+    </script>
+</body>
+</html>
