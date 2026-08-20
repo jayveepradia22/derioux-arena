@@ -473,8 +473,12 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 
   /* Mobile-only logout button rendered at the bottom of the Profile page — see the
    * 640px breakpoint below for where it's switched on. Hidden by default because the
-   * sidebar's own logout control already covers desktop/tablet layouts. */
-  .profile-mobile-logout {
+   * sidebar's own logout control already covers desktop/tablet layouts.
+   * NOTE: selector is paired with .btn-secondary (rather than just .profile-mobile-logout)
+   * so its specificity beats .btn-secondary's own display:inline-flex rule further down
+   * the stylesheet — with a single-class selector here, that later rule was winning
+   * ties by source order and kept this button visible on desktop. */
+  .btn-secondary.profile-mobile-logout {
     display: none;
   }
 
@@ -1153,6 +1157,24 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
   .toast > div {
     min-width: 0;
     overflow-wrap: break-word;
+  }
+
+  .toast-close {
+    margin-left: auto;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    padding: 2px;
+    color: #64748b;
+  }
+
+  .toast-close:hover {
+    color: #fcd34d;
+    background: rgba(248, 184, 78, .12);
   }
 
   .toast-error {
@@ -1973,6 +1995,86 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     font-size: 11px;
   }
 
+  /* Inline dropdown: trigger button styled like .select-input, plus an option box
+     anchored directly beneath it via the relatively-positioned .dropdown-field
+     wrapper — no full-screen overlay. */
+  .dropdown-field {
+    position: relative;
+  }
+
+  .dropdown-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 11px;
+    margin-top: 7px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    color: #eef0f7;
+    background: #171c31;
+    outline: none;
+    font-size: 11px;
+    text-align: left;
+    cursor: pointer;
+    transition: border .15s;
+  }
+
+  .dropdown-trigger:hover,
+  .dropdown-trigger[aria-expanded="true"] {
+    border-color: rgba(248, 184, 78, .4);
+  }
+
+  .dropdown-chevron {
+    color: #7d89a4;
+    flex-shrink: 0;
+    transform: rotate(90deg);
+    transition: transform .15s;
+  }
+
+  .dropdown-chevron.open {
+    transform: rotate(-90deg);
+  }
+
+  .dropdown-panel {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 30;
+    max-height: 220px;
+    overflow-y: auto;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #171c31;
+    box-shadow: 0 14px 30px rgba(0, 0, 0, .45);
+    padding: 4px;
+  }
+
+  .dropdown-option {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 9px;
+    border-radius: 5px;
+    color: #ced4e3;
+    background: transparent;
+    font-size: 11px;
+    text-align: left;
+  }
+
+  .dropdown-option:hover {
+    background: rgba(255, 255, 255, .06);
+    color: #eef0f7;
+  }
+
+  .dropdown-option.selected {
+    color: var(--amber);
+  }
+
   .color-input {
     display: block;
     width: 100%;
@@ -2390,13 +2492,17 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
   }
 
   /* --- CAMPUS EXPLORER (roam-to-find-quest 3D view) ---
-   * Built with the app's own panel/amber/cyan/coral palette so it matches the rest of
-   * the UI, not a separate visual style. */
+   * Built with the app's own palette so it matches the rest of the UI. Rendered inside
+   * the immersive main-area (sidebar/topbar unmounted, no page header), so this frame
+   * fills the full viewport edge-to-edge instead of sitting in a bordered panel. */
   .campus-frame {
     padding: 0;
     overflow: hidden;
     position: relative;
-    height: min(74vh, 640px);
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    height: 100%;
     background: #05070d;
   }
   .campus-world {
@@ -2584,7 +2690,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
          view instead of being hidden underneath it. */
       padding: 0 14px calc(76px + var(--safe-bottom)) 14px;
     }
-    .profile-mobile-logout {
+    .btn-secondary.profile-mobile-logout {
       display: flex;
       width: 100%;
       justify-content: center;
@@ -2720,9 +2826,6 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     }
     .profile-avatar .pixel-avatar {
       transform: scale(1.05);
-    }
-    .campus-frame {
-      height: min(64vh, 480px);
     }
   }
   `;
@@ -3015,7 +3118,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
         <div className={`toast ${current.tone === 'error' ? 'toast-error' : ''}`} key={current.id}>
           <Bell size={15} />
           <div><strong>{current.title}</strong><div className="muted">{current.copy}</div></div>
-          <button aria-label="Dismiss notification" onClick={() => onDismiss(current.id)} className="ml-auto text-slate-500 hover:text-amber-300"><X size={14} /></button>
+          <button aria-label="Dismiss notification" onClick={() => onDismiss(current.id)} className="toast-close"><X size={14} /></button>
         </div>
         {items.length > 1 && (
           <div className="toast-queue-bar">
@@ -3044,55 +3147,139 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     );
   }
 
+  // Inline dropdown: a trigger button plus an options list absolutely positioned
+  // directly beneath it (an "option box"), opened/closed in place. Used instead of a
+  // native <select> — on several mobile browsers a native select opens as a full-screen
+  // picker/modal rather than staying anchored to the field, which is the behavior we
+  // want to avoid here. Closes on outside click and when an option is chosen.
+  function Dropdown<Value extends string>({
+    label, value, options, onChange,
+  }: {
+    label: string;
+    value: Value;
+    options: { value: Value; label: string }[];
+    onChange: (value: Value) => void;
+  }) {
+    const [open, setOpen] = useState(false);
+    const rootRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+      if (!open) return;
+      const handleOutsideClick = (event: MouseEvent) => {
+        if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
+      };
+      const handleEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false); };
+      document.addEventListener('mousedown', handleOutsideClick);
+      document.addEventListener('keydown', handleEscape);
+      return () => {
+        document.removeEventListener('mousedown', handleOutsideClick);
+        document.removeEventListener('keydown', handleEscape);
+      };
+    }, [open]);
+
+    const selectedLabel = options.find((option) => option.value === value)?.label ?? value;
+
+    return (
+      <div className="field-label dropdown-field" ref={rootRef}>
+        {label}
+        <button
+          type="button"
+          className="dropdown-trigger"
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          onClick={() => setOpen((prev) => !prev)}
+        >
+          <span>{selectedLabel}</span>
+          <ChevronRight size={13} className={`dropdown-chevron ${open ? 'open' : ''}`} />
+        </button>
+        {open && (
+          <div className="dropdown-panel" role="listbox">
+            {options.map((option) => (
+              <button
+                type="button"
+                key={option.value}
+                role="option"
+                aria-selected={option.value === value}
+                className={`dropdown-option ${option.value === value ? 'selected' : ''}`}
+                onClick={() => { onChange(option.value); setOpen(false); }}
+              >
+                <span>{option.label}</span>
+                {option.value === value && <Check size={13} />}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   function AvatarSelectors({ avatar, setAvatar }: { avatar: AvatarConfig; setAvatar: (value: AvatarConfig) => void }) {
     return (
       <div className="avatar-selectors">
-        <label className="field-label">Gender
-          <select className="select-input" value={avatar.gender} onChange={(event) => setAvatar({ ...avatar, gender: event.target.value as AvatarConfig['gender'] })}>
-            <option value="neutral">Neutral silhouette</option>
-            <option value="feminine">Feminine silhouette</option>
-          </select>
-        </label>
-        <label className="field-label">Hair style
-          <select className="select-input" value={avatar.hair} onChange={(event) => setAvatar({ ...avatar, hair: event.target.value as AvatarConfig['hair'] })}>
-            <option value="short">Short block crop</option>
-            <option value="long">Long flowing</option>
-            <option value="curly">Curly texture</option>
-            <option value="bald">Bald / clean</option>
-          </select>
-        </label>
+        <Dropdown
+          label="Gender"
+          value={avatar.gender}
+          onChange={(value) => setAvatar({ ...avatar, gender: value })}
+          options={[
+            { value: 'neutral', label: 'Neutral silhouette' },
+            { value: 'feminine', label: 'Feminine silhouette' },
+          ]}
+        />
+        <Dropdown
+          label="Hair style"
+          value={avatar.hair}
+          onChange={(value) => setAvatar({ ...avatar, hair: value })}
+          options={[
+            { value: 'short', label: 'Short block crop' },
+            { value: 'long', label: 'Long flowing' },
+            { value: 'curly', label: 'Curly texture' },
+            { value: 'bald', label: 'Bald / clean' },
+          ]}
+        />
         <label className="field-label">Hair color
           <input className="color-input" type="color" value={avatar.hairColor} onChange={(event) => setAvatar({ ...avatar, hairColor: event.target.value })} />
         </label>
-        <label className="field-label">Clothes type
-          <select className="select-input" value={avatar.topType} onChange={(event) => setAvatar({ ...avatar, topType: event.target.value as AvatarConfig['topType'] })}>
-            <option value="tshirt">T-shirt</option>
-            <option value="hoodie">Hoodie</option>
-            <option value="jacket">Jacket</option>
-          </select>
-        </label>
-        <label className="field-label">Top color
-          <select className="select-input" value={avatar.topColor} onChange={(event) => setAvatar({ ...avatar, topColor: event.target.value as AvatarConfig['topColor'] })}>
-            <option value="indigo">Indigo academy</option>
-            <option value="coral">Coral combat</option>
-            <option value="cyan">Cyan signal</option>
-            <option value="gold">Gold scholar</option>
-          </select>
-        </label>
-        <label className="field-label">Pants or skirt
-          <select className="select-input" value={avatar.bottomType} onChange={(event) => setAvatar({ ...avatar, bottomType: event.target.value as AvatarConfig['bottomType'] })}>
-            <option value="pants">Pants</option>
-            <option value="shorts">Shorts</option>
-            <option value="skirt">Skirt</option>
-          </select>
-        </label>
-        <label className="field-label">Shoes type
-          <select className="select-input" value={avatar.shoes} onChange={(event) => setAvatar({ ...avatar, shoes: event.target.value as AvatarConfig['shoes'] })}>
-            <option value="dark">Night runners</option>
-            <option value="white">Cloud trainers</option>
-            <option value="amber">Amber boots</option>
-          </select>
-        </label>
+        <Dropdown
+          label="Clothes type"
+          value={avatar.topType}
+          onChange={(value) => setAvatar({ ...avatar, topType: value })}
+          options={[
+            { value: 'tshirt', label: 'T-shirt' },
+            { value: 'hoodie', label: 'Hoodie' },
+            { value: 'jacket', label: 'Jacket' },
+          ]}
+        />
+        <Dropdown
+          label="Top color"
+          value={avatar.topColor}
+          onChange={(value) => setAvatar({ ...avatar, topColor: value })}
+          options={[
+            { value: 'indigo', label: 'Indigo academy' },
+            { value: 'coral', label: 'Coral combat' },
+            { value: 'cyan', label: 'Cyan signal' },
+            { value: 'gold', label: 'Gold scholar' },
+          ]}
+        />
+        <Dropdown
+          label="Pants or skirt"
+          value={avatar.bottomType}
+          onChange={(value) => setAvatar({ ...avatar, bottomType: value })}
+          options={[
+            { value: 'pants', label: 'Pants' },
+            { value: 'shorts', label: 'Shorts' },
+            { value: 'skirt', label: 'Skirt' },
+          ]}
+        />
+        <Dropdown
+          label="Shoes type"
+          value={avatar.shoes}
+          onChange={(value) => setAvatar({ ...avatar, shoes: value })}
+          options={[
+            { value: 'dark', label: 'Night runners' },
+            { value: 'white', label: 'Cloud trainers' },
+            { value: 'amber', label: 'Amber boots' },
+          ]}
+        />
         <div className="option-label">Skin tone</div>
         <div className="option-grid">
           {avatarColors.map((color) => <button type="button" aria-label={`Choose skin tone ${color}`} className={`option-btn ${avatar.skin === color ? 'selected' : ''}`} style={{ background: color }} key={color} onClick={() => setAvatar({ ...avatar, skin: color })} />)}
@@ -3108,7 +3295,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     login, completeSignup, notify,
   }: {
     login: (email: string, password: string) => Promise<{ ok: boolean; message?: string }>;
-    completeSignup: (profile: Profile, password: string) => Promise<{ ok: boolean; message?: string }>;
+    completeSignup: (profile: Profile, password: string) => Promise<{ ok: boolean; message?: string; code?: string }>;
     notify: (title: string, copy: string, tone?: ToastItem['tone']) => void;
   }) {
     const [step, setStep] = useState<AuthStep>('welcome');
@@ -3124,7 +3311,15 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     // leaving the form. Cleared on step changes and as soon as the email is edited, so
     // a stale error doesn't linger after the player starts correcting it.
     const [formError, setFormError] = useState<string | null>(null);
-    useEffect(() => { setFormError(null); }, [step]);
+    // Set to true right before a programmatic setStep() that should land on the new
+    // step WITH a formError already populated (see the email-already-in-use handling
+    // in submitSignup below) — otherwise this effect's normal "clear on any step
+    // change" behavior would wipe that error out on the very next render.
+    const keepFormErrorRef = useRef(false);
+    useEffect(() => {
+      if (keepFormErrorRef.current) { keepFormErrorRef.current = false; return; }
+      setFormError(null);
+    }, [step]);
     const goBack = () => setStep(step === 'strand' ? 'signup' : step === 'avatar' ? 'strand' : step === 'confirm' ? 'avatar' : 'welcome');
 
     // RFC-5322-ish but deliberately simple: good enough to catch obviously malformed
@@ -3181,10 +3376,24 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 
     const submitSignup = async () => {
       setSubmitting(true);
-      const newProfile: Profile = { name: name.trim() || 'Alex Rivera', email: email.trim().toLowerCase(), strand, avatar };
+      const newProfile: Profile = { name: name.trim() || 'New Player', email: email.trim().toLowerCase(), strand, avatar };
       const result = await completeSignup(newProfile, password);
       setSubmitting(false);
-      if (!result.ok) notify('Could not create player file', result.message ?? 'Something went wrong. Please try again.', 'error');
+      if (result.ok) return;
+      if (result.code === 'auth/email-already-in-use') {
+        // The early fetchSignInMethodsForEmail check is only a best-effort hint (it can
+        // miss a real duplicate, e.g. under Firebase's email-enumeration protection) —
+        // this is the reliable check, since createUserWithEmailAndPassword itself just
+        // rejected it. No player file was created and no success screen was shown; send
+        // the player back to the registration form and surface the error inline there,
+        // exactly like the early check does, rather than as a toast left dangling on
+        // this confirm step.
+        keepFormErrorRef.current = true;
+        setStep('signup');
+        setFormError(result.message ?? 'An account with that email already exists. Try logging in instead.');
+        return;
+      }
+      notify('Could not create player file', result.message ?? 'Something went wrong. Please try again.', 'error');
     };
 
 
@@ -3194,9 +3403,9 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 
     if (step === 'strand') return <div className="auth-screen"><div className="auth-card wide"><Logo /><button className="back-link" onClick={goBack}><ChevronRight size={13} className="rotate-180" /> Back</button><div className="eyebrow">01 // SELECT YOUR STRAND</div><h1 className="auth-title">What are you<br /><span>training for?</span></h1><p className="auth-copy">Your strand tunes the first set of quests. You can change your loadout anytime.</p><div className="strand-grid">{strands.map(([title, copy]) => <button className={`strand-btn ${strand === title ? 'selected' : ''}`} key={title} onClick={() => setStrand(title)}><strong>{title}</strong><small>{copy}</small></button>)}</div><button className="btn-primary w-full" onClick={() => setStep('avatar')}>Lock in strand <ChevronRight size={15} /></button></div></div>;
 
-    if (step === 'avatar') return <div className="auth-screen"><div className="auth-card wide"><Logo /><button className="back-link" onClick={goBack}><ChevronRight size={13} className="rotate-180" /> Back to strand</button><div className="eyebrow">02 // BUILD YOUR AVATAR</div><h1 className="auth-title">Put a face to<br /><span>the focus.</span></h1><div className="avatar-editor"><div className="avatar-stage-large"><AvatarFigure avatar={avatar} initials={getInitials(name || 'Alex Rivera')} size="large" /></div><AvatarSelectors avatar={avatar} setAvatar={setAvatar} /></div><button className="btn-primary w-full mt-8" onClick={() => setStep('confirm')}>Preview player file <ChevronRight size={15} /></button></div></div>;
+    if (step === 'avatar') return <div className="auth-screen"><div className="auth-card wide"><Logo /><button className="back-link" onClick={goBack}><ChevronRight size={13} className="rotate-180" /> Back to strand</button><div className="eyebrow">02 // BUILD YOUR AVATAR</div><h1 className="auth-title">Put a face to<br /><span>the focus.</span></h1><div className="avatar-editor"><div className="avatar-stage-large"><AvatarFigure avatar={avatar} initials={getInitials(name || 'New Player')} size="large" /></div><AvatarSelectors avatar={avatar} setAvatar={setAvatar} /></div><button className="btn-primary w-full mt-8" onClick={() => setStep('confirm')}>Preview player file <ChevronRight size={15} /></button></div></div>;
 
-    return <div className="auth-screen"><div className="auth-card confirm-card"><Logo /><div className="confirm-avatar"><AvatarFigure avatar={avatar} initials={getInitials(name || 'Alex Rivera')} size="large" /></div><div className="eyebrow">PLAYER FILE READY</div><h1 className="auth-title">Welcome to<br /><span>the night shift.</span></h1><p className="auth-copy">{name || 'Alex Rivera'} · Level 1 · {strand} strand</p><button className="btn-primary w-full" disabled={submitting} onClick={submitSignup}>{submitting ? 'Creating player file…' : 'Enter dashboard'} <ChevronRight size={15} /></button></div></div>;
+    return <div className="auth-screen"><div className="auth-card confirm-card"><Logo /><div className="confirm-avatar"><AvatarFigure avatar={avatar} initials={getInitials(name || 'New Player')} size="large" /></div><div className="eyebrow">PLAYER FILE READY</div><h1 className="auth-title">Welcome to<br /><span>the night shift.</span></h1><p className="auth-copy">{name || 'New Player'} · Level 1 · {strand} strand</p><button className="btn-primary w-full" disabled={submitting} onClick={submitSignup}>{submitting ? 'Creating player file…' : 'Enter dashboard'} <ChevronRight size={15} /></button></div></div>;
   }
 
   /* =====================================================================================
@@ -3822,32 +4031,23 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     }, []);
 
     return (
-      <div className="page-wrap">
-        <div className="page-toolbar">
-          <div>
-            <div className="eyebrow">MISSION CONTROL // LIVE CAMPUS</div>
-            <h1 className="page-title">Find your <em>challenger.</em></h1>
-            <p className="muted text-sm mt-3">Walk the halls. Quest-givers wave a blade icon when they're ready for you — get close and press E (or tap the prompt).</p>
+      <div className="campus-frame">
+        <div ref={worldRef} className="campus-world">
+          <canvas ref={canvasRef} className="campus-canvas" />
+          <div className="campus-hud-bar">
+            <div className="campus-chip">LEVEL {level}</div>
+            <button className="campus-exit-btn" onClick={onExit}><X size={12} /> Exit campus</button>
           </div>
-        </div>
-        <div className="panel campus-frame">
-          <div ref={worldRef} className="campus-world">
-            <canvas ref={canvasRef} className="campus-canvas" />
-            <div className="campus-hud-bar">
-              <div className="campus-chip">LEVEL {level}</div>
-              <button className="campus-exit-btn" onClick={onExit}><X size={12} /> Exit campus</button>
-            </div>
-            <div ref={promptRef} className="campus-prompt" />
-            <div className="campus-joystick-zone left" ref={leftZoneRef}>
-              <div className="campus-joystick-base" ref={leftBaseRef} />
-              <div className="campus-joystick-thumb" ref={leftThumbRef} />
-            </div>
-            <div className="campus-joystick-zone right" ref={rightZoneRef}>
-              <div className="campus-joystick-base" ref={rightBaseRef} />
-              <div className="campus-joystick-thumb" ref={rightThumbRef} />
-            </div>
-            <div ref={tapStartRef} className="campus-tap-start">CLICK TO LOOK AROUND<span>WASD to move, mouse to look</span></div>
+          <div ref={promptRef} className="campus-prompt" />
+          <div className="campus-joystick-zone left" ref={leftZoneRef}>
+            <div className="campus-joystick-base" ref={leftBaseRef} />
+            <div className="campus-joystick-thumb" ref={leftThumbRef} />
           </div>
+          <div className="campus-joystick-zone right" ref={rightZoneRef}>
+            <div className="campus-joystick-base" ref={rightBaseRef} />
+            <div className="campus-joystick-thumb" ref={rightThumbRef} />
+          </div>
+          <div ref={tapStartRef} className="campus-tap-start">CLICK TO LOOK AROUND<span>WASD to move, mouse to look</span></div>
         </div>
       </div>
     );
@@ -3957,7 +4157,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     );
   }
 
-  function Battle({ onExit, onComplete, notify }: { onExit: () => void; onComplete: () => void; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void }) {
+  function Battle({ profile, onExit, onComplete, notify }: { profile: Profile; onExit: () => void; onComplete: () => void; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void }) {
     const [question, setQuestion] = useState(0);
     const [selected, setSelected] = useState<number | null>(null);
     const [enemyHealth, setEnemyHealth] = useState(100);
@@ -3976,7 +4176,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
       if (question < battleQuestions.length - 1) { setQuestion((value) => value + 1); setSelected(null); setResolved(false); return; }
       setComplete(true); onComplete(); notify('Battle cleared', `You earned ${score + (selected === current.answer ? 100 : 0)} XP.`);
     };
-    return <div className="page-wrap battle-layout"><div className="page-toolbar"><div><div className="eyebrow">LIVE ENCOUNTER // SECTOR 03</div><h1 className="page-title">The <em>Hydra</em> waits.</h1></div><button className="btn-secondary" onClick={onExit}><X size={14} /> Retreat</button></div><div className="panel battle-arena"><div className="battle-top"><span className="battle-label">QUIZ BATTLE // {complete ? battleQuestions.length : question + 1} / {battleQuestions.length}</span><span className="battle-score">SCORE {String(score).padStart(4, '0')}</span></div><div className="combatants"><div className="combatant"><div className={`combatant-avatar hero ${resolved && selected !== current.answer ? 'animate-hit' : ''}`}>AR</div><div className="combatant-name">Alex Rivera</div><div className="health-track"><div className="health-fill" style={{ width: `${playerHealth}%` }} /></div></div><div className="versus">VS</div><div className="combatant"><div className={`combatant-avatar enemy ${resolved && selected === current.answer ? 'animate-hit' : ''}`}>H</div><div className="combatant-name">The Hydra</div><div className="health-track"><div className="health-fill enemy-health" style={{ width: `${enemyHealth}%` }} /></div></div></div></div>{complete ? <div className="panel question-panel battle-complete"><Trophy size={34} className="text-amber-300 mx-auto" /><div className="question-index mt-4">ENCOUNTER CLEARED</div><h2 className="question-text">You stayed with the hard part.</h2><p className="muted text-sm">The result is logged to your player file. Take the momentum with you.</p><button className="btn-primary mt-5" onClick={onExit}>Return to mission control <ChevronRight size={14} /></button></div> : <div className="panel question-panel"><div className="question-index">QUESTION 0{question + 1} / KNOWLEDGE CHECK</div><h2 className="question-text">{current.question}</h2><div className="answers">{current.options.map((option, index) => <button className={`answer-btn ${resolved && index === current.answer ? 'correct' : ''} ${resolved && selected === index && index !== current.answer ? 'wrong' : ''}`} key={option} disabled={resolved} onClick={() => answer(index)}>{String.fromCharCode(65 + index)} <span className="ml-2">{option}</span></button>)}</div>{resolved && <><div className="feedback">{selected === current.answer ? 'DIRECT HIT // The concept is locked in.' : `MISS // The correct answer was ${current.options[current.answer]}.`}</div><button className="btn-primary mt-4" onClick={next}>{question === battleQuestions.length - 1 ? 'Finish encounter' : 'Next question'} <ChevronRight size={14} /></button></>}</div>}</div>;
+    return <div className="page-wrap battle-layout"><div className="page-toolbar"><div><div className="eyebrow">LIVE ENCOUNTER // SECTOR 03</div><h1 className="page-title">The <em>Hydra</em> waits.</h1></div><button className="btn-secondary" onClick={onExit}><X size={14} /> Retreat</button></div><div className="panel battle-arena"><div className="battle-top"><span className="battle-label">QUIZ BATTLE // {complete ? battleQuestions.length : question + 1} / {battleQuestions.length}</span><span className="battle-score">SCORE {String(score).padStart(4, '0')}</span></div><div className="combatants"><div className="combatant"><div className={`combatant-avatar hero ${resolved && selected !== current.answer ? 'animate-hit' : ''}`}>{getInitials(profile.name)}</div><div className="combatant-name">{profile.name}</div><div className="health-track"><div className="health-fill" style={{ width: `${playerHealth}%` }} /></div></div><div className="versus">VS</div><div className="combatant"><div className={`combatant-avatar enemy ${resolved && selected === current.answer ? 'animate-hit' : ''}`}>H</div><div className="combatant-name">The Hydra</div><div className="health-track"><div className="health-fill enemy-health" style={{ width: `${enemyHealth}%` }} /></div></div></div></div>{complete ? <div className="panel question-panel battle-complete"><Trophy size={34} className="text-amber-300 mx-auto" /><div className="question-index mt-4">ENCOUNTER CLEARED</div><h2 className="question-text">You stayed with the hard part.</h2><p className="muted text-sm">The result is logged to your player file. Take the momentum with you.</p><button className="btn-primary mt-5" onClick={onExit}>Return to mission control <ChevronRight size={14} /></button></div> : <div className="panel question-panel"><div className="question-index">QUESTION 0{question + 1} / KNOWLEDGE CHECK</div><h2 className="question-text">{current.question}</h2><div className="answers">{current.options.map((option, index) => <button className={`answer-btn ${resolved && index === current.answer ? 'correct' : ''} ${resolved && selected === index && index !== current.answer ? 'wrong' : ''}`} key={option} disabled={resolved} onClick={() => answer(index)}>{String.fromCharCode(65 + index)} <span className="ml-2">{option}</span></button>)}</div>{resolved && <><div className="feedback">{selected === current.answer ? 'DIRECT HIT // The concept is locked in.' : `MISS // The correct answer was ${current.options[current.answer]}.`}</div><button className="btn-primary mt-4" onClick={next}>{question === battleQuestions.length - 1 ? 'Finish encounter' : 'Next question'} <ChevronRight size={14} /></button></>}</div>}</div>;
   }
 
   function Shop({ coins, owned, equipped, buyItem, equipItem, quests }: { coins: number; owned: string[]; equipped: string | null; buyItem: (id: string, price: number, name: string) => void; equipItem: (id: string, name: string) => void; quests: Quest[] }) {
@@ -4146,18 +4346,18 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
                   <div style={{ flex: 1 }}>
                     <strong>Username</strong>
                     {isEditingName ? (
-                      <input className="field-input mt-2" value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="Your username" autoFocus />
+                      <input className="field-input mt-2" style={{ padding: '7px 9px', fontSize: '12px' }} value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="Your username" autoFocus />
                     ) : (
                       <span>{profile.name}</span>
                     )}
                   </div>
                   {isEditingName ? (
                     <div style={{ display: 'flex', gap: '6px' }}>
-                      <button type="button" className="btn-secondary !px-2 !py-1" onClick={() => { setIsEditingName(false); setNameInput(profile.name); }} disabled={savingName}>Cancel</button>
-                      <button type="submit" className="btn-primary !px-2 !py-1" disabled={savingName}>{savingName ? 'Saving…' : 'Save'}</button>
+                      <button type="button" className="btn-secondary" style={{ padding: '5px 9px', fontSize: '11px' }} onClick={() => { setIsEditingName(false); setNameInput(profile.name); }} disabled={savingName}>Cancel</button>
+                      <button type="submit" className="btn-primary" style={{ padding: '5px 9px', fontSize: '11px' }} disabled={savingName}>{savingName ? 'Saving…' : 'Save'}</button>
                     </div>
                   ) : (
-                    <button type="button" className="btn-secondary !px-2 !py-1" onClick={() => setIsEditingName(true)}>Edit</button>
+                    <button type="button" className="btn-secondary" style={{ padding: '5px 9px', fontSize: '11px' }} onClick={() => setIsEditingName(true)}>Edit</button>
                   )}
                 </div>
               </form>
@@ -4238,12 +4438,22 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     // True once the player has actually made progress (a quest claim, a purchase, a
     // finished focus session, ...) on that temporary file — see updateAccountData.
     const localProgressStartedRef = useRef(false);
+    // The most recent in-flight Firestore write kicked off by updateAccountData (or
+    // null once it's settled). logout() awaits this before calling signOut() — every
+    // updateAccountData write is fire-and-forget so the UI never blocks on the
+    // network, but that also means a change made right before logging out (equip an
+    // item, tweak the avatar, claim a quest, ...) could otherwise still be in flight
+    // when the session ends. Firestore's security rules key off the live auth token,
+    // so a write that hasn't reached the server yet when that token goes away can
+    // silently fail — the exact "my last change didn't survive logging back in" bug.
+    const pendingSaveRef = useRef<Promise<unknown> | null>(null);
 
     useEffect(() => {
       if (!authUser) {
         setAccountData(null);
         usedTemporaryProfileRef.current = false;
         localProgressStartedRef.current = false;
+        pendingSaveRef.current = null;
         return;
       }
       let cancelled = false;
@@ -4361,10 +4571,11 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
       setAccountData((prev) => {
         if (!prev) return prev;
         const updated = updater(prev);
-        savePlayerDoc(authUser.uid, updated).catch((err) => {
+        const writePromise = savePlayerDoc(authUser.uid, updated).catch((err) => {
           console.error('Failed to save progress to Firestore', err);
           notify('Sync issue', 'Your progress is safe locally but failed to sync — check your connection.', 'error');
         });
+        pendingSaveRef.current = writePromise;
         return updated;
       });
     };
@@ -4448,6 +4659,18 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     // auth state on every render, so there's no separate protected route to fall back
     // into via the browser's back button.
     const logout = async () => {
+      // Flush whatever updateAccountData write is still in flight (e.g. the player
+      // equipped an item or tweaked their avatar seconds ago) so it actually reaches
+      // Firestore before the session — and the auth token Firestore's rules check
+      // against — goes away. Capped at 3s so a stalled/offline connection can't trap
+      // the player on the logout flow indefinitely; in that case the write's own
+      // .catch() in updateAccountData has already surfaced a "Sync issue" toast.
+      if (pendingSaveRef.current) {
+        await Promise.race([
+          pendingSaveRef.current,
+          new Promise((resolve) => window.setTimeout(resolve, 3000)),
+        ]);
+      }
       await signOut(auth);
       setAuthResetKey((value) => value + 1);
       setLogoutConfirmOpen(false);
@@ -4464,7 +4687,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
         notify('Player file created', `Welcome to DERIOUX, ${profile.name}.`);
         return { ok: true };
       } catch (err) {
-        return { ok: false, message: authErrorMessage(err) };
+        return { ok: false, message: authErrorMessage(err), code: (err as { code?: string })?.code };
       }
     };
 
@@ -4647,7 +4870,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
                 <QuestBriefing challenger={foundChallenger} onAccept={() => setQuestStage('battle')} onLeave={() => { setFoundChallenger(null); setQuestStage('roaming'); }} />
               )}
               {screen === 'quests' && questStage === 'battle' && (
-                <Battle onExit={() => { setFoundChallenger(null); setQuestStage('roaming'); }} onComplete={completeBattle} notify={notify} />
+                <Battle profile={profile} onExit={() => { setFoundChallenger(null); setQuestStage('roaming'); }} onComplete={completeBattle} notify={notify} />
               )}
               {screen === 'shop' && <Shop coins={game.coins} owned={game.owned} equipped={game.equipped} buyItem={buyItem} equipItem={equipItem} quests={game.quests} />}
               {screen === 'achievements' && <AchievementsView quests={game.quests} />}
