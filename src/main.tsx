@@ -8,8 +8,8 @@ import {
 import { auth, db } from "./firebase";
 import {
   createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged,
-  updateProfile as updateAuthProfile, updateEmail as updateAuthEmail, updatePassword as updateAuthPassword,
-  reauthenticateWithCredential, EmailAuthProvider, type User,
+  updateProfile as updateAuthProfile, updatePassword as updateAuthPassword,
+  reauthenticateWithCredential, EmailAuthProvider, fetchSignInMethodsForEmail, type User,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
@@ -488,6 +488,18 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     padding: 0 clamp(24px, 3vw, 64px) 60px;
   }
 
+  /* Immersive "Enter battle" flow: sidebar and topbar are unmounted, so the game
+     container gets the full fullscreen viewport edge-to-edge on every device. The
+     two-class selectors below intentionally outrank the single-class breakpoint
+     rules further down so this wins at every screen size. */
+  .app-grid.app-grid--immersive {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .main-area.main-area--immersive {
+    padding: 0;
+    height: 100dvh;
+  }
+
   .topbar {
     position: sticky;
     top: 0;
@@ -557,6 +569,125 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     border-radius: 50%;
     background: var(--coral);
     margin: -22px 0 0 22px;
+  }
+
+  /* Notification bell dropdown panel */
+  .notif-wrap {
+    position: relative;
+  }
+
+  .notif-panel {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    width: min(320px, 86vw);
+    max-height: 380px;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    background: #1b2138;
+    box-shadow: 0 18px 36px rgba(0, 0, 0, .38);
+    z-index: 40;
+    overflow: hidden;
+    animation: rise .2s both;
+  }
+
+  .notif-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+
+  .notif-panel-title {
+    font: 11px var(--app-font-mono);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: #d7dcec;
+  }
+
+  .notif-panel-list {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .notif-empty {
+    padding: 22px 14px;
+    text-align: center;
+    font-size: 12px;
+  }
+
+  .notif-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+    font-size: 12px;
+  }
+
+  .notif-item:last-child {
+    border-bottom: none;
+  }
+
+  .notif-item svg {
+    color: var(--amber);
+    flex: 0 0 auto;
+    margin-top: 1px;
+  }
+
+  .notif-item > div {
+    min-width: 0;
+    overflow-wrap: break-word;
+  }
+
+  .notif-item.unread {
+    background: rgba(248, 184, 78, .06);
+  }
+
+  .notif-item.unread strong::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--coral);
+    margin-right: 6px;
+  }
+
+  .notif-read-toggle {
+    margin-left: auto;
+    flex-shrink: 0;
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    color: #9ca7c4;
+    font-size: 10px;
+    padding: 4px 7px;
+    white-space: nowrap;
+  }
+
+  .notif-read-toggle:hover {
+    color: var(--amber);
+    border-color: rgba(248, 184, 78, .4);
+  }
+
+  .field-error {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 12px;
+    border: 1px solid rgba(239, 117, 103, .4);
+    border-radius: 8px;
+    background: rgba(239, 117, 103, .08);
+    color: var(--coral);
+    font-size: 12px;
+    line-height: 1.4;
   }
 
   /* Typography & Panels */
@@ -1026,6 +1157,71 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 
   .toast-error {
     border-color: rgba(239, 117, 103, .52);
+  }
+
+  .toast-queue-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: min(330px, 100%);
+  }
+
+  .toast-queue-count {
+    font: 10px var(--app-font-mono);
+    color: #7c87a2;
+  }
+
+  .toast-clear-all {
+    margin-left: auto;
+    background: transparent;
+    border: 1px solid rgba(248, 184, 78, .3);
+    border-radius: 7px;
+    color: var(--amber);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 5px 10px;
+  }
+
+  .toast-clear-all:hover {
+    background: rgba(248, 184, 78, .12);
+  }
+
+  /* Logout confirmation (and other Yes/No) modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: grid;
+    place-items: center;
+    background: rgba(10, 12, 20, .62);
+    padding: 20px;
+  }
+
+  .modal-card {
+    width: min(360px, 100%);
+    background: #1b2138;
+    border: 1px solid rgba(248, 184, 78, .3);
+    border-radius: 13px;
+    padding: 22px;
+    box-shadow: 0 20px 44px rgba(0, 0, 0, .4);
+    animation: rise .25s both;
+  }
+
+  .modal-title {
+    font-size: 18px;
+    margin: 0 0 8px;
+  }
+
+  .modal-copy {
+    color: #9aa4bf;
+    font-size: 13px;
+    margin: 0 0 20px;
+  }
+
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
   }
 
   /* Quest Cards & Layouts */
@@ -1588,6 +1784,68 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     line-height: 1.7;
     max-width: 410px;
     margin: 16px 0 26px;
+  }
+
+  /* RPG-flavored loading screen (shown while auth/account state resolves) */
+  .loading-card {
+    padding-bottom: 34px;
+  }
+
+  .loading-icon-row {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin: 6px 0 4px;
+  }
+
+  .loading-icon {
+    color: var(--amber);
+    animation: loading-icon-pulse 1.4s ease-in-out infinite;
+  }
+
+  @keyframes loading-icon-pulse {
+    0%, 100% { opacity: .32; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.18); }
+  }
+
+  .loading-flavor {
+    min-height: 22px;
+    margin: 14px 0 18px;
+    animation: loading-flavor-fade .35s ease both;
+  }
+
+  @keyframes loading-flavor-fade {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .loading-bar-track {
+    position: relative;
+    width: 100%;
+    height: 8px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(161, 174, 207, .13);
+  }
+
+  .loading-bar-fill {
+    position: absolute;
+    inset: 0;
+    width: 42%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--cyan), var(--amber));
+    animation: loading-bar-slide 1.35s ease-in-out infinite, loading-bar-pulse 1.35s ease-in-out infinite;
+  }
+
+  @keyframes loading-bar-slide {
+    0% { left: -42%; }
+    50% { left: 58%; }
+    100% { left: 100%; }
+  }
+
+  @keyframes loading-bar-pulse {
+    0%, 100% { opacity: .78; }
+    50% { opacity: 1; }
   }
 
   .auth-form {
@@ -2321,7 +2579,10 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
       flex: 1 1 0%;
       height: auto;
       overflow-y: auto;
-      padding: 0 14px 0 14px;
+      /* Bottom padding clears the fixed bottom nav bar (~60px + safe-area inset) plus
+         breathing room, so the last element on every page is fully scrollable into
+         view instead of being hidden underneath it. */
+      padding: 0 14px calc(76px + var(--safe-bottom)) 14px;
     }
     .profile-mobile-logout {
       display: flex;
@@ -2479,6 +2740,10 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
   type Screen = 'dashboard' | 'quests' | 'shop' | 'achievements' | 'profile';
   type AuthStep = 'welcome' | 'login' | 'signup' | 'strand' | 'avatar' | 'confirm';
   type ToastItem = { id: number; title: string; copy: string; tone?: 'success' | 'error' };
+  // A persistent history of the same events that flash as toasts — surfaced in the
+  // notification bell's dropdown panel (see Topbar) so a player can revisit anything
+  // they missed, independent of the toast's own short auto-dismiss timer.
+  type NotificationItem = { id: number; title: string; copy: string; tone?: ToastItem['tone']; time: number; read: boolean };
   type AvatarConfig = {
     gender: 'neutral' | 'feminine';
     skin: string;
@@ -2582,9 +2847,16 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     gender: 'neutral', skin: '#e9af54', hair: 'short', hairColor: '#2d1b2e',
     topType: 'tshirt', topColor: 'indigo', bottomType: 'pants', shoes: 'dark',
   });
-  const makeDefaultProfile = (): Profile => ({ name: 'Alex Rivera', email: 'alex@campus.edu', strand: 'STEM', avatar: makeDefaultAvatar() });
+  // Builds a fresh profile for a signed-in Firebase Auth user who doesn't have a
+  // Firestore doc yet. Pulls the real name/email off the auth user (displayName /
+  // email) instead of a hardcoded placeholder — falls back to deriving a name from
+  // the email's local part, and only to a generic label if neither is available.
+  const makeDefaultProfile = (authUser?: User | null): Profile => {
+    const derivedName = authUser?.displayName?.trim() || authUser?.email?.split('@')[0] || 'Player';
+    return { name: derivedName, email: authUser?.email ?? '', strand: 'STEM', avatar: makeDefaultAvatar() };
+  };
   const makeFreshGameState = (): GameState => ({ coins: 0, xp: 0, quests: initialQuests.map((quest) => ({ ...quest })), owned: [], equipped: null, studyMinutes: 0, activityDates: [] });
-  const getInitials = (name: string) => name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'AR';
+  const getInitials = (name: string) => name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'PL';
 
   const toISODate = (date: Date) => {
     const offset = date.getTimezoneOffset();
@@ -2663,6 +2935,50 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
   function Logo() {
     return <div className="brand" data-testid="brand-logo"><div className="brand-mark"><img src={LOGO_ICON} alt="DERIOUX crest" width={34} height={34} /></div><div className="brand-copy"><strong className="brand-name">DERIOUX</strong><span className="brand-sub">FOCUS // RPG</span></div></div>;
   }
+
+  // Flavor text cycled while we wait on auth/account state (see the App-level loading
+  // gate). Purely cosmetic — never blocks or delays anything itself, it just keeps a
+  // static wait from feeling like a stall. Every line is a placeholder for the copy team;
+  // swap freely.
+  const LOADING_FLAVOR_LINES = [
+    'Sharpening your stats…', 'Rolling for initiative…', 'Polishing loot drops…',
+    'Waking the tavern keeper…', 'Recalibrating XP crystals…', 'Summoning your loadout…',
+    'Consulting the leaderboard scrolls…', 'Buffing morale +10…', 'Re-forging your streak…',
+    'Dusting off old achievements…',
+  ];
+
+  function LoadingScreen() {
+    const [lineIndex, setLineIndex] = useState(() => Math.floor(Math.random() * LOADING_FLAVOR_LINES.length));
+    useEffect(() => {
+      const interval = window.setInterval(() => {
+        setLineIndex((prev) => {
+          if (LOADING_FLAVOR_LINES.length <= 1) return prev;
+          let next = Math.floor(Math.random() * LOADING_FLAVOR_LINES.length);
+          while (next === prev) next = Math.floor(Math.random() * LOADING_FLAVOR_LINES.length);
+          return next;
+        });
+      }, 1700);
+      return () => window.clearInterval(interval);
+    }, []);
+    return (
+      <div className="auth-screen">
+        <div className="auth-card text-center loading-card">
+          <Logo />
+          <div className="loading-icon-row" aria-hidden="true">
+            <Swords size={18} className="loading-icon" style={{ animationDelay: '0s' }} />
+            <Sparkles size={18} className="loading-icon" style={{ animationDelay: '.2s' }} />
+            <Zap size={18} className="loading-icon" style={{ animationDelay: '.4s' }} />
+          </div>
+          <p className="auth-copy loading-flavor" key={lineIndex} role="status" aria-live="polite">
+            {LOADING_FLAVOR_LINES[lineIndex]}
+          </p>
+          <div className="loading-bar-track">
+            <div className="loading-bar-fill" />
+          </div>
+        </div>
+      </div>
+    );
+  }
   function HeroLogo() {
     return <div className="hero-logo"><img src={LOGO_HERO} alt="DERIOUX Explorer's Academy" /></div>;
   }
@@ -2687,8 +3003,45 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     );
   }
 
-  function Toasts({ items, onDismiss }: { items: ToastItem[]; onDismiss: (id: number) => void }) {
-    return <div className="toast-stack" aria-live="polite">{items.map((toast) => <div className={`toast ${toast.tone === 'error' ? 'toast-error' : ''}`} key={toast.id}><Bell size={15} /><div><strong>{toast.title}</strong><div className="muted">{toast.copy}</div></div><button aria-label="Dismiss notification" onClick={() => onDismiss(toast.id)} className="ml-auto text-slate-500 hover:text-amber-300"><X size={14} /></button></div>)}</div>;
+  // Only the front-of-queue toast is ever mounted, so notifications play one at a time
+  // instead of stacking — the next item in `items` simply becomes the new "front" once
+  // the current one is dismissed (by its own timer or by the user). "Clear All" empties
+  // the whole queue at once via onClearAll, regardless of how many are still waiting.
+  function Toasts({ items, onDismiss, onClearAll }: { items: ToastItem[]; onDismiss: (id: number) => void; onClearAll: () => void }) {
+    if (items.length === 0) return null;
+    const current = items[0];
+    return (
+      <div className="toast-stack" aria-live="polite">
+        <div className={`toast ${current.tone === 'error' ? 'toast-error' : ''}`} key={current.id}>
+          <Bell size={15} />
+          <div><strong>{current.title}</strong><div className="muted">{current.copy}</div></div>
+          <button aria-label="Dismiss notification" onClick={() => onDismiss(current.id)} className="ml-auto text-slate-500 hover:text-amber-300"><X size={14} /></button>
+        </div>
+        {items.length > 1 && (
+          <div className="toast-queue-bar">
+            <span className="toast-queue-count">+{items.length - 1} more</span>
+            <button type="button" className="toast-clear-all" onClick={onClearAll}>Clear All</button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Yes/No confirmation used before signing the player out — see the `logout` flow in
+  // App, which only actually calls Firebase's signOut once the user confirms here.
+  function LogoutConfirmModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+    return (
+      <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="logout-confirm-title">
+        <div className="modal-card">
+          <h2 id="logout-confirm-title" className="modal-title">Log out?</h2>
+          <p className="modal-copy">You'll need to sign back in to resume your run.</p>
+          <div className="modal-actions">
+            <button type="button" className="btn-secondary" onClick={onCancel}>No</button>
+            <button type="button" className="btn-primary" onClick={onConfirm}>Yes, log out</button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   function AvatarSelectors({ avatar, setAvatar }: { avatar: AvatarConfig; setAvatar: (value: AvatarConfig) => void }) {
@@ -2766,18 +3119,37 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    // Inline, form-level error (e.g. "email already registered") shown directly above
+    // the submit button instead of as a toast, so the player sees it without their eyes
+    // leaving the form. Cleared on step changes and as soon as the email is edited, so
+    // a stale error doesn't linger after the player starts correcting it.
+    const [formError, setFormError] = useState<string | null>(null);
+    useEffect(() => { setFormError(null); }, [step]);
     const goBack = () => setStep(step === 'strand' ? 'signup' : step === 'avatar' ? 'strand' : step === 'confirm' ? 'avatar' : 'welcome');
+
+    // RFC-5322-ish but deliberately simple: good enough to catch obviously malformed
+    // input (missing @, no domain, stray spaces) without rejecting valid-but-unusual
+    // addresses.
+    const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     // Step 1 (new user) / the only step (returning user): collect + validate credentials.
     // Signup does NOT create the Firebase account yet — it only moves the user on to
-    // strand/avatar setup. The account (and the "email already in use" check, which
-    // Firebase can only really do at creation time — see the setup guide) only happens
-    // at the end, on the 'confirm' screen, once the full profile is ready. Login, by
-    // contrast, hands the entered email + password straight to Firebase Auth.
+    // strand/avatar setup, but we DO check the email here (format + whether it's
+    // already registered) so a duplicate/malformed address is caught immediately
+    // instead of after the strand/avatar steps. The final create-account call at
+    // signup completion (see completeSignup) still catches a real duplicate via
+    // auth/email-already-in-use as a safety net (e.g. if the account was registered
+    // in the moments between this check and submission). Login, by contrast, hands
+    // the entered email + password straight to Firebase Auth.
     const submitCredentials = async (event: FormEvent) => {
       event.preventDefault();
+      setFormError(null);
       const trimmedEmail = email.trim().toLowerCase();
       if (!trimmedEmail || !password.trim()) return;
+      if (!EMAIL_PATTERN.test(trimmedEmail)) {
+        notify('Invalid email', 'Enter a valid email address, like name@campus.edu.', 'error');
+        return;
+      }
       if (step === 'login') {
         setSubmitting(true);
         const result = await login(trimmedEmail, password);
@@ -2787,6 +3159,23 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
       }
       if (!name.trim()) { notify('Username required', 'Enter a username for your player file.', 'error'); return; }
       if (password.length < 6) { notify('Password too short', 'Use at least 6 characters to protect your player file.', 'error'); return; }
+
+      setSubmitting(true);
+      try {
+        const existingMethods = await fetchSignInMethodsForEmail(auth, trimmedEmail);
+        if (existingMethods.length > 0) {
+          setSubmitting(false);
+          // Shown inline on the form (right above the submit button) rather than as a
+          // toast, and returning here keeps the player on this step — the strand/avatar
+          // flow never advances until a fresh, unused email is entered.
+          setFormError('An account with that email already exists. Try logging in instead.');
+          return;
+        }
+      } catch {
+        // If the lookup itself fails (e.g. offline), don't block signup on it — the
+        // create-account call at the end of the flow still catches a real duplicate.
+      }
+      setSubmitting(false);
       setStep('strand');
     };
 
@@ -2801,7 +3190,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 
     if (step === 'welcome') return <div className="auth-screen"><div className="ambient-orb one" /><div className="ambient-orb two" /><div className="auth-card"><HeroLogo /><div className="eyebrow">YOUR NEXT RUN STARTS HERE</div><h1 className="auth-title">Make focus<br /><span>feel like play.</span></h1><p className="auth-copy">DERIOUX turns the work you keep avoiding into a world you want to return to. Build your streak, defeat the backlog, and level up your real life.</p><div className="auth-actions"><button className="btn-primary flex-1" onClick={() => setStep('signup')}>Start a new run <ChevronRight size={15} /></button><button className="btn-secondary" onClick={() => setStep('login')}>Log in</button></div><div className="auth-meta"><span><span className="status-dot" /> local player file</span><span>v0.9 // night shift</span></div><p className="auth-foot">A quiet place for loud progress.</p></div></div>;
 
-    if (step === 'login' || step === 'signup') return <div className="auth-screen"><div className="ambient-orb one" /><div className="auth-card"><Logo /><button className="back-link" onClick={() => setStep('welcome')}><ChevronRight size={13} className="rotate-180" /> Back to start</button><div className="eyebrow">{step === 'login' ? 'WELCOME BACK, PLAYER' : 'CREATE YOUR PLAYER FILE'}</div><h1 className="auth-title">{step === 'login' ? <>Resume your<br /><span>run.</span></> : <>Choose to<br /><span>begin.</span></>}</h1><form className="auth-form mt-7" onSubmit={submitCredentials}><label className="field-label">Email<input className="field-input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="alex@campus.edu" required autoComplete="email" /></label>{step === 'signup' && <label className="field-label">Username<input className="field-input" value={name} onChange={(event) => setName(event.target.value)} placeholder="Alex Rivera" required autoComplete="username" /></label>}<label className="field-label">Password<div className="password-field"><input className="field-input" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 6 characters" required autoComplete={step === 'login' ? 'current-password' : 'new-password'} /><button type="button" className="password-toggle" aria-label="Toggle password visibility" onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={15} /> : <Eye size={15} />}</button></div></label><button className="btn-primary mt-2" type="submit" disabled={submitting}>{submitting ? 'Checking…' : step === 'login' ? 'Enter DERIOUX' : 'Continue'} <ChevronRight size={15} /></button></form><p className="auth-foot"><button className="text-button" onClick={goBack}>Back to start</button></p></div></div>;
+    if (step === 'login' || step === 'signup') return <div className="auth-screen"><div className="ambient-orb one" /><div className="auth-card"><Logo /><button className="back-link" onClick={() => setStep('welcome')}><ChevronRight size={13} className="rotate-180" /> Back to start</button><div className="eyebrow">{step === 'login' ? 'WELCOME BACK, PLAYER' : 'CREATE YOUR PLAYER FILE'}</div><h1 className="auth-title">{step === 'login' ? <>Resume your<br /><span>run.</span></> : <>Choose to<br /><span>begin.</span></>}</h1><form className="auth-form mt-7" onSubmit={submitCredentials}><label className="field-label">Email<input className="field-input" type="email" value={email} onChange={(event) => { setEmail(event.target.value); setFormError(null); }} placeholder="name@address.com" required autoComplete="email" /></label>{step === 'signup' && <label className="field-label">Username<input className="field-input" value={name} onChange={(event) => setName(event.target.value)} placeholder="Enter username" required autoComplete="username" /></label>}<label className="field-label">Password<div className="password-field"><input className="field-input" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter password" required autoComplete={step === 'login' ? 'current-password' : 'new-password'} /><button type="button" className="password-toggle" aria-label="Toggle password visibility" onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={15} /> : <Eye size={15} />}</button></div></label>{formError && <div className="field-error" role="alert"><X size={13} /><span>{formError}</span></div>}<button className="btn-primary mt-2" type="submit" disabled={submitting}>{submitting ? 'Checking…' : step === 'login' ? 'Enter DERIOUX' : 'Continue'} <ChevronRight size={15} /></button></form><p className="auth-foot"><button className="text-button" onClick={goBack}>Back to start</button></p></div></div>;
 
     if (step === 'strand') return <div className="auth-screen"><div className="auth-card wide"><Logo /><button className="back-link" onClick={goBack}><ChevronRight size={13} className="rotate-180" /> Back</button><div className="eyebrow">01 // SELECT YOUR STRAND</div><h1 className="auth-title">What are you<br /><span>training for?</span></h1><p className="auth-copy">Your strand tunes the first set of quests. You can change your loadout anytime.</p><div className="strand-grid">{strands.map(([title, copy]) => <button className={`strand-btn ${strand === title ? 'selected' : ''}`} key={title} onClick={() => setStrand(title)}><strong>{title}</strong><small>{copy}</small></button>)}</div><button className="btn-primary w-full" onClick={() => setStep('avatar')}>Lock in strand <ChevronRight size={15} /></button></div></div>;
 
@@ -2846,8 +3235,72 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     );
   }
 
-  function Topbar({ screen, onNotify }: { screen: Screen; onNotify: () => void }) {
-    return <header className="topbar"><div className="breadcrumb">DERIOUX <span className="mx-2 opacity-40">/</span> <b>{screen}</b></div><div className="top-actions"><button className="icon-btn relative" aria-label="Notifications" onClick={onNotify}><Bell size={16} /><i className="notif-dot" /></button></div></header>;
+  // Bell click now opens/closes an in-place dropdown panel (rather than firing a toast
+  // directly). The panel owns its own open state and closes on an outside click; the
+  // notifications themselves — and read/unread + clear-all handling — live one level up
+  // in App, since they need to persist across topbar re-renders.
+  function Topbar({
+    screen, notifications, onClearAll, onToggleRead,
+  }: {
+    screen: Screen;
+    notifications: NotificationItem[];
+    onClearAll: () => void;
+    onToggleRead: (id: number, read: boolean) => void;
+  }) {
+    const [panelOpen, setPanelOpen] = useState(false);
+    const wrapRef = useRef<HTMLDivElement | null>(null);
+    const unreadCount = notifications.filter((item) => !item.read).length;
+
+    useEffect(() => {
+      if (!panelOpen) return;
+      const handleOutsideClick = (event: MouseEvent) => {
+        if (wrapRef.current && !wrapRef.current.contains(event.target as Node)) setPanelOpen(false);
+      };
+      document.addEventListener('mousedown', handleOutsideClick);
+      return () => document.removeEventListener('mousedown', handleOutsideClick);
+    }, [panelOpen]);
+
+    return (
+      <header className="topbar">
+        <div className="breadcrumb">DERIOUX <span className="mx-2 opacity-40">/</span> <b>{screen}</b></div>
+        <div className="top-actions">
+          <div className="notif-wrap" ref={wrapRef}>
+            <button
+              className="icon-btn relative"
+              aria-label="Notifications"
+              aria-expanded={panelOpen}
+              onClick={() => setPanelOpen((prev) => !prev)}
+            >
+              <Bell size={16} />
+              {unreadCount > 0 && <i className="notif-dot" />}
+            </button>
+            {panelOpen && (
+              <div className="notif-panel">
+                <div className="notif-panel-head">
+                  <span className="notif-panel-title">Notifications</span>
+                  {notifications.length > 0 && <button type="button" className="toast-clear-all" onClick={onClearAll}>Clear All</button>}
+                </div>
+                <div className="notif-panel-list">
+                  {notifications.length === 0 && <div className="notif-empty muted">You're all caught up.</div>}
+                  {notifications.map((item) => (
+                    <div className={`notif-item ${item.read ? 'read' : 'unread'}`} key={item.id}>
+                      <Bell size={13} />
+                      <div>
+                        <strong>{item.title}</strong>
+                        <div className="muted">{item.copy}</div>
+                      </div>
+                      <button type="button" className="notif-read-toggle" onClick={() => onToggleRead(item.id, !item.read)}>
+                        {item.read ? 'Mark unread' : 'Mark read'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+    );
   }
 
   /* =====================================================================================
@@ -3583,19 +4036,49 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     );
   }
 
-  function Profile({ profile, xp, setAvatar, owned, equipped, updateProfileCredentials, notify, onLogout }: { profile: Profile; xp: number; setAvatar: (value: AvatarConfig) => void; owned: string[]; equipped: string | null; updateProfileCredentials: (currentPassword: string, newEmail: string, newPass: string) => Promise<{ ok: boolean; message?: string }>; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void; onLogout: () => void }) {
+  function Profile({ profile, xp, setAvatar, owned, equipped, updateProfileName, updateProfilePassword, notify, onLogout }: { profile: Profile; xp: number; setAvatar: (value: AvatarConfig) => void; owned: string[]; equipped: string | null; updateProfileName: (newName: string) => Promise<{ ok: boolean; message?: string }>; updateProfilePassword: (currentPassword: string, newPass: string) => Promise<{ ok: boolean; message?: string }>; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void; onLogout: () => void }) {
     const [sound, setSound] = useState(true);
     const [feedback, setFeedback] = useState(false);
     const [editingAvatar, setEditingAvatar] = useState(false);
-    
-    // Profile Security & Email Edit State
-    const [emailInput, setEmailInput] = useState(profile.email);
-    const [isEditingEmail, setIsEditingEmail] = useState(false);
+
+    // Username Edit State — email is intentionally read-only here (Firebase Auth is
+    // the source of truth for it and changing it needs re-auth, which is out of scope
+    // for this simple profile field); only the display name can be edited in place.
+    const [nameInput, setNameInput] = useState(profile.name);
+    const [isEditingName, setIsEditingName] = useState(false);
+    const [savingName, setSavingName] = useState(false);
+    // Keep the local input in sync if the profile name changes elsewhere (e.g. after
+    // a fresh Firestore load) while the field isn't actively being edited.
+    useEffect(() => { if (!isEditingName) setNameInput(profile.name); }, [profile.name, isEditingName]);
+
+    // Password Change State
     const [currentPassword, setCurrentPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
 
     const { level, floorXp, ceilingXp, progressPct } = getLevelInfo(xp);
+
+    const handleSaveName = async (e: FormEvent) => {
+      e.preventDefault();
+      const trimmed = nameInput.trim();
+      if (!trimmed) {
+        notify('Username required', 'Enter a username before saving.', 'error');
+        return;
+      }
+      if (trimmed === profile.name) {
+        setIsEditingName(false);
+        return;
+      }
+      setSavingName(true);
+      const result = await updateProfileName(trimmed);
+      setSavingName(false);
+      if (result.ok) {
+        notify('Username updated', 'Your player name has been saved.');
+        setIsEditingName(false);
+      } else {
+        notify('Update failed', result.message ?? 'Could not save your username.', 'error');
+      }
+    };
 
     const handleSavePassword = async (e: FormEvent) => {
       e.preventDefault();
@@ -3611,13 +4094,12 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
         notify('Mismatch', 'New password and confirm password do not match.', 'error');
         return;
       }
-      const result = await updateProfileCredentials(currentPassword, emailInput, newPassword);
+      const result = await updateProfilePassword(currentPassword, newPassword);
       if (result.ok) {
-        notify('Security updated', 'Your email and password settings have been saved successfully.');
+        notify('Security updated', 'Your password has been saved successfully.');
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
-        setIsEditingEmail(false);
       } else {
         notify('Update failed', result.message ?? 'Incorrect current password or invalid details.', 'error');
       }
@@ -3645,7 +4127,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
               <div className="panel-head !p-0 !pb-4">
                 <div>
                   <div className="panel-title">Credentials & Security</div>
-                  <div className="panel-kicker mt-1">Manage email and account passwords</div>
+                  <div className="panel-kicker mt-1">Manage your username and account password</div>
                 </div>
                 <ShieldCheck size={18} className="text-amber-300" />
               </div>
@@ -3656,16 +4138,29 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
                     <strong>Email Address</strong>
                     <span>{profile.email}</span>
                   </div>
-                  <button className="btn-secondary !px-2 !py-1" onClick={() => setIsEditingEmail(!isEditingEmail)}>
-                    {isEditingEmail ? 'Cancel' : 'Edit'}
-                  </button>
                 </div>
-                {isEditingEmail && (
-                  <div style={{ width: '100%', marginTop: '8px' }}>
-                    <input className="field-input" type="email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} placeholder="New email address" />
-                  </div>
-                )}
               </div>
+
+              <form onSubmit={handleSaveName} className="setting-row" style={{ alignItems: 'flex-start', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+                <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ flex: 1 }}>
+                    <strong>Username</strong>
+                    {isEditingName ? (
+                      <input className="field-input mt-2" value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="Your username" autoFocus />
+                    ) : (
+                      <span>{profile.name}</span>
+                    )}
+                  </div>
+                  {isEditingName ? (
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button type="button" className="btn-secondary !px-2 !py-1" onClick={() => { setIsEditingName(false); setNameInput(profile.name); }} disabled={savingName}>Cancel</button>
+                      <button type="submit" className="btn-primary !px-2 !py-1" disabled={savingName}>{savingName ? 'Saving…' : 'Save'}</button>
+                    </div>
+                  ) : (
+                    <button type="button" className="btn-secondary !px-2 !py-1" onClick={() => setIsEditingName(true)}>Edit</button>
+                  )}
+                </div>
+              </form>
 
               <form onSubmit={handleSavePassword} style={{ marginTop: '16px' }}>
                 <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -3732,19 +4227,48 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     // updates it locally AND fires a background Firestore write via updateAccountData.
     const [accountData, setAccountData] = useState<StoredAccount | null>(null);
     const [accountLoading, setAccountLoading] = useState(false);
+
+    // Mirrors the two refs below, kept in sync so the async .then() in the effect can see
+    // the *latest* accountData/flag values instead of the stale ones captured in its closure.
+    const accountDataRef = useRef<StoredAccount | null>(null);
+    useEffect(() => { accountDataRef.current = accountData; }, [accountData]);
+    // True once the loading-fallback timer (below) has dropped the player into a
+    // temporary local file because the real Firestore fetch was too slow.
+    const usedTemporaryProfileRef = useRef(false);
+    // True once the player has actually made progress (a quest claim, a purchase, a
+    // finished focus session, ...) on that temporary file — see updateAccountData.
+    const localProgressStartedRef = useRef(false);
+
     useEffect(() => {
-      if (!authUser) { setAccountData(null); return; }
+      if (!authUser) {
+        setAccountData(null);
+        usedTemporaryProfileRef.current = false;
+        localProgressStartedRef.current = false;
+        return;
+      }
       let cancelled = false;
       setAccountLoading(true);
       loadPlayerDoc(authUser.uid).then(async (existing) => {
         if (cancelled) return;
+        // This fetch can resolve *after* the fallback below already put the player on a
+        // temporary file. If they've since made real progress on it, `existing` (their
+        // old save) is now the stale copy — accepting it here would silently erase that
+        // progress the instant Firebase finally responded, which is exactly the kind of
+        // loss this whole persistence layer exists to prevent. Once local progress has
+        // started, local always wins: push it to Firestore instead of overwriting it.
+        if (usedTemporaryProfileRef.current && localProgressStartedRef.current) {
+          const authoritative = accountDataRef.current ?? { profile: makeDefaultProfile(authUser), game: makeFreshGameState() };
+          await savePlayerDoc(authUser.uid, authoritative);
+          if (!cancelled) setAccountLoading(false);
+          return;
+        }
         if (existing) {
           setAccountData(existing);
         } else {
           // Auth account exists but no Firestore doc yet (e.g. it was deleted, or this
           // is the moment right after signup — see completeSignup below, which writes
           // the doc itself so this branch is mostly a safety net for edge cases).
-          const fresh: StoredAccount = { profile: makeDefaultProfile(), game: makeFreshGameState() };
+          const fresh: StoredAccount = { profile: makeDefaultProfile(authUser), game: makeFreshGameState() };
           await savePlayerDoc(authUser.uid, fresh);
           if (!cancelled) setAccountData(fresh);
         }
@@ -3756,6 +4280,12 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     const [screen, setScreen] = useState<Screen>('dashboard');
     const [questStage, setQuestStage] = useState<'list' | 'roaming' | 'briefing' | 'battle'>('list');
 
+    // True for every stage of the "Enter battle" flow past the quest list (roaming the
+    // campus, the pre-battle briefing, and the battle itself). Used to hide the sidebar
+    // and topbar so the game container can take the entire fullscreen viewport, on both
+    // desktop and mobile.
+    const isImmersiveQuest = screen === 'quests' && questStage !== 'list';
+
     // `.main-area` (not the window) is the actual scroll container — see its CSS
     // (overflow-y: auto). Every time the visible page changes, scroll it back to the
     // top so the new page never opens mid-scroll from wherever the last one left off.
@@ -3766,6 +4296,10 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     const [foundChallenger, setFoundChallenger] = useState<CampusChallenger | null>(null);
     const [defeatedChallengerIds, setDefeatedChallengerIds] = useState<string[]>([]);
     const [toasts, setToasts] = useState<ToastItem[]>([]);
+    // Persistent history of the same events shown as toasts, feeding the notification
+    // bell's dropdown panel — unlike toasts these don't auto-expire, so the player can
+    // review, mark read/unread, or clear them at their own pace.
+    const [notifications, setNotifications] = useState<NotificationItem[]>([]);
     const [timerRunning, setTimerRunning] = useState(false);
     const [secondsLeft, setSecondsLeft] = useState(FOCUS_DURATION_SECONDS);
 
@@ -3773,21 +4307,32 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
       const id = Date.now() + Math.random();
       setToasts((prev) => [...prev, { id, title, copy, tone }]);
       setTimeout(() => { setToasts((prev) => prev.filter((t) => t.id !== id)); }, 4200);
+      setNotifications((prev) => [{ id, title, copy, tone, time: Date.now(), read: false }, ...prev]);
     };
+    const markNotificationRead = (id: number, read: boolean) => {
+      setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, read } : item)));
+    };
+    const clearAllNotifications = () => setNotifications([]);
 
     // --- Loading fallback timeout ---
     // Firebase is usually near-instant, but a slow/unreachable network can leave either
-    // gate above stuck open indefinitely, trapping the player on "Loading your player
-    // file…" forever. After a few seconds we force our way past whichever gate is still
-    // closed instead of waiting any longer:
+    // gate above stuck open indefinitely, trapping the player on the loading screen
+    // forever. After a short wait we force our way past whichever gate is still closed
+    // instead of waiting any longer:
     //  - `authLoading` stuck  → treat it as "not signed in yet" and show the login screen.
     //    The onAuthStateChanged listener stays subscribed, so if Firebase does eventually
     //    respond with a real session it will still resolve normally.
     //  - `accountLoading` stuck (auth resolved, Firestore doc still pending) → drop the
     //    player into a fresh local profile/game state so they can start using the app
-    //    immediately. The original Firestore fetch keeps running in the background and,
-    //    if it later succeeds, will overwrite this local placeholder with their real save.
-    const LOADING_FALLBACK_MS = 6000;
+    //    immediately. The original Firestore fetch keeps running in the background; once
+    //    it resolves, the account-loading effect above decides who wins (see the
+    //    usedTemporaryProfileRef / localProgressStartedRef logic there) — it will only
+    //    ever adopt the fetched save if the player hasn't touched the temporary one yet,
+    //    so this can no longer clobber real progress.
+    // 2.5s (was 6s): safe to shrink now that a late real fetch can't stomp on local
+    // progress — this is the actual lever for "loading feels faster" on a slow network,
+    // not a change to how fast Firestore itself responds.
+    const LOADING_FALLBACK_MS = 2500;
     useEffect(() => {
       const isStuck = authLoading || (!!authUser && accountLoading && !accountData);
       if (!isStuck) return;
@@ -3796,7 +4341,8 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
           setAuthLoading(false);
           notify('Taking longer than expected', 'Continuing without waiting on Firebase — sign in when ready.', 'error');
         } else if (authUser && !accountData) {
-          setAccountData({ profile: makeDefaultProfile(), game: makeFreshGameState() });
+          usedTemporaryProfileRef.current = true;
+          setAccountData({ profile: makeDefaultProfile(authUser), game: makeFreshGameState() });
           setAccountLoading(false);
           notify('Taking longer than expected', 'Continuing with a temporary player file — your real save will sync in once Firebase responds.', 'error');
         }
@@ -3811,6 +4357,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     // playing normally on the local copy and the next successful update will catch Firestore up.
     const updateAccountData = (updater: (acc: StoredAccount) => StoredAccount) => {
       if (!authUser || !accountData) return;
+      if (usedTemporaryProfileRef.current) localProgressStartedRef.current = true;
       setAccountData((prev) => {
         if (!prev) return prev;
         const updated = updater(prev);
@@ -3846,10 +4393,10 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
      * roaming screen's Quit button, switching sidebar tabs, logging out, or the browser/OS
      * kicking the page out of fullscreen on its own (Esc, back gesture, etc). */
     useEffect(() => {
-      if (!(screen === 'quests' && questStage !== 'list')) {
+      if (!isImmersiveQuest) {
         exitImmersiveBattle();
       }
-    }, [screen, questStage]);
+    }, [isImmersiveQuest]);
 
     useEffect(() => {
       const handleFullscreenChange = () => {
@@ -3873,6 +4420,11 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     // just relying on the implicit unmount that already happens when `session` clears.
     const [authResetKey, setAuthResetKey] = useState(0);
 
+    // Gates the Yes/No logout confirmation modal. Sidebar/Profile no longer call
+    // `logout` directly — they open this instead, and the modal calls `logout` only
+    // once the user confirms.
+    const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+
     // login/completeSignup are async and return { ok, message } (rather than throwing)
     // so the Auth component can show a friendly toast either way without a try/catch of
     // its own. Session restoration on refresh/relaunch is NOT handled here — that's the
@@ -3888,9 +4440,17 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
       }
     };
 
+    // Actually performs the sign-out (called only after the Yes/No confirmation modal
+    // is accepted — see logoutConfirmOpen below). Once signOut resolves, the
+    // onAuthStateChanged listener flips authUser to null, which makes the App-level
+    // gate above render <Auth /> in place of the game shell — that IS the "redirect to
+    // login" here, since this app has no router/URL history: everything is gated by
+    // auth state on every render, so there's no separate protected route to fall back
+    // into via the browser's back button.
     const logout = async () => {
       await signOut(auth);
       setAuthResetKey((value) => value + 1);
+      setLogoutConfirmOpen(false);
       notify('Logged out', 'Player session safely saved.');
     };
 
@@ -3943,21 +4503,14 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     // is signed in, still fetching their Firestore doc): show a loading state instead of
     // flashing the login screen first.
     if (authLoading || (authUser && accountLoading)) {
-      return (
-        <div className="auth-screen">
-          <div className="auth-card text-center">
-            <Logo />
-            <p className="auth-copy">Loading your player file…</p>
-          </div>
-        </div>
-      );
+      return <LoadingScreen />;
     }
 
     if (!authUser || !accountData) {
       return (
         <ErrorBoundary>
           <Auth key={authResetKey} login={login} completeSignup={completeSignup} notify={notify} />
-          <Toasts items={toasts} onDismiss={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
+          <Toasts items={toasts} onDismiss={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} onClearAll={() => setToasts([])} />
         </ErrorBoundary>
       );
     }
@@ -4016,16 +4569,33 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
       notify('Avatar updated', 'Changes saved to player file.');
     };
 
-    const updateProfileCredentials = async (currentPassword: string, newEmail: string, newPass: string) => {
+    // Password changes only — email is read-only in the Profile UI (Firebase Auth is
+    // the source of truth for it), so this no longer touches Firebase Auth's email.
+    const updateProfilePassword = async (currentPassword: string, newPass: string) => {
       if (!authUser || !authUser.email) return { ok: false, message: 'Not signed in.' };
       try {
-        // Firebase requires a recent sign-in before allowing email/password changes —
+        // Firebase requires a recent sign-in before allowing a password change —
         // re-authenticating with the current password satisfies that and also doubles
         // as verifying the player actually knows their current password.
         await reauthenticateWithCredential(authUser, EmailAuthProvider.credential(authUser.email, currentPassword));
-        if (newEmail !== authUser.email) await updateAuthEmail(authUser, newEmail);
-        if (newPass) await updateAuthPassword(authUser, newPass);
-        updateAccountData((acc) => ({ ...acc, profile: { ...acc.profile, email: newEmail } }));
+        await updateAuthPassword(authUser, newPass);
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, message: authErrorMessage(err) };
+      }
+    };
+
+    // Username changes: update the Firebase Auth displayName (so it's consistent for
+    // any other Firebase-facing surface) AND the Firestore `players/{uid}` doc (so the
+    // dashboard/sidebar, which read from Firestore-backed local state, pick it up
+    // immediately without waiting on another auth round trip).
+    const updateProfileName = async (newName: string) => {
+      if (!authUser) return { ok: false, message: 'Not signed in.' };
+      const trimmed = newName.trim();
+      if (!trimmed) return { ok: false, message: 'Username cannot be empty.' };
+      try {
+        await updateAuthProfile(authUser, { displayName: trimmed });
+        updateAccountData((acc) => ({ ...acc, profile: { ...acc.profile, name: trimmed } }));
         return { ok: true };
       } catch (err) {
         return { ok: false, message: authErrorMessage(err) };
@@ -4037,10 +4607,14 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
         <div className="derioux-shell">
           <div className="ambient-orb one" />
           <div className="ambient-orb two" />
-          <div className="app-grid">
-            <Sidebar screen={screen} setScreen={(next) => { setQuestStage('list'); setFoundChallenger(null); setScreen(next); }} onLogout={logout} profile={profile} xp={game.xp} quests={game.quests} />
-            <div className="main-area" ref={mainAreaRef}>
-              <Topbar screen={screen} onNotify={() => notify('System status', 'All parameters stable. Ready for your next run.')} />
+          <div className={`app-grid${isImmersiveQuest ? ' app-grid--immersive' : ''}`}>
+            {!isImmersiveQuest && (
+              <Sidebar screen={screen} setScreen={(next) => { setQuestStage('list'); setFoundChallenger(null); setScreen(next); }} onLogout={() => setLogoutConfirmOpen(true)} profile={profile} xp={game.xp} quests={game.quests} />
+            )}
+            <div className={`main-area${isImmersiveQuest ? ' main-area--immersive' : ''}`} ref={mainAreaRef}>
+              {!isImmersiveQuest && (
+                <Topbar screen={screen} notifications={notifications} onClearAll={clearAllNotifications} onToggleRead={markNotificationRead} />
+              )}
               {screen === 'dashboard' && (
                 <Dashboard
                   profile={profile}
@@ -4084,14 +4658,18 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
                   setAvatar={updateAvatar}
                   owned={game.owned}
                   equipped={game.equipped}
-                  updateProfileCredentials={updateProfileCredentials}
+                  updateProfileName={updateProfileName}
+                  updateProfilePassword={updateProfilePassword}
                   notify={notify}
-                  onLogout={logout}
+                  onLogout={() => setLogoutConfirmOpen(true)}
                 />
               )}
             </div>
           </div>
-          <Toasts items={toasts} onDismiss={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
+          <Toasts items={toasts} onDismiss={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} onClearAll={() => setToasts([])} />
+          {logoutConfirmOpen && (
+            <LogoutConfirmModal onConfirm={logout} onCancel={() => setLogoutConfirmOpen(false)} />
+          )}
         </div>
       </ErrorBoundary>
     );
