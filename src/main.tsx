@@ -1,4 +1,4 @@
-import { Component, useEffect, useMemo, useRef, useState, type ErrorInfo, type FormEvent, type ReactNode } from 'react';
+import { Component, useEffect, useRef, useState, type ErrorInfo, type FormEvent, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   Bell, BookOpen, Brain, Check, ChevronRight, CircleUserRound, Clock, Coins, Compass, Crosshair, Eye, EyeOff, Flame, Gem,
@@ -2717,7 +2717,9 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     font: 11px var(--app-font-mono);
     text-align: center;
     display: none;
-    pointer-events: none;
+    pointer-events: auto;
+    cursor: pointer;
+    touch-action: manipulation;
     text-shadow: 0 0 8px rgba(103, 205, 209, .6);
     box-shadow: 0 0 25px rgba(103, 205, 209, .22);
     z-index: 10;
@@ -2775,6 +2777,37 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   @keyframes campus-badge-pulse {
     0%, 100% { box-shadow: 0 0 0 4px rgba(248, 184, 78, .12), 0 2px 10px rgba(0, 0, 0, .4); }
     50% { box-shadow: 0 0 0 8px rgba(248, 184, 78, .05), 0 2px 10px rgba(0, 0, 0, .4); }
+  }
+  .campus-interact-cta {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: 148px;
+    max-width: 360px;
+    margin: 0 auto;
+    min-height: 56px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 18px;
+    border-radius: 14px;
+    background: rgba(15, 20, 36, .92);
+    border: 2px solid var(--amber);
+    color: var(--amber);
+    font: 13px var(--app-font-mono);
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-align: center;
+    box-shadow: 0 0 0 5px rgba(248, 184, 78, .12), 0 10px 26px rgba(0, 0, 0, .45);
+    pointer-events: auto;
+    z-index: 9;
+    touch-action: manipulation;
+    animation: campus-cta-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes campus-cta-pulse {
+    0%, 100% { box-shadow: 0 0 0 5px rgba(248, 184, 78, .12), 0 10px 26px rgba(0, 0, 0, .45); }
+    50% { box-shadow: 0 0 0 10px rgba(248, 184, 78, .04), 0 10px 26px rgba(0, 0, 0, .45); }
   }
   .campus-look-layer {
     position: absolute;
@@ -3112,11 +3145,65 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     if (achievement.requiredCategory) return owned.some((id) => shopItems.find((item) => item.id === id)?.category === achievement.requiredCategory);
     return false;
   };
-  const battleQuestions = [
-    { subject: 'Biology', question: 'Which organelle is known as the powerhouse of the cell?', options: ['Nucleus', 'Mitochondria', 'Ribosome', 'Golgi apparatus'], answer: 1 },
-    { subject: 'Calculus', question: 'What is the derivative of x²?', options: ['x', '2', '2x', 'x²'], answer: 2 },
-    { subject: 'Physics', question: 'Which force keeps planets in orbit around the sun?', options: ['Friction', 'Gravity', 'Magnetism', 'Tension'], answer: 1 },
-  ];
+  type Question = { subject: string; question: string; options: string[]; answer: number };
+
+  // One question bank per strand (the same four values chosen at signup: STEM / ABM /
+  // HUMSS / GENERAL KNOWLEDGE). Every question a player ever sees comes from their own
+  // strand's bank — nobody outside STEM gets asked about mitochondria. Eight questions
+  // per strand is enough for four NPCs to each get a genuinely distinct, non-identical
+  // set (see buildChallengerQuestionSet below) without repeating content across strands.
+  const QUESTION_BANK: Record<string, Question[]> = {
+    STEM: [
+      { subject: 'Biology', question: 'Which organelle is known as the powerhouse of the cell?', options: ['Nucleus', 'Mitochondria', 'Ribosome', 'Golgi apparatus'], answer: 1 },
+      { subject: 'Calculus', question: 'What is the derivative of x²?', options: ['x', '2', '2x', 'x²'], answer: 2 },
+      { subject: 'Physics', question: 'Which force keeps planets in orbit around the sun?', options: ['Friction', 'Gravity', 'Magnetism', 'Tension'], answer: 1 },
+      { subject: 'Chemistry', question: 'What is the chemical symbol for sodium?', options: ['So', 'Sd', 'Na', 'S'], answer: 2 },
+      { subject: 'Biology', question: 'What is the basic unit of heredity called?', options: ['Cell', 'Gene', 'Atom', 'Protein'], answer: 1 },
+      { subject: 'Physics', question: 'What is the SI unit of force?', options: ['Joule', 'Watt', 'Newton', 'Pascal'], answer: 2 },
+      { subject: 'Calculus', question: 'What is the integral of 2x dx?', options: ['x² + C', '2x² + C', 'x + C', '2 + C'], answer: 0 },
+      { subject: 'Computer Science', question: "What does 'CPU' stand for?", options: ['Central Process Unit', 'Central Processing Unit', 'Computer Personal Unit', 'Core Processing Utility'], answer: 1 },
+    ],
+    ABM: [
+      { subject: 'Accounting', question: "In the accounting equation, Assets = Liabilities + ___?", options: ['Revenue', 'Equity', 'Expenses', 'Cash'], answer: 1 },
+      { subject: 'Economics', question: 'What term describes the total value of goods and services produced in a country in a year?', options: ['Inflation rate', 'GDP', 'Interest rate', 'Trade balance'], answer: 1 },
+      { subject: 'Business', question: "What does 'ROI' stand for?", options: ['Rate of Interest', 'Return on Investment', 'Revenue over Income', 'Ratio of Investment'], answer: 1 },
+      { subject: 'Accounting', question: "Which financial statement shows a company's profit over a period?", options: ['Balance sheet', 'Income statement', 'Cash flow statement', 'Trial balance'], answer: 1 },
+      { subject: 'Economics', question: 'All else equal, what happens to demand when the price of a good rises?', options: ['Demand rises', 'Demand falls', 'Demand stays the same', 'Supply falls'], answer: 1 },
+      { subject: 'Management', question: 'In a SWOT analysis, what does the T stand for?', options: ['Trends', 'Targets', 'Threats', 'Tactics'], answer: 2 },
+      { subject: 'Business', question: 'A business owned and run by a single person is called a ___?', options: ['Corporation', 'Partnership', 'Cooperative', 'Sole proprietorship'], answer: 3 },
+      { subject: 'Economics', question: 'What is the study of how individual households and firms make decisions called?', options: ['Macroeconomics', 'Microeconomics', 'Econometrics', 'Behavioral economics'], answer: 1 },
+    ],
+    HUMSS: [
+      { subject: 'Literature', question: "Who wrote the novel 'Noli Me Tangere'?", options: ['Andrés Bonifacio', 'José Rizal', 'Apolinario Mabini', 'Marcelo del Pilar'], answer: 1 },
+      { subject: 'History', question: 'In what year did the Philippine Revolution against Spain begin?', options: ['1896', '1898', '1901', '1872'], answer: 0 },
+      { subject: 'Social Science', question: 'Which social science primarily studies human societies and social relationships?', options: ['Psychology', 'Sociology', 'Anthropology', 'Political science'], answer: 1 },
+      { subject: 'Literature', question: "Which figure of speech compares two unlike things using 'like' or 'as'?", options: ['Metaphor', 'Simile', 'Hyperbole', 'Personification'], answer: 1 },
+      { subject: 'History', question: "Who is known as the 'Father of the Philippine Revolution'?", options: ['José Rizal', 'Emilio Aguinaldo', 'Andrés Bonifacio', 'Antonio Luna'], answer: 2 },
+      { subject: 'Language', question: 'What part of speech primarily describes an action or state of being?', options: ['Noun', 'Adjective', 'Verb', 'Adverb'], answer: 2 },
+      { subject: 'Social Science', question: 'The study of past human activity through excavation of artifacts is called?', options: ['Archaeology', 'Geology', 'Paleontology', 'Ethnography'], answer: 0 },
+      { subject: 'Literature', question: "What term describes a story's central message or insight?", options: ['Plot', 'Setting', 'Theme', 'Tone'], answer: 2 },
+    ],
+    'GENERAL KNOWLEDGE': [
+      { subject: 'Science', question: 'What is the largest planet in our solar system?', options: ['Saturn', 'Jupiter', 'Neptune', 'Earth'], answer: 1 },
+      { subject: 'Arts', question: 'Who painted the Mona Lisa?', options: ['Michelangelo', 'Raphael', 'Leonardo da Vinci', 'Donatello'], answer: 2 },
+      { subject: 'Geography', question: 'What is the capital of the Philippines?', options: ['Cebu City', 'Davao City', 'Manila', 'Quezon City'], answer: 2 },
+      { subject: 'Geography', question: 'How many continents are there on Earth?', options: ['5', '6', '7', '8'], answer: 2 },
+      { subject: 'Science', question: 'What gas do plants primarily absorb from the atmosphere for photosynthesis?', options: ['Oxygen', 'Nitrogen', 'Carbon dioxide', 'Hydrogen'], answer: 2 },
+      { subject: 'Geography', question: 'Which ocean is the largest by surface area?', options: ['Atlantic Ocean', 'Indian Ocean', 'Arctic Ocean', 'Pacific Ocean'], answer: 3 },
+      { subject: 'Science', question: 'What is the freezing point of water in Celsius?', options: ['0°C', '32°C', '100°C', '-1°C'], answer: 0 },
+      { subject: 'History', question: 'Who is credited with inventing the telephone?', options: ['Thomas Edison', 'Alexander Graham Bell', 'Nikola Tesla', 'Guglielmo Marconi'], answer: 1 },
+    ],
+  };
+
+  // Fisher–Yates — used to shuffle both question order and each question's own choices.
+  const shuffleArray = <T,>(items: T[]): T[] => {
+    const copy = [...items];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  };
 
   // Same tiering used for subject mastery accuracy everywhere it's shown — also used to
   // detect a genuine "academic improvement" (a subject crossing upward into a better tier)
@@ -3124,6 +3211,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   type MasteryTier = 'weak' | 'developing' | 'mastered';
   const masteryTierOf = (accuracyPct: number): MasteryTier => (accuracyPct >= 80 ? 'mastered' : accuracyPct >= 50 ? 'developing' : 'weak');
   const MASTERY_TIER_RANK: Record<MasteryTier, number> = { weak: 0, developing: 1, mastered: 2 };
+
 
   /**
    * Immersive battle mode — fullscreen + landscape lock while the player is anywhere
@@ -3604,7 +3692,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           // Shown inline on the form (right above the submit button) rather than as a
           // toast, and returning here keeps the player on this step — the strand/avatar
           // flow never advances until a fresh, unused email is entered.
-          setFormError('An account with that email already exists. Try logging in instead.');
+          setFormError('An account with that email already exists.');
           return;
         }
       } catch {
@@ -3631,7 +3719,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // this confirm step.
         keepFormErrorRef.current = true;
         setStep('signup');
-        setFormError(result.message ?? 'An account with that email already exists. Try logging in instead.');
+        setFormError('An account with that email already exists.');
         return;
       }
       notify('Could not create player file', result.message ?? 'Something went wrong. Please try again.', 'error');
@@ -3640,7 +3728,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
     if (step === 'welcome') return <div className="auth-screen"><div className="ambient-orb one" /><div className="ambient-orb two" /><div className="auth-card"><HeroLogo /><div className="eyebrow">YOUR NEXT RUN STARTS HERE</div><h1 className="auth-title">Make focus<br /><span>feel like play.</span></h1><p className="auth-copy">DERIOUX turns the work you keep avoiding into a world you want to return to. Build your streak, defeat the backlog, and level up your real life.</p><div className="auth-actions"><button className="btn-primary flex-1" onClick={() => setStep('signup')}>Start a new run <ChevronRight size={15} /></button><button className="btn-secondary" onClick={() => setStep('login')}>Log in</button></div><div className="auth-meta"><span><span className="status-dot" /> local player file</span><span>v0.9 // night shift</span></div><p className="auth-foot">A quiet place for loud progress.</p></div></div>;
 
-    if (step === 'login' || step === 'signup') return <div className="auth-screen"><div className="ambient-orb one" /><div className="auth-card"><Logo /><button className="back-link" onClick={() => setStep('welcome')}><ChevronRight size={13} className="rotate-180" /> Back to start</button><div className="eyebrow">{step === 'login' ? 'WELCOME BACK, PLAYER' : 'CREATE YOUR PLAYER FILE'}</div><h1 className="auth-title">{step === 'login' ? <>Resume your<br /><span>run.</span></> : <>Choose to<br /><span>begin.</span></>}</h1><form className="auth-form mt-7" onSubmit={submitCredentials}><label className="field-label">Email<input className="field-input" type="email" value={email} onChange={(event) => { setEmail(event.target.value); setFormError(null); }} placeholder="name@address.com" required autoComplete="email" /></label>{step === 'signup' && <label className="field-label">Username<input className="field-input" value={name} onChange={(event) => setName(event.target.value)} placeholder="Enter username" required autoComplete="username" /></label>}<label className="field-label">Password<div className="password-field"><input className="field-input" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter password" required autoComplete={step === 'login' ? 'current-password' : 'new-password'} /><button type="button" className="password-toggle" aria-label="Toggle password visibility" onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={15} /> : <Eye size={15} />}</button></div></label>{formError && <div className="field-error" role="alert"><X size={13} /><span>{formError}</span></div>}<button className="btn-primary mt-2" type="submit" disabled={submitting}>{submitting ? 'Checking…' : step === 'login' ? 'Enter DERIOUX' : 'Continue'} <ChevronRight size={15} /></button></form><p className="auth-foot"><button className="text-button" onClick={goBack}>Back to start</button></p></div></div>;
+    if (step === 'login' || step === 'signup') return <div className="auth-screen"><div className="ambient-orb one" /><div className="auth-card"><Logo /><button className="back-link" onClick={() => setStep('welcome')}><ChevronRight size={13} className="rotate-180" /> Back to start</button><div className="eyebrow">{step === 'login' ? 'WELCOME BACK, PLAYER' : 'CREATE YOUR PLAYER FILE'}</div><h1 className="auth-title">{step === 'login' ? <>Resume your<br /><span>run.</span></> : <>Choose to<br /><span>begin.</span></>}</h1><form className="auth-form mt-7" onSubmit={submitCredentials}><label className="field-label">Email<input className="field-input" type="email" value={email} onChange={(event) => { setEmail(event.target.value); setFormError(null); }} placeholder="name@address.com" required autoComplete="email" /></label>{formError && <div className="field-error mt-2" role="alert"><X size={13} /><span>{formError} {step === 'signup' && <button type="button" className="text-button" onClick={() => { setFormError(null); setPassword(''); setStep('login'); }}>Log in instead.</button>}</span></div>}{step === 'signup' && <label className="field-label">Username<input className="field-input" value={name} onChange={(event) => setName(event.target.value)} placeholder="Enter username" required autoComplete="username" /></label>}<label className="field-label">Password<div className="password-field"><input className="field-input" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter password" required autoComplete={step === 'login' ? 'current-password' : 'new-password'} /><button type="button" className="password-toggle" aria-label="Toggle password visibility" onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={15} /> : <Eye size={15} />}</button></div></label><button className="btn-primary mt-2" type="submit" disabled={submitting}>{submitting ? 'Checking…' : step === 'login' ? 'Enter DERIOUX' : 'Continue'} <ChevronRight size={15} /></button></form><p className="auth-foot"><button className="text-button" onClick={goBack}>Back to start</button></p></div></div>;
 
     if (step === 'strand') return <div className="auth-screen"><div className="auth-card wide"><Logo /><button className="back-link" onClick={goBack}><ChevronRight size={13} className="rotate-180" /> Back</button><div className="eyebrow">01 // SELECT YOUR STRAND</div><h1 className="auth-title">What are you<br /><span>training for?</span></h1><p className="auth-copy">Your strand tunes the first set of quests. You can change your loadout anytime.</p><div className="strand-grid">{strands.map(([title, copy]) => <button className={`strand-btn ${strand === title ? 'selected' : ''}`} key={title} onClick={() => setStrand(title)}><strong>{title}</strong><small>{copy}</small></button>)}</div><button className="btn-primary w-full" onClick={() => setStep('avatar')}>Lock in strand <ChevronRight size={15} /></button></div></div>;
 
@@ -3811,9 +3899,9 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // Same district-to-strand mapping the campus itself uses (see CampusExplorer /
     // QuestBriefing) — so "what you'll be tested on" reads in terms of your own strand
     // instead of a generic area name, and the questions actually asked (see
-    // getChallengerQuestions) are the ones this text describes.
+    // getEncounterQuestions) are the ones this text describes.
     const discoveryTopic = nextChallenger ? getDistrictFocus(nextChallenger.districtId, profile.strand) : null;
-    const nextChallengerQuestions = nextChallenger ? getChallengerQuestions(nextChallenger) : [];
+    const nextChallengerQuestions = nextChallenger ? getEncounterQuestions(nextChallenger, profile.strand) : [];
     const estimatedMinutes = Math.max(3, nextChallengerQuestions.length * 2);
 
     // Live clock: drives the time-of-day greeting only (no separate day/time readout —
@@ -3999,12 +4087,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
    * start their quest.
    */
   // districtId ties a challenger back to CAMPUS_DISTRICTS (and, through it, to the
-  // player's own strand via getDistrictFocus). subjects selects which slice of the
-  // shared battleQuestions pool this encounter draws from — see getChallengerQuestions
+  // player's own strand via getDistrictFocus). It also decides which slice of that
+  // strand's QUESTION_BANK this challenger draws from — see buildChallengerQuestionSet
   // below — so a district's academic identity ("fundamentals", "advanced", "reps",
-  // "comprehensive") is actually backed by which subjects get tested there, not just
+  // "comprehensive") is actually backed by which questions get asked there, not just
   // flavor text.
-  type CampusChallenger = { id: string; name: string; area: string; statement: string; questTitle: string; lore: string; recommendedLevel: number; rewardXp: number; rewardCoins: number; districtId: CampusDistrict['id']; subjects: string[] };
+  type CampusChallenger = { id: string; name: string; area: string; statement: string; questTitle: string; lore: string; recommendedLevel: number; rewardXp: number; rewardCoins: number; districtId: CampusDistrict['id'] };
 
   // Districts: the map is divided into four non-overlapping regions (checked by simple
   // bounding-box containment, in this priority order — Citadel's gated eastern strip is
@@ -4051,14 +4139,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     [1,0,0,0,0,0,1,4,4,4,4,4,4,1,0,0,0,0,0,1,0,0,0,0,1],
     [1,0,1,2,0,0,1,4,4,4,4,4,4,1,0,0,2,1,0,1,0,3,1,0,1],
     [1,0,3,1,0,0,2,4,4,4,4,4,4,2,0,0,1,3,0,1,0,0,0,0,1],
-    [1,0,0,0,0,0,1,4,4,4,4,4,4,1,0,0,0,0,0,1,0,1,1,0,1],
+    [1,0,0,0,0,0,1,7,7,6,7,7,4,1,0,0,0,0,0,1,0,1,1,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,1,2,1,1,1,1,0,0,1,1,1,1,0,0,1,1,2,1,1,1,1,2,1,1],
+    [1,8,2,9,1,1,6,0,0,6,1,1,6,0,0,6,1,2,1,8,9,1,2,1,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
     [1,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,5,0,0,3,0,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
-    [1,1,2,1,1,1,1,0,0,1,1,1,1,0,0,1,1,2,1,1,1,1,2,1,1],
+    [1,9,2,8,1,1,6,0,0,6,1,1,6,0,0,6,1,2,1,9,1,1,2,1,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
     [1,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,1],
     [1,0,2,0,2,0,0,0,0,0,0,0,0,2,0,0,2,0,0,1,0,2,0,0,1],
@@ -4071,6 +4159,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // Tile legend: 0 open floor, 1/2/3/4 wall variants (visual only), 5 = locked gate
   // (blocks movement + sight like a wall until CAMPUS_GATE.requiredIds are all defeated,
   // at which point the cell is opened permanently — see checkGateUnlock in CampusExplorer).
+  // 6 = door, 7 = window (science-lab south face — banded/tinted to hint at desks beyond
+  // the glass), 8 = lockers, 9 = notice board. All four are solid (see canMove) and render
+  // as banded patterns off the same one-fillRect-per-column wall pass — see the tile===6/7/8/9
+  // branches in render(), no extra draw calls versus a flat-color wall.
   const CAMPUS_CHALLENGERS: (CampusChallenger & { x: number; y: number; dir: number })[] = [
     {
       id: 'npc_1', x: 9.5, y: 2.0, dir: 1, districtId: 'peaks',
@@ -4078,9 +4170,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       statement: "I don't go easy on advanced material. Show me you've earned the right to be up here.",
       questTitle: 'The Research Defense', lore: "Dr. Reyes doesn't curve grades. Passing here means the upper-division coursework won't blindside you.",
       recommendedLevel: 5, rewardXp: 250, rewardCoins: 120,
-      // Peaks = advanced problem sets: the two questions that demand the most reasoning
-      // rather than straight recall.
-      subjects: ['Calculus', 'Physics'],
     },
     {
       id: 'npc_2', x: 3.5, y: 3.5, dir: -1, districtId: 'foundation',
@@ -4088,8 +4177,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       statement: "Before you go further, let's make sure the basics actually stuck. Pass my review quiz first.",
       questTitle: 'Foundations Check-In', lore: 'Every term starts here — a quick review checkpoint before the real coursework begins.',
       recommendedLevel: 1, rewardXp: 100, rewardCoins: 50,
-      // Foundation = a quick basics check: a single straightforward recall question.
-      subjects: ['Biology'],
     },
     {
       id: 'npc_3', x: 12.5, y: 15.5, dir: 1, districtId: 'wilds',
@@ -4097,8 +4184,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       statement: "Out here it's just reps. Answer set after set until it's automatic — starting now.",
       questTitle: 'The Problem-Set Gauntlet', lore: 'No new material out here — just repetition until the concepts stop feeling foreign.',
       recommendedLevel: 3, rewardXp: 150, rewardCoins: 75,
-      // Wilds = repeated application across more than one subject.
-      subjects: ['Biology', 'Physics'],
     },
     {
       id: 'npc_4', x: 21.5, y: 8.5, dir: -1, districtId: 'citadel',
@@ -4106,22 +4191,40 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       statement: "You've cleared every district. Now for the exam that actually counts.",
       questTitle: 'Comprehensive Examination', lore: "The exam that decides whether the term's work actually stuck. Every district's material is fair game.",
       recommendedLevel: 8, rewardXp: 400, rewardCoins: 200,
-      // Citadel = comprehensive: every subject from every district is fair game, which
-      // is why this is the only encounter that pulls the full battleQuestions pool.
-      subjects: ['Biology', 'Calculus', 'Physics'],
     },
   ];
 
-  // Selects the slice of the shared battleQuestions pool a given challenger tests —
-  // the mechanism that makes "which district you explore" actually determine "which
-  // subjects get logged to Academic Mastery," instead of every encounter asking the
-  // same fixed set regardless of where or who it came from. Falls back to the full
-  // pool if a challenger's subjects don't match anything (keeps this safe against
-  // future data typos rather than silently producing a zero-question battle).
-  const getChallengerQuestions = (challenger: Pick<CampusChallenger, 'subjects'> | null) => {
-    if (!challenger?.subjects?.length) return battleQuestions;
-    const matched = battleQuestions.filter((q) => challenger.subjects.includes(q.subject));
-    return matched.length > 0 ? matched : battleQuestions;
+  // Builds the exact shuffled question set one challenger presents, from the player's own
+  // strand bank. Districts partition their strand's 8-question bank so every NPC gets a
+  // genuinely different set: Foundation takes the first pair (quick basics check), Peaks
+  // the next three (the hardest reasoning questions), Wilds the last three (repeated
+  // practice) — a clean, non-overlapping split — while Citadel pulls the whole bank,
+  // matching its "comprehensive exam" role. Question order and each question's own choices
+  // are both shuffled (Fisher–Yates), with the correct answer's index remapped to match.
+  const buildChallengerQuestionSet = (challenger: Pick<CampusChallenger, 'districtId'>, strand: string): Question[] => {
+    const bank = QUESTION_BANK[strand] ?? QUESTION_BANK['GENERAL KNOWLEDGE'];
+    const slice = challenger.districtId === 'foundation' ? bank.slice(0, 2)
+      : challenger.districtId === 'peaks' ? bank.slice(2, 5)
+      : challenger.districtId === 'wilds' ? bank.slice(5, 8)
+      : bank; // citadel: comprehensive — the entire strand bank
+    return shuffleArray(slice).map((q) => {
+      const shuffledOptions = shuffleArray(q.options.map((option, index) => ({ option, isCorrect: index === q.answer })));
+      return { subject: q.subject, question: q.question, options: shuffledOptions.map((o) => o.option), answer: shuffledOptions.findIndex((o) => o.isCorrect) };
+    });
+  };
+
+  // Per-encounter question set cache, keyed by challenger + strand. Generated once, on
+  // whichever screen needs it first (briefing shows the count, battle asks the questions),
+  // then reused for the rest of that challenger's undefeated lifetime — retreating from the
+  // briefing, or retreating mid-battle, both just re-read this same cached set rather than
+  // rolling a new one. A different challenger is a different key, so it gets its own fresh
+  // shuffle the first time it's approached — that's the only way a "new set" happens.
+  const questionSetCache: Record<string, Question[]> = {};
+  const getEncounterQuestions = (challenger: CampusChallenger | null, strand: string): Question[] => {
+    if (!challenger) return [];
+    const key = `${challenger.id}:${strand}`;
+    if (!questionSetCache[key]) questionSetCache[key] = buildChallengerQuestionSet(challenger, strand);
+    return questionSetCache[key];
   };
 
   // Lost Notes: small pickups scattered around the map. Walking over one reveals a bite-size
@@ -4161,11 +4264,42 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   type CampusGate = { x: number; y: number; requiredIds: string[]; label: string };
   const CAMPUS_GATE: CampusGate = { x: 18, y: 8, requiredIds: ['npc_1', 'npc_2', 'npc_3'], label: 'Mastery Citadel Gate' };
 
+  // Environmental props — trees, planters, benches, lamp posts. Purely decorative billboards:
+  // no collision, no interaction, no proximity/discovery tracking. Each one costs exactly one
+  // draw call (same as a Lost Note), which is what keeps a dozen of them on screen at once a
+  // non-issue on mobile. `sway` gets the same cheap single-sin idle motion already used for
+  // challengers — everything else is fully static, since inanimate props shouldn't move.
+  type CampusProp = { id: string; x: number; y: number; glyph: string; sway?: boolean };
+  const CAMPUS_PROPS: CampusProp[] = [
+    { id: 'prop_1', x: 2.5, y: 5.5, glyph: '🌳', sway: true },
+    { id: 'prop_2', x: 22.5, y: 5.5, glyph: '🌳', sway: true },
+    { id: 'prop_3', x: 7.5, y: 5.3, glyph: '💡' },
+    { id: 'prop_4', x: 16.8, y: 5.3, glyph: '💡' },
+    { id: 'prop_5', x: 5.5, y: 12.3, glyph: '🪴', sway: true },
+    { id: 'prop_6', x: 18.5, y: 12.3, glyph: '🌳', sway: true },
+    { id: 'prop_7', x: 13.5, y: 9.2, glyph: '🪑' },
+    { id: 'prop_8', x: 16.0, y: 12.3, glyph: '🪑' },
+    { id: 'prop_9', x: 16.3, y: 8.3, glyph: '🪴', sway: true },
+    { id: 'prop_10', x: 9.5, y: 7.3, glyph: '🪑' },
+    { id: 'prop_11', x: 9.5, y: 18.3, glyph: '🌳', sway: true },
+  ];
+
+  // Landmark signs — small text placards at a few key structures, so a district or building
+  // is recognizable by more than just wall color. Static, one rect + one fillText each.
+  type CampusSign = { id: string; x: number; y: number; label: string };
+  const CAMPUS_SIGNS: CampusSign[] = [
+    { id: 'sign_1', x: 9.5, y: 5.3, label: '🔬 SCIENCE LABS' },
+    { id: 'sign_2', x: 19.0, y: 12.3, label: '📚 LIBRARY' },
+    { id: 'sign_3', x: 15.5, y: 8.3, label: '🏰 MASTERY CITADEL' },
+    { id: 'sign_4', x: 4.0, y: 5.3, label: '🏘️ FOUNDATION DISTRICT' },
+  ];
+
   function CampusExplorer({ level, strand, defeatedIds, onChallengerFound, onExit, notify, onReward }: { level: number; strand: string; defeatedIds: string[]; onChallengerFound: (challenger: CampusChallenger) => void; onExit: () => void; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void; onReward: (coins: number, xp: number) => void }) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const worldRef = useRef<HTMLDivElement | null>(null);
     const promptRef = useRef<HTMLDivElement | null>(null);
     const badgeRef = useRef<HTMLButtonElement | null>(null);
+    const interactCtaRef = useRef<HTMLButtonElement | null>(null);
     const districtChipRef = useRef<HTMLDivElement | null>(null);
     const progressChipRef = useRef<HTMLDivElement | null>(null);
     const tapStartRef = useRef<HTMLDivElement | null>(null);
@@ -4186,8 +4320,9 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const world = worldRef.current;
       const prompt = promptRef.current;
       const badge = badgeRef.current;
+      const interactCta = interactCtaRef.current;
       const tapStart = tapStartRef.current;
-      if (!canvas || !world || !prompt || !badge || !tapStart) return;
+      if (!canvas || !world || !prompt || !badge || !interactCta || !tapStart) return;
       const ctx = canvas.getContext('2d', { alpha: false });
       if (!ctx) return;
 
@@ -4197,6 +4332,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const challengers = CAMPUS_CHALLENGERS.map((c) => ({ ...c, active: true }));
       const notes = CAMPUS_NOTES.map((n) => ({ ...n }));
       const guides = CAMPUS_GUIDES.map((g) => ({ ...g }));
+      const props = CAMPUS_PROPS.map((p) => ({ ...p }));
+      const signs = CAMPUS_SIGNS.map((s) => ({ ...s }));
       const gate = { ...CAMPUS_GATE, open: false };
       const collectedNotes = new Set<string>();
       const triggeredGuides = new Set<string>();
@@ -4296,12 +4433,23 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         if (pointerLocked) tapStart.style.display = 'none';
         else if (!isMobile && roamingActive) tapStart.style.display = 'block';
       };
-      const handlePromptTap = () => { if (activeTerminalTarget) interact(activeTerminalTarget); };
+      const handlePromptTap = (e: Event) => { e.preventDefault(); e.stopPropagation(); if (activeTerminalTarget) interact(activeTerminalTarget); };
       // Floating badge above the NPC: tapping/touching it opens the quest modal directly,
       // same as pressing 'E' or tapping the bottom prompt bar. touchstart (with
       // preventDefault) makes mobile taps feel instant instead of waiting on the
       // synthetic click; the click listener covers mouse/desktop taps.
       const handleBadgeActivate = (e: Event) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (activeTerminalTarget) interact(activeTerminalTarget);
+      };
+      // The large, fixed-position mobile "TAP TO INTERACT" button. Unlike the small floating
+      // badge (which tracks the NPC's projected screen position and can be fiddly to hit),
+      // this always sits in the same spot at the bottom of the screen whenever a quest-giver
+      // is in range — so the player never has to aim precisely or tap the canvas itself.
+      // stopPropagation keeps the touch from also reaching the look-layer underneath, so
+      // tapping it can never be misread as a look-drag or cause camera drift.
+      const handleCtaActivate = (e: Event) => {
         e.preventDefault();
         e.stopPropagation();
         if (activeTerminalTarget) interact(activeTerminalTarget);
@@ -4313,8 +4461,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       canvas.addEventListener('click', handleCanvasClick);
       document.addEventListener('pointerlockchange', handlePointerLockChange);
       prompt.addEventListener('click', handlePromptTap);
+      prompt.addEventListener('touchstart', handlePromptTap, { passive: false });
       badge.addEventListener('click', handleBadgeActivate);
       badge.addEventListener('touchstart', handleBadgeActivate, { passive: false });
+      interactCta.addEventListener('click', handleCtaActivate);
+      interactCta.addEventListener('touchstart', handleCtaActivate, { passive: false });
 
       const joyCleanups: Array<() => void> = [];
       if (isMobile) {
@@ -4421,11 +4572,17 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         while (hitVal === 0 && maxSteps > 0) {
           if (sideDistX < sideDistY) { sideDistX += deltaDistX; mapX += stepX; side = 0; } else { sideDistY += deltaDistY; mapY += stepY; side = 1; }
           maxSteps--;
-          if (mapX < 0 || mapX >= mapWidth || mapY < 0 || mapY >= mapHeight) return { dist: 20, side: 0, tile: 1 };
+          if (mapX < 0 || mapX >= mapWidth || mapY < 0 || mapY >= mapHeight) return { dist: 20, side: 0, tile: 1, wallX: 0 };
           hitVal = map[mapY][mapX];
         }
         const dist = side === 0 ? (mapX - playerX + (1 - stepX) / 2) / dirX : (mapY - playerY + (1 - stepY) / 2) / dirY;
-        return { dist: Math.max(dist, 0.01), side, tile: hitVal };
+        // Fractional position (0-1) along the hit wall face — lets a handful of tile types
+        // (door/window/locker/notice-board) render as banded patterns instead of flat
+        // color, at zero extra draw calls: it's the same one fillRect per column as before,
+        // just computing a slightly different color for it.
+        let wallX = side === 0 ? playerY + dist * dirY : playerX + dist * dirX;
+        wallX -= Math.floor(wallX);
+        return { dist: Math.max(dist, 0.01), side, tile: hitVal, wallX };
       }
 
       function render() {
@@ -4479,6 +4636,39 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             const pulse = 0.5 + 0.5 * Math.sin(now / 260);
             r = Math.floor((190 + 40 * pulse) * brightness); g = Math.floor((70 + 25 * pulse) * brightness); b = Math.floor(45 * brightness);
           }
+          else if (result.tile === 6) {
+            // Door: dark frame at the edges, warm wood panel through the middle, plus a
+            // small brass handle band — all just wallX thresholds, still one fillRect.
+            const wx = result.wallX;
+            const inFrame = wx < 0.08 || wx > 0.92;
+            const isHandle = wx > 0.74 && wx < 0.8;
+            if (inFrame) { r = Math.floor(46 * brightness); g = Math.floor(32 * brightness); b = Math.floor(24 * brightness); }
+            else if (isHandle) { r = Math.floor(210 * brightness); g = Math.floor(178 * brightness); b = Math.floor(96 * brightness); }
+            else { r = Math.floor(150 * brightness); g = Math.floor(104 * brightness); b = Math.floor(58 * brightness); }
+          }
+          else if (result.tile === 7) {
+            // Window: glass panes separated by frame mullions. The pane tint shifts warmer
+            // than the glass edge to hint at classroom light (and vaguely, desks) beyond it
+            // without needing to actually render any geometry back there.
+            const wx = result.wallX;
+            const paneIdx = Math.floor(wx * 3);
+            const paneLocal = wx * 3 - paneIdx;
+            const isMullion = paneLocal < 0.06 || paneLocal > 0.94;
+            if (isMullion) { r = Math.floor(58 * brightness); g = Math.floor(52 * brightness); b = Math.floor(46 * brightness); }
+            else { r = Math.floor(120 * brightness); g = Math.floor((150 + (paneIdx === 1 ? 18 : 0)) * brightness); b = Math.floor(158 * brightness); }
+          }
+          else if (result.tile === 8) {
+            // Lockers: a repeating metal-door band pattern, six lockers per wall cell.
+            const bank = Math.floor(result.wallX * 6) % 2;
+            r = Math.floor((bank === 0 ? 96 : 82) * brightness); g = Math.floor((bank === 0 ? 112 : 96) * brightness); b = Math.floor((bank === 0 ? 132 : 114) * brightness);
+          }
+          else if (result.tile === 9) {
+            // Notice board: cork-beige backing with a couple of pinned "flyer" accents.
+            const wx = result.wallX;
+            const isFlyer = (wx > 0.15 && wx < 0.34) || (wx > 0.52 && wx < 0.68);
+            if (isFlyer) { r = Math.floor(226 * brightness); g = Math.floor(196 * brightness); b = Math.floor(96 * brightness); }
+            else { r = Math.floor(176 * brightness); g = Math.floor(144 * brightness); b = Math.floor(96 * brightness); }
+          }
           else if (result.side === 0) { r = Math.floor(45 * brightness); g = Math.floor(55 * brightness); b = Math.floor(80 * brightness); }
           else { r = Math.floor(30 * brightness); g = Math.floor(40 * brightness); b = Math.floor(60 * brightness); }
           ctx!.fillStyle = `rgb(${r},${g},${b})`;
@@ -4501,8 +4691,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         }
 
         challengers.forEach((term) => {
-          term.x += term.dir * 0.005;
-          if (term.x < 2 || term.x > 23) term.dir *= -1;
+          // Quest-giver locations are intentionally fixed — term.x/term.y are never mutated,
+          // so a discovered quest is always exactly where it was signaled from (crucial for
+          // mobile, where re-finding a drifting NPC by touch controls is real friction).
+          // A tiny idle bob is applied only to the sprite's projected render position below,
+          // purely cosmetic — it never touches term.x/term.y, so distance checks (signal
+          // range, interact range) are always computed against the NPC's true, stable spot.
           const isFinished = defeatedIdsRef.current.includes(term.id);
           if (term.active && !isFinished && !signaledIds.has(term.id)) {
             const rangeDist = Math.hypot(playerX - term.x, playerY - term.y);
@@ -4511,7 +4705,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
               notifyRef.current('📡 Unknown signal detected', `Something's active nearby in ${term.area.replace(/^[^\s]+ /, '')}. Follow the glow to investigate.`);
             }
           }
-          const proj = projectSprite(term.x, term.y);
+          const idleBob = Math.sin(now / 650 + term.x * 4) * 0.035;
+          const proj = projectSprite(term.x, term.y + idleBob);
           if (!proj) return;
           const { screenX: spriteScreenX, size: spriteSize, drawY } = proj;
           const drawX = spriteScreenX - spriteSize * 0.25;
@@ -4579,13 +4774,56 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           ctx!.fillText('💬', spriteScreenX - 8, drawY - 8);
         });
 
+        // Environmental props: trees/planters/benches/lamps. One glyph draw each, no state,
+        // no proximity logic — this is what makes the corridors read as a campus rather than
+        // bare hallways without costing anything meaningful on top of the notes/guides already
+        // drawn every frame.
+        props.forEach((prop) => {
+          const bob = prop.sway ? Math.sin(now / 900 + prop.x * 2) * 0.03 : 0;
+          const proj = projectSprite(prop.x, prop.y + bob);
+          if (!proj) return;
+          const { screenX, size, drawY } = proj;
+          ctx!.font = `${Math.max(10, Math.floor(size * 0.22))}px sans-serif`;
+          ctx!.textAlign = 'center';
+          ctx!.fillText(prop.glyph, screenX, drawY + size * 0.82);
+          ctx!.textAlign = 'left';
+        });
+
+        // Landmark signs: a small placard (rounded rect + label) at a handful of notable
+        // structures, so a building reads as "the science labs" or "the library" from across
+        // the room — not just a different wall color. Four of these, total, on purpose.
+        signs.forEach((sign) => {
+          const proj = projectSprite(sign.x, sign.y);
+          if (!proj) return;
+          const { screenX, size, drawY } = proj;
+          const fontSize = Math.max(9, Math.floor(size * 0.11));
+          ctx!.font = `bold ${fontSize}px sans-serif`;
+          const textWidth = ctx!.measureText(sign.label).width;
+          const padX = 8, padY = 5;
+          const boxW = textWidth + padX * 2, boxH = fontSize + padY * 2;
+          const boxX = screenX - boxW / 2, boxY = drawY + size * 0.28;
+          ctx!.fillStyle = 'rgba(15, 20, 36, 0.72)';
+          ctx!.fillRect(boxX, boxY, boxW, boxH);
+          ctx!.strokeStyle = 'rgba(248, 184, 78, 0.5)';
+          ctx!.lineWidth = 1;
+          ctx!.strokeRect(boxX, boxY, boxW, boxH);
+          ctx!.fillStyle = '#f1f5f9';
+          ctx!.textAlign = 'center';
+          ctx!.textBaseline = 'middle';
+          ctx!.fillText(sign.label, screenX, boxY + boxH / 2 + 1);
+          ctx!.textAlign = 'left';
+          ctx!.textBaseline = 'alphabetic';
+        });
+
         activeTerminalTarget = null;
         let badgeTarget: { x: number; y: number } | null = null;
+        let activeTerminalDone = false;
         for (const term of challengers) {
           const distToTerm = Math.hypot(playerX - term.x, playerY - term.y);
           if (distToTerm < 1.5 && term.active) {
             activeTerminalTarget = term;
             const alreadyDone = defeatedIdsRef.current.includes(term.id);
+            activeTerminalDone = alreadyDone;
             prompt.innerText = alreadyDone ? `[${term.area}] ${term.name} — QUEST ALREADY COMPLETED` : `[${term.area}] PRESS 'E' OR TAP TO CHALLENGE: ${term.name}`;
             prompt.style.display = 'block';
             if (!alreadyDone) {
@@ -4656,6 +4894,15 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         } else {
           badge.style.display = 'none';
         }
+
+        // Large fixed-position mobile CTA: shown any time an unfinished challenger is in
+        // interact range, regardless of where its sprite/badge happens to be on screen.
+        if (isMobile && activeTerminalTarget && !activeTerminalDone) {
+          interactCta.style.display = 'flex';
+          interactCta.textContent = '⚔ QUEST AVAILABLE — TAP TO INTERACT';
+        } else {
+          interactCta.style.display = 'none';
+        }
       }
 
       function canMove(nx: number, ny: number) {
@@ -4664,7 +4911,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         for (const [cx, cy] of testPoints) {
           const mx = Math.floor(cx), my = Math.floor(cy);
           if (mx < 0 || mx >= mapWidth || my < 0 || my >= mapHeight) return false;
-          if (map[my][mx] === 1 || map[my][mx] === 5) return false;
+          if (map[my][mx] === 1 || map[my][mx] === 5 || map[my][mx] === 6 || map[my][mx] === 7 || map[my][mx] === 8 || map[my][mx] === 9) return false;
         }
         return true;
       }
@@ -4710,8 +4957,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         canvas.removeEventListener('click', handleCanvasClick);
         document.removeEventListener('pointerlockchange', handlePointerLockChange);
         prompt.removeEventListener('click', handlePromptTap);
+        prompt.removeEventListener('touchstart', handlePromptTap);
         badge.removeEventListener('click', handleBadgeActivate);
         badge.removeEventListener('touchstart', handleBadgeActivate);
+        interactCta.removeEventListener('click', handleCtaActivate);
+        interactCta.removeEventListener('touchstart', handleCtaActivate);
         joyCleanups.forEach((fn) => fn());
         if (document.pointerLockElement === canvas) document.exitPointerLock();
       };
@@ -4733,6 +4983,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           <button type="button" className="campus-interact-badge" ref={badgeRef} aria-label="Interact with quest giver">
             <Swords size={15} />
           </button>
+          <button type="button" className="campus-interact-cta" ref={interactCtaRef} aria-label="Quest available — tap to interact" />
           <div className="campus-look-layer" ref={lookLayerRef} />
           <div className="campus-joystick-zone" ref={leftZoneRef}>
             <div className="campus-joystick-ring" />
@@ -4754,7 +5005,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // (see CampusExplorer) — so the briefing tells you what you're actually about to be
     // tested on, in terms of your own strand, not just a generic area name.
     const focus = getDistrictFocus(challenger.districtId, strand);
-    const questionCount = getChallengerQuestions(challenger).length;
+    const questionCount = getEncounterQuestions(challenger, strand).length;
     return (
       <div className="page-wrap">
         <div className="page-toolbar">
@@ -4877,12 +5128,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // One entry per answered question — feeds subject-level mastery tracking on the
     // dashboard once the encounter finishes (see onComplete below).
     const resultsRef = useRef<{ subject: string; correct: boolean }[]>([]);
-    // This encounter's question set is the opponent's own subject slice of the shared
-    // pool (see getChallengerQuestions) — e.g. a Foundation District check-in is one
-    // quick recall question, while the Citadel's comprehensive exam pulls all of them.
-    // Memoized on the opponent id so it's stable for the lifetime of one battle even
-    // though getChallengerQuestions returns a fresh array each render.
-    const questions = useMemo(() => getChallengerQuestions(opponent), [opponent?.id]);
+    // This encounter's question set comes from the shared per-encounter cache — already
+    // sliced to this district, already shuffled, and stable for as long as this challenger
+    // stays undefeated (see getEncounterQuestions). No local memoization needed: the cache
+    // itself guarantees the same array comes back whether this is the first render or the
+    // result of retreating and re-entering the exact same fight.
+    const questions = getEncounterQuestions(opponent, profile.strand);
     const current = questions[question];
     const opponentName = opponent?.name ?? 'the challenger';
     const opponentInitial = opponentName.trim().charAt(0).toUpperCase() || 'C';
