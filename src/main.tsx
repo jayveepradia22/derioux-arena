@@ -1,8 +1,8 @@
 import { Component, useEffect, useMemo, useRef, useState, type ErrorInfo, type FormEvent, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
-  Bell, Brain, Check, ChevronRight, CircleUserRound, Coins, Crosshair, Eye, EyeOff, Flame, Gem,
-  KeyRound, LogOut, Package, Pause, Play, RotateCcw, ShieldCheck, Shirt, ShoppingBag, Sparkles, Swords, Timer, Trophy,
+  Bell, BookOpen, Brain, Check, ChevronRight, CircleUserRound, Clock, Coins, Compass, Crosshair, Eye, EyeOff, Flame, Gem,
+  KeyRound, LogOut, MapPin, Package, Pause, Play, RotateCcw, ShieldCheck, Shirt, ShoppingBag, Sparkles, Swords, Timer, Trophy,
   UserRound, X, Zap,
 } from 'lucide-react';
 import { auth, db } from "./firebase";
@@ -12,6 +12,22 @@ import {
   reauthenticateWithCredential, EmailAuthProvider, fetchSignInMethodsForEmail, type User,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+
+// Preconnect to the Google Fonts domains as early as JS execution allows — the actual
+// font request only fires later, via @import inside the injected <style> tag below, but
+// the DNS/TLS handshake to these two hosts can start well before that, in parallel with
+// everything else this module does on first load. Guarded so re-mounts (e.g. HMR) don't
+// pile up duplicate <link> tags.
+if (typeof document !== 'undefined' && !document.getElementById('derioux-font-preconnect')) {
+  ['https://fonts.googleapis.com', 'https://fonts.gstatic.com'].forEach((href, i) => {
+    const link = document.createElement('link');
+    if (i === 0) link.id = 'derioux-font-preconnect';
+    link.rel = 'preconnect';
+    link.href = href;
+    if (href.includes('gstatic')) link.crossOrigin = 'anonymous';
+    document.head.appendChild(link);
+  });
+}
 
   /* Base64-embedded brand art: keeps the component fully self-contained (no separate asset pipeline). */
   const LOGO_ICON = 'data:image/webp;base64,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';
@@ -842,6 +858,28 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     margin-top: 26px;
   }
 
+  /* Compact secondary summary line for LVL / XP / Credits / Streak / Study time —
+     replaces the old large stat-card grid so these read as background context rather
+     than headline metrics (Academic Mastery and Next Discovery carry that role now). */
+  .stat-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 7px;
+    color: #8993ad;
+    font: 11px var(--app-font-mono);
+    letter-spacing: .02em;
+  }
+
+  .stat-strip strong {
+    color: #cbd5e1;
+    font-weight: 600;
+  }
+
+  .stat-strip-dot {
+    color: #4b5468;
+  }
+
   .stat-card {
     padding: 16px;
     min-height: 106px;
@@ -962,6 +1000,104 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     flex-wrap: wrap;
   }
 
+  .discovery-card {
+    background: linear-gradient(135deg, rgba(248, 184, 78, .12), rgba(26, 35, 62, .92) 55%, rgba(20, 24, 43, .88));
+    border: 1px solid rgba(248, 184, 78, .35);
+    box-shadow: 0 0 0 1px rgba(248, 184, 78, .08), 0 24px 60px rgba(0, 0, 0, .45), 0 0 40px rgba(248, 184, 78, .08);
+  }
+
+  .discovery-card::before {
+    border-color: rgba(248, 184, 78, .22);
+    box-shadow: inset 0 0 0 18px rgba(248, 184, 78, .03), inset 0 0 0 38px rgba(248, 184, 78, .03);
+  }
+
+  .discovery-quote {
+    font-style: italic;
+    color: #c9d2e8;
+    font-size: 13px;
+    line-height: 1.6;
+    max-width: 480px;
+    margin-top: 10px;
+    border-left: 2px solid rgba(248, 184, 78, .4);
+    padding-left: 12px;
+  }
+
+  .discovery-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .discovery-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(255, 255, 255, .04);
+    border: 1px solid var(--line);
+    padding: 5px 10px;
+    border-radius: 20px;
+    font: 10px var(--app-font-mono);
+    letter-spacing: .03em;
+    color: #cbd5e1;
+    white-space: nowrap;
+  }
+
+  .discovery-btn {
+    align-self: flex-start;
+    margin-top: 20px;
+    font-size: 13px;
+    padding: 11px 24px;
+    position: relative;
+    z-index: 1;
+    animation: discovery-pulse 2.4s ease-in-out infinite;
+  }
+
+  @keyframes discovery-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(248, 184, 78, .35); }
+    50% { box-shadow: 0 0 0 8px rgba(248, 184, 78, 0); }
+  }
+
+  .mastery-overall {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .mastery-overall-pct {
+    font: 26px var(--app-font-mono);
+    letter-spacing: -.02em;
+    color: var(--amber);
+    line-height: 1.1;
+  }
+
+  .mastery-overall-bar {
+    flex: 1;
+  }
+
+  .mastery-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 6px;
+    padding: 26px 10px;
+    color: var(--slate-500);
+  }
+
+  .mastery-empty p {
+    margin: 0;
+    color: #cbd5e1;
+    font-size: 12px;
+  }
+
+  .mastery-empty p.muted {
+    color: var(--slate-500);
+    max-width: 320px;
+  }
+
   .timer-readout {
     color: var(--amber);
     font: 23px var(--app-font-mono);
@@ -995,6 +1131,21 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 
   .quest-row:hover {
     background: rgba(255, 255, 255, .025);
+  }
+
+  /* Lets a <button> reuse .quest-row's layout as a clickable summary row
+     (e.g. Progression panel) without the browser's default button chrome. */
+  button.quest-row {
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+  }
+
+  button.quest-row:last-child {
+    border-bottom: 0;
   }
 
   .quest-mark {
@@ -1056,21 +1207,21 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
   .streak-big {
     display: flex;
     align-items: end;
-    gap: 10px;
-    margin: 14px 0 16px;
+    gap: 8px;
+    margin: 10px 0 14px;
   }
 
   .streak-big strong {
-    font-size: 48px;
-    line-height: .8;
-    letter-spacing: -.08em;
+    font-size: 26px;
+    line-height: .9;
+    letter-spacing: -.04em;
     color: var(--coral);
   }
 
   .streak-big span {
     color: #929cb2;
-    font-size: 12px;
-    padding-bottom: 3px;
+    font-size: 11px;
+    padding-bottom: 2px;
   }
 
   .week {
@@ -1106,8 +1257,8 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
   }
 
   .goal-number {
-    margin-top: 18px;
-    font: 27px var(--app-font-mono);
+    margin-top: 12px;
+    font: 16px var(--app-font-mono);
     color: var(--cyan);
   }
 
@@ -1118,7 +1269,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
   }
 
   .goal-bar {
-    margin-top: 17px;
+    margin-top: 14px;
   }
 
   /* Toast Notifications */
@@ -2591,35 +2742,87 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     color: #9ca7c4;
     font-size: 10px;
   }
+  .campus-interact-badge {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(15, 20, 36, .88);
+    border: 1.5px solid rgba(248, 184, 78, .75);
+    color: var(--amber);
+    box-shadow: 0 0 0 4px rgba(248, 184, 78, .12), 0 2px 10px rgba(0, 0, 0, .4);
+    pointer-events: auto;
+    cursor: pointer;
+    z-index: 7;
+    animation: campus-badge-pulse 1.6s ease-in-out infinite;
+    will-change: transform;
+  }
+  .campus-interact-badge::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: -6px;
+    transform: translateX(-50%);
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid rgba(248, 184, 78, .75);
+  }
+  @keyframes campus-badge-pulse {
+    0%, 100% { box-shadow: 0 0 0 4px rgba(248, 184, 78, .12), 0 2px 10px rgba(0, 0, 0, .4); }
+    50% { box-shadow: 0 0 0 8px rgba(248, 184, 78, .05), 0 2px 10px rgba(0, 0, 0, .4); }
+  }
+  .campus-look-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: auto;
+    z-index: 4;
+    touch-action: none;
+  }
   .campus-joystick-zone {
     position: absolute;
-    bottom: 0;
-    width: 50%;
-    height: 50%;
+    left: 16px;
+    bottom: 16px;
+    width: 116px;
+    height: 116px;
     pointer-events: auto;
-    z-index: 5;
+    z-index: 6;
+    touch-action: none;
   }
-  .campus-joystick-zone.left { left: 0; }
-  .campus-joystick-zone.right { right: 0; }
-  .campus-joystick-base {
+  .campus-joystick-ring {
     position: absolute;
-    width: 110px;
-    height: 110px;
+    inset: 0;
     border-radius: 50%;
-    background: rgba(103, 205, 209, .1);
-    border: 2px solid rgba(103, 205, 209, .28);
-    display: none;
+    background: rgba(8, 12, 22, .28);
+    border: 1.5px solid rgba(103, 205, 209, .3);
+    backdrop-filter: blur(3px);
     pointer-events: none;
   }
+  .campus-joystick-arrow {
+    position: absolute;
+    color: rgba(103, 205, 209, .5);
+    pointer-events: none;
+  }
+  .campus-joystick-arrow.up { top: 5px; left: 50%; transform: translateX(-50%); }
+  .campus-joystick-arrow.down { bottom: 5px; left: 50%; transform: translateX(-50%) rotate(180deg); }
+  .campus-joystick-arrow.left { left: 5px; top: 50%; transform: translateY(-50%) rotate(-90deg); }
+  .campus-joystick-arrow.right { right: 5px; top: 50%; transform: translateY(-50%) rotate(90deg); }
   .campus-joystick-thumb {
     position: absolute;
-    width: 52px;
-    height: 52px;
+    top: 0;
+    left: 0;
+    width: 42px;
+    height: 42px;
     border-radius: 50%;
     background: rgba(103, 205, 209, .3);
-    border: 2px solid rgba(103, 205, 209, .55);
-    display: none;
+    border: 1.5px solid rgba(103, 205, 209, .62);
+    box-shadow: 0 0 12px rgba(103, 205, 209, .3);
     pointer-events: none;
+    will-change: transform;
   }
 
   /* ===== PHONE (<=640px) ===== */
@@ -2860,7 +3063,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
   type Profile = { name: string; email: string; strand: string; avatar: AvatarConfig };
   type Quest = { id: string; title: string; meta: string; rewardXp: number; rewardCoins: number; done: boolean };
   type ShopItem = { id: string; name: string; copy: string; price: number; icon: typeof Crosshair; category: 'Gear' | 'Consumables' | 'Cosmetics'; requiredQuestId?: string };
-  type GameState = { coins: number; xp: number; quests: Quest[]; owned: string[]; equipped: string | null; studyMinutes: number; activityDates: string[] };
+  type GameState = { coins: number; xp: number; quests: Quest[]; owned: string[]; equipped: string | null; studyMinutes: number; activityDates: string[]; subjectMastery: Record<string, { correct: number; total: number }> };
   // No `password` field anymore — Firebase Auth owns credentials entirely; this is now
   // purely the Firestore document shape for `players/{uid}`.
   type StoredAccount = { profile: Profile; game: GameState };
@@ -2889,14 +3092,38 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
   const achievementsList = [
     { id: 'a1', title: 'First Spark', desc: 'Complete your very first focus window.', icon: Zap, unlocked: true },
     { id: 'a2', title: 'Algebra Master', desc: 'Clear Quest 3: Algebra Abyss.', icon: Trophy, unlocked: false, requiredQuestId: 'q3' },
-    { id: 'a3', title: 'Deep Concentration', desc: 'Accumulate over 60 minutes of focus time.', icon: Brain, unlocked: false },
-    { id: 'a4', title: 'Market Tycoon', desc: 'Unlock your first shop gear item.', icon: ShoppingBag, unlocked: false },
+    // requiredStudyMinutes / requiredCategory (below) are read by isAchievementUnlocked
+    // so these two actually unlock from real focus-timer and shop state, instead of
+    // sitting permanently locked with no path to earning them.
+    { id: 'a3', title: 'Deep Concentration', desc: 'Accumulate over 60 minutes of focus time.', icon: Brain, unlocked: false, requiredStudyMinutes: 60 },
+    { id: 'a4', title: 'Market Tycoon', desc: 'Unlock your first shop gear item.', icon: ShoppingBag, unlocked: false, requiredCategory: 'Gear' as const },
   ];
+  // Single source of truth for "is this achievement unlocked," shared by the Achievements
+  // screen and the Profile page — previously each re-implemented (only) the unlocked /
+  // requiredQuestId check inline, which is how a3 and a4 above ended up structurally
+  // impossible to earn: nothing anywhere ever checked studyMinutes or owned against them.
+  const isAchievementUnlocked = (
+    achievement: (typeof achievementsList)[number],
+    { quests, studyMinutes, owned }: { quests: Quest[]; studyMinutes: number; owned: string[] },
+  ): boolean => {
+    if (achievement.unlocked) return true;
+    if (achievement.requiredQuestId) return quests.find((q) => q.id === achievement.requiredQuestId)?.done ?? false;
+    if (achievement.requiredStudyMinutes) return studyMinutes >= achievement.requiredStudyMinutes;
+    if (achievement.requiredCategory) return owned.some((id) => shopItems.find((item) => item.id === id)?.category === achievement.requiredCategory);
+    return false;
+  };
   const battleQuestions = [
-    { question: 'Which organelle is known as the powerhouse of the cell?', options: ['Nucleus', 'Mitochondria', 'Ribosome', 'Golgi apparatus'], answer: 1 },
-    { question: 'What is the derivative of x²?', options: ['x', '2', '2x', 'x²'], answer: 2 },
-    { question: 'Which force keeps planets in orbit around the sun?', options: ['Friction', 'Gravity', 'Magnetism', 'Tension'], answer: 1 },
+    { subject: 'Biology', question: 'Which organelle is known as the powerhouse of the cell?', options: ['Nucleus', 'Mitochondria', 'Ribosome', 'Golgi apparatus'], answer: 1 },
+    { subject: 'Calculus', question: 'What is the derivative of x²?', options: ['x', '2', '2x', 'x²'], answer: 2 },
+    { subject: 'Physics', question: 'Which force keeps planets in orbit around the sun?', options: ['Friction', 'Gravity', 'Magnetism', 'Tension'], answer: 1 },
   ];
+
+  // Same tiering used for subject mastery accuracy everywhere it's shown — also used to
+  // detect a genuine "academic improvement" (a subject crossing upward into a better tier)
+  // worth notifying about, as opposed to every single answered question.
+  type MasteryTier = 'weak' | 'developing' | 'mastered';
+  const masteryTierOf = (accuracyPct: number): MasteryTier => (accuracyPct >= 80 ? 'mastered' : accuracyPct >= 50 ? 'developing' : 'weak');
+  const MASTERY_TIER_RANK: Record<MasteryTier, number> = { weak: 0, developing: 1, mastered: 2 };
 
   /**
    * Immersive battle mode — fullscreen + landscape lock while the player is anywhere
@@ -2945,6 +3172,16 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     const progressPct = Math.min(100, Math.round(((xp - floorXp) / XP_PER_LEVEL) * 100));
     return { level, floorXp, ceilingXp, progressPct };
   };
+  // Rank titles for the Profile page — thresholds deliberately match the campus's own
+  // recommendedLevel breakpoints (1 / 3 / 5 / 8 from CAMPUS_CHALLENGERS), so "your title
+  // just changed" lines up with "you're now ready for the next district."
+  const LEVEL_TITLES: [number, string][] = [
+    [1, 'Freshman Recruit'],
+    [3, 'Rising Scholar'],
+    [5, "Dean's List Contender"],
+    [8, 'Campus Legend'],
+  ];
+  const getLevelTitle = (level: number) => LEVEL_TITLES.reduce((title, [minLevel, name]) => (level >= minLevel ? name : title), LEVEL_TITLES[0][1]);
 
   const makeDefaultAvatar = (): AvatarConfig => ({
     gender: 'neutral', skin: '#e9af54', hair: 'short', hairColor: '#2d1b2e',
@@ -2958,7 +3195,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     const derivedName = authUser?.displayName?.trim() || authUser?.email?.split('@')[0] || 'Player';
     return { name: derivedName, email: authUser?.email ?? '', strand: 'STEM', avatar: makeDefaultAvatar() };
   };
-  const makeFreshGameState = (): GameState => ({ coins: 0, xp: 0, quests: initialQuests.map((quest) => ({ ...quest })), owned: [], equipped: null, studyMinutes: 0, activityDates: [] });
+  const makeFreshGameState = (): GameState => ({ coins: 0, xp: 0, quests: initialQuests.map((quest) => ({ ...quest })), owned: [], equipped: null, studyMinutes: 0, activityDates: [], subjectMastery: {} });
   const getInitials = (name: string) => name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'PL';
 
   const toISODate = (date: Date) => {
@@ -2988,7 +3225,11 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
   // updates + background syncing rather than raw Firestore calls everywhere.
   const loadPlayerDoc = async (uid: string): Promise<StoredAccount | null> => {
     const snap = await getDoc(doc(db, 'players', uid));
-    return snap.exists() ? (snap.data() as StoredAccount) : null;
+    if (!snap.exists()) return null;
+    const data = snap.data() as StoredAccount;
+    // Older accounts predate the subjectMastery field — backfill it rather than letting
+    // downstream code (e.g. the Academic Mastery panel) deal with `undefined`.
+    return { ...data, game: { ...data.game, subjectMastery: data.game.subjectMastery ?? {} } };
   };
   const savePlayerDoc = (uid: string, data: StoredAccount) => setDoc(doc(db, 'players', uid), data);
 
@@ -3515,35 +3756,69 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
   /* =====================================================================================
   * DASHBOARD & ACHIEVEMENTS WIDGET
   * ===================================================================================== */
-  function Stats({ studyMinutes, xp, coins, streak }: { studyMinutes: number; xp: number; coins: number; streak: number }) {
-    const stats = [
-      { icon: Zap, value: xp.toLocaleString(), label: 'Total XP' },
-      { icon: Coins, value: coins.toLocaleString(), label: 'Credits' },
-      { icon: Flame, value: `${streak} day${streak === 1 ? '' : 's'}`, label: 'Current streak' },
-      { icon: Timer, value: `${studyMinutes} min`, label: 'Study this week' },
-    ];
-    return <div className="stat-row">{stats.map(({ icon: Icon, value, label }, index) => <div className={`panel stat-card animate-rise stagger-${index + 1}`} key={label}><Icon className="stat-icon" size={17} /><div className="stat-value">{value}</div><div className="stat-label">{label}</div></div>)}</div>;
+  // Compact, secondary summary line — same XP/Credits/Streak/Study-time values as
+  // before, just no longer presented as four large hero-weight cards. Level is included
+  // since the example format groups it with the other running totals.
+  function Stats({ level, studyMinutes, xp, coins, streak }: { level: number; studyMinutes: number; xp: number; coins: number; streak: number }) {
+    return (
+      <div className="stat-strip">
+        <span><strong>LVL {String(level).padStart(2, '0')}</strong></span>
+        <span className="stat-strip-dot">·</span>
+        <span>{xp.toLocaleString()} XP</span>
+        <span className="stat-strip-dot">·</span>
+        <span>{coins.toLocaleString()} Credits</span>
+        <span className="stat-strip-dot">·</span>
+        <span>🔥 {streak} Day{streak === 1 ? '' : 's'}</span>
+        <span className="stat-strip-dot">·</span>
+        <span>{studyMinutes} min studied</span>
+      </div>
+    );
   }
 
   function Dashboard({
-    profile, quests, claimQuest, timerRunning, secondsLeft, toggleTimer, resetTimer, studyMinutes, xp, coins, streak, activityDates, setScreen,
+    profile, quests, claimQuest, timerRunning, secondsLeft, toggleTimer, resetTimer, studyMinutes, xp, coins, streak, setScreen,
+    defeatedChallengerIds, subjectMastery, onExploreCampus,
   }: {
     profile: Profile; quests: Quest[]; claimQuest: (id: string) => void;
     timerRunning: boolean; secondsLeft: number; toggleTimer: () => void; resetTimer: () => void;
-    studyMinutes: number; xp: number; coins: number; streak: number; activityDates: string[];
+    studyMinutes: number; xp: number; coins: number; streak: number;
     setScreen: (screen: Screen) => void;
+    defeatedChallengerIds: string[]; subjectMastery: Record<string, { correct: number; total: number }>; onExploreCampus: () => void;
   }) {
     const time = `${String(Math.floor(secondsLeft / 60)).padStart(2, '0')}:${String(secondsLeft % 60).padStart(2, '0')}`;
     const openQuestCount = quests.filter((quest) => !quest.done).length;
     const questXpTotal = quests.filter((quest) => !quest.done).reduce((sum, quest) => sum + quest.rewardXp, 0);
-    const week = lastSevenDays();
-    const activitySet = new Set(activityDates);
-    const goalMinutes = 180;
 
-    const completedCount = achievementsList.filter(a => a.unlocked || (a.requiredQuestId && quests.find(q => q.id === a.requiredQuestId)?.done)).length;
+    // Level only — XP/Credits/Streak/Study time all live in the compact Stats strip up top
+    // and nowhere else. No separate Level/XP progress bar, streak calendar, or weekly-goal
+    // bar on the dashboard: none of that helps decide what to do next, so it isn't here.
+    const { level } = getLevelInfo(xp);
 
-    // Live clock: greeting/date-time reflect the person's actual local time, refreshed
-    // every 30s so it never drifts stale during a long dashboard session.
+    // Academic Mastery: derived entirely from real per-question results logged by Battle
+    // (see completeBattle / subjectMastery). No subject shows up until at least one
+    // question in it has actually been answered — never a fabricated starting percentage.
+    const subjectEntries = Object.entries(subjectMastery).filter(([, stat]) => stat.total > 0);
+    const masteryTotals = subjectEntries.reduce((sum, [, stat]) => ({ correct: sum.correct + stat.correct, total: sum.total + stat.total }), { correct: 0, total: 0 });
+    const overallMasteryPct = masteryTotals.total > 0 ? Math.round((masteryTotals.correct / masteryTotals.total) * 100) : null;
+
+    // NEXT DISCOVERY recommendation: the lowest-recommendedLevel challenger the player
+    // hasn't beaten yet — i.e. the natural next step in the campus's intended progression,
+    // not just "whichever one is first in the array." Null once every district is cleared.
+    const nextChallenger = [...CAMPUS_CHALLENGERS]
+      .filter((c) => !defeatedChallengerIds.includes(c.id))
+      .sort((a, b) => a.recommendedLevel - b.recommendedLevel)[0] ?? null;
+    const discoveryDistrict = nextChallenger ? nextChallenger.area.split(':')[0].trim() : null;
+    // Same district-to-strand mapping the campus itself uses (see CampusExplorer /
+    // QuestBriefing) — so "what you'll be tested on" reads in terms of your own strand
+    // instead of a generic area name, and the questions actually asked (see
+    // getChallengerQuestions) are the ones this text describes.
+    const discoveryTopic = nextChallenger ? getDistrictFocus(nextChallenger.districtId, profile.strand) : null;
+    const nextChallengerQuestions = nextChallenger ? getChallengerQuestions(nextChallenger) : [];
+    const estimatedMinutes = Math.max(3, nextChallengerQuestions.length * 2);
+
+    // Live clock: drives the time-of-day greeting only (no separate day/time readout —
+    // that was ambient flavor, not decision-relevant, so it's gone). Refreshed every 30s
+    // so the greeting never drifts stale during a long dashboard session.
     const [now, setNow] = useState(() => new Date());
     useEffect(() => {
       const interval = window.setInterval(() => setNow(new Date()), 30000);
@@ -3551,97 +3826,117 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     }, []);
     const hour = now.getHours();
     const greeting = hour < 5 ? 'Good night' : hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : hour < 21 ? 'Good evening' : 'Good night';
-    const dayName = now.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
-    const timeLabel = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 
     return (
       <>
         <div className="page-wrap">
-          <div className="eyebrow">{dayName} // {timeLabel} // RUN 014</div>
+          {/* Header — greeting only. Strand and a live clock used to live here too, but
+              strand is already stated one line down in NEXT DISCOVERY's own eyebrow, and
+              the day/time readout never informed any decision — both were pure repetition
+              or noise, so neither survived the audit. */}
           <h1 className="page-title">{greeting}, <em>{profile.name.split(' ')[0]}.</em></h1>
-          <p className="muted text-sm mt-3">The noise is outside. Your next move is in here.</p>
-          <Stats studyMinutes={studyMinutes} xp={xp} coins={coins} streak={streak} />
-          
-          {/* REBUILT DASHBOARD GRID LAYOUT WITH PERFECT ALIGNED COLUMNS */}
-          <div className="dash-grid">
-            {/* LEFT COLUMN */}
-            <div className="dash-column animate-rise">
-              <div className="panel hero-card">
-                <div className="hero-content">
-                  <div className="eyebrow">ACTIVE MISSION // {profile.strand}</div>
-                  <h2 className="hero-title">Turn 25 minutes<br />into momentum.</h2>
-                  <p className="hero-copy">Start the focus timer and stay with it. When it hits zero, XP and credits land automatically.</p>
-                </div>
-                <div className="timer">
-                  <button className="btn-primary" onClick={toggleTimer}>
-                    {timerRunning ? 'Pause focus' : secondsLeft < FOCUS_DURATION_SECONDS ? 'Resume focus' : 'Start focus'} {timerRunning ? <Pause size={14} /> : <Play size={14} fill="currentColor" />}
-                  </button>
-                  <button className="timer-reset" onClick={resetTimer} disabled={secondsLeft === FOCUS_DURATION_SECONDS && !timerRunning} aria-label="Reset timer"><RotateCcw size={14} /></button>
-                  <span className="timer-readout">{time}</span>
-                  <span className="timer-state">{timerRunning ? 'counting down' : secondsLeft < FOCUS_DURATION_SECONDS ? 'paused' : 'ready'}</span>
-                </div>
-              </div>
+          <div className="mt-3"><Stats level={level} studyMinutes={studyMinutes} xp={xp} coins={coins} streak={streak} /></div>
 
-              <div className="panel streak-card">
-                <div className="panel-kicker">Consistency signal</div>
-                <div className="streak-big"><strong>{String(streak).padStart(2, '0')}</strong><span>day streak<br />{streak > 0 ? 'still alive' : 'start today'}</span></div>
-                <div className="week">
-                  {week.map(({ iso, label }) => (
-                    <div className="day" key={iso}>
-                      <div className={`day-dot ${activitySet.has(iso) ? 'on' : ''} ${iso === toISODate(new Date()) ? 'today' : ''}`} />
-                      {label}
-                    </div>
-                  ))}
-                </div>
-              </div>
+          {/* 1. NEXT DISCOVERY — what to do next, the single most prominent thing on the
+              page. Real data from CAMPUS_CHALLENGERS; the button only ever drops the player
+              into the roaming campus world, never straight into a quiz. */}
+          <div className="panel hero-card discovery-card mt-7">
+            <div className="hero-content">
+              <div className="eyebrow">NEXT DISCOVERY // {profile.strand}</div>
+              {nextChallenger ? (
+                <>
+                  <h2 className="hero-title">{nextChallenger.questTitle}</h2>
+                  <p className="hero-copy">A rival waits in {discoveryDistrict}. Find them, and see if you've got what it takes.</p>
+                  {/* Location is already stated in the sentence above — the chips below
+                      cover what that sentence doesn't: what it'll test, and how big a
+                      commitment it is. */}
+                  <div className="discovery-meta">
+                    <span className="discovery-chip"><BookOpen size={11} /> {discoveryTopic}</span>
+                    <span className="discovery-chip"><Clock size={11} /> ~{nextChallengerQuestions.length} question{nextChallengerQuestions.length === 1 ? '' : 's'} · {estimatedMinutes} min</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h2 className="hero-title">Every district, cleared.</h2>
+                  <p className="hero-copy">You've bested every rival on campus. Wander back in any time — the world's still there to revisit.</p>
+                </>
+              )}
+            </div>
+            <button className="btn-primary discovery-btn" onClick={onExploreCampus}>
+              <Compass size={15} /> Explore
+            </button>
+          </div>
 
-              <div className="panel goal-card">
-                <div className="panel-kicker">Weekly objective</div>
-                <div className="goal-number">{studyMinutes} / {goalMinutes} min</div>
-                <div className="goal-caption">You are {Math.max(0, goalMinutes - studyMinutes)} minutes from a new personal best.</div>
-                <div className="goal-bar"><div className="progress-track"><div className="progress-fill" style={{ width: `${Math.min(100, (studyMinutes / goalMinutes) * 100)}%` }} /></div></div>
+          {/* 2. Academic Mastery — the second priority, right under NEXT DISCOVERY. Accuracy
+              on real questions answered, grouped by subject. Deliberately separate from
+              XP/Level, which only lives in the compact Stats strip above: XP rewards showing
+              up and finishing things, this reflects how well the material has actually
+              stuck. A subject only appears once at least one question in it has been
+              answered. */}
+          <div className="panel mt-4" style={{ padding: '20px' }}>
+            <div className="panel-head" style={{ padding: '0 0 12px 0' }}>
+              <div>
+                <div className="panel-title">Academic Mastery</div>
+                <div className="panel-kicker mt-1">{overallMasteryPct !== null ? `${subjectEntries.length} subject${subjectEntries.length === 1 ? '' : 's'} tracked` : 'Accuracy by subject'}</div>
               </div>
             </div>
-
-            {/* RIGHT COLUMN */}
-            <div className="dash-column animate-rise">
-              <div className="panel" style={{ padding: '20px' }}>
-                <div className="panel-head" style={{ padding: '0 0 12px 0' }}>
-                  <div><div className="panel-title">Recent Achievements</div><div className="panel-kicker mt-1">{completedCount} / {achievementsList.length} Unlocked</div></div>
-                  <button className="btn-secondary" onClick={() => setScreen('achievements')}>View all</button>
+            {overallMasteryPct !== null ? (
+              <>
+                <div className="mastery-overall">
+                  <div>
+                    <div className="panel-kicker">Overall mastery</div>
+                    <div className="mastery-overall-pct">{overallMasteryPct}%</div>
+                  </div>
+                  <div className="progress-track mastery-overall-bar"><div className="progress-fill" style={{ width: `${overallMasteryPct}%` }} /></div>
                 </div>
-                <div style={{ display: 'grid', gap: '10px', marginTop: '10px' }}>
-                  {achievementsList.slice(0, 2).map((item) => {
-                    const Icon = item.icon;
-                    const isUnlocked = item.unlocked || (item.requiredQuestId && quests.find(q => q.id === item.requiredQuestId)?.done);
+                <div style={{ display: 'grid', gap: '12px', marginTop: '18px' }}>
+                  {subjectEntries.map(([subject, stat]) => {
+                    const pct = Math.round((stat.correct / stat.total) * 100);
                     return (
-                      <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--line)' }}>
-                        <div className="quest-mark" style={{ color: isUnlocked ? 'var(--amber)' : 'var(--slate-500)' }}><Icon size={14} /></div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: '12px', fontWeight: 600 }}>{item.title}</div>
-                          <div className="muted" style={{ fontSize: '10px' }}>{isUnlocked ? 'Unlocked' : 'Locked'}</div>
+                      <div key={subject}>
+                        <div className="flex justify-between" style={{ marginBottom: '5px' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 600 }}>{subject}</span>
+                          <span className="panel-kicker">{pct}% · {stat.correct}/{stat.total}</span>
                         </div>
+                        <div className="progress-track"><div className="progress-fill" style={{ width: `${pct}%` }} /></div>
                       </div>
                     );
                   })}
                 </div>
+              </>
+            ) : (
+              <div className="mastery-empty">
+                <Brain size={20} />
+                <p>No mastery data yet.</p>
+                <p className="muted text-xs">Answer questions in a campus challenge and subject-by-subject accuracy will show up here.</p>
               </div>
+            )}
+          </div>
 
-              <div className="panel" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                <div className="panel-head">
-                  <div><div className="panel-title">Daily quests</div><div className="panel-kicker mt-1">{String(openQuestCount).padStart(2, '0')} objectives // {questXpTotal} XP</div></div>
-                  <button className="btn-secondary" onClick={() => setScreen('quests')}>View all</button>
+          {/* 3. Daily quests — the other "what to do next" list, paired with the focus timer
+              that logs study time. Still fully actionable (claim, start/pause), so it stays
+              on the dashboard even though it's ranked below the two priority sections. */}
+          <div className="panel mt-4" style={{ display: 'flex', flexDirection: 'column' }}>
+            <div className="panel-head">
+              <div><div className="panel-title">Daily quests</div><div className="panel-kicker mt-1">{String(openQuestCount).padStart(2, '0')} objectives // {questXpTotal} XP</div></div>
+              <button className="btn-secondary" onClick={() => setScreen('quests')}>View all</button>
+            </div>
+            <div className="quest-list">
+              {quests.map((quest) => (
+                <div className="quest-row" key={quest.id}>
+                  <div className={`quest-mark ${quest.done ? 'done' : ''}`}>{quest.done ? <Check size={14} /> : <Crosshair size={14} />}</div>
+                  <div className="quest-copy"><div className="quest-name">{quest.title}</div><div className="quest-meta">{quest.meta} · +{quest.rewardXp} XP · +{quest.rewardCoins} credits</div></div>
+                  {quest.done ? <span className="reward">CLEARED</span> : <button className="btn-secondary !px-2 !py-1.5" onClick={() => claimQuest(quest.id)}>Claim</button>}
                 </div>
-                <div className="quest-list" style={{ flex: 1 }}>
-                  {quests.map((quest) => (
-                    <div className="quest-row" key={quest.id}>
-                      <div className={`quest-mark ${quest.done ? 'done' : ''}`}>{quest.done ? <Check size={14} /> : <Crosshair size={14} />}</div>
-                      <div className="quest-copy"><div className="quest-name">{quest.title}</div><div className="quest-meta">{quest.meta} · +{quest.rewardXp} XP · +{quest.rewardCoins} credits</div></div>
-                      {quest.done ? <span className="reward">CLEARED</span> : <button className="btn-secondary !px-2 !py-1.5" onClick={() => claimQuest(quest.id)}>Claim</button>}
-                    </div>
-                  ))}
-                </div>
-              </div>
+              ))}
+            </div>
+            <div className="timer mt-2" style={{ borderTop: '1px solid var(--line)', paddingTop: '16px' }}>
+              <button className="btn-primary" onClick={toggleTimer}>
+                {timerRunning ? 'Pause focus' : secondsLeft < FOCUS_DURATION_SECONDS ? 'Resume focus' : 'Start focus'} {timerRunning ? <Pause size={14} /> : <Play size={14} fill="currentColor" />}
+              </button>
+              <button className="timer-reset" onClick={resetTimer} disabled={secondsLeft === FOCUS_DURATION_SECONDS && !timerRunning} aria-label="Reset timer"><RotateCcw size={14} /></button>
+              <span className="timer-readout">{time}</span>
+              <span className="timer-state">{timerRunning ? 'counting down' : secondsLeft < FOCUS_DURATION_SECONDS ? 'paused' : 'ready'}</span>
             </div>
           </div>
         </div>
@@ -3652,7 +3947,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
   /* =====================================================================================
   * ACHIEVEMENTS TAB
   * ===================================================================================== */
-  function AchievementsView({ quests }: { quests: Quest[] }) {
+  function AchievementsView({ quests, studyMinutes, owned }: { quests: Quest[]; studyMinutes: number; owned: string[] }) {
     return (
       <div className="page-wrap">
         <div className="page-toolbar">
@@ -3665,7 +3960,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
         <div className="shop-grid">
           {achievementsList.map((item) => {
             const Icon = item.icon;
-            const isUnlocked = item.unlocked || (item.requiredQuestId && quests.find(q => q.id === item.requiredQuestId)?.done);
+            const isUnlocked = isAchievementUnlocked(item, { quests, studyMinutes, owned });
             return (
               <div className={`panel shop-card ${!isUnlocked ? 'locked' : ''}`} key={item.id}>
                 <div className="item-art">
@@ -3703,7 +3998,53 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
    * top-level script. Walk up to a challenger and press E (or tap the prompt) to
    * start their quest.
    */
-  type CampusChallenger = { id: string; name: string; area: string; statement: string };
+  // districtId ties a challenger back to CAMPUS_DISTRICTS (and, through it, to the
+  // player's own strand via getDistrictFocus). subjects selects which slice of the
+  // shared battleQuestions pool this encounter draws from — see getChallengerQuestions
+  // below — so a district's academic identity ("fundamentals", "advanced", "reps",
+  // "comprehensive") is actually backed by which subjects get tested there, not just
+  // flavor text.
+  type CampusChallenger = { id: string; name: string; area: string; statement: string; questTitle: string; lore: string; recommendedLevel: number; rewardXp: number; rewardCoins: number; districtId: CampusDistrict['id']; subjects: string[] };
+
+  // Districts: the map is divided into four non-overlapping regions (checked by simple
+  // bounding-box containment, in this priority order — Citadel's gated eastern strip is
+  // checked first since it's a narrow column that would otherwise be swallowed by the
+  // wider Wilds/Peaks bands). Each has its own floor/ceiling tint so crossing into one
+  // visibly changes how the space feels, not just what it's labeled.
+  type CampusDistrict = { id: string; name: string; icon: string; theme: string; minX: number; maxX: number; minY: number; maxY: number; ceil: [number, number, number]; floor: [number, number, number] };
+  const CAMPUS_DISTRICTS: CampusDistrict[] = [
+    { id: 'citadel', name: 'Mastery Citadel', icon: '🏰', theme: 'Boss assessments', minX: 19, maxX: 25, minY: 0, maxY: 20, ceil: [26, 12, 30], floor: [46, 20, 48] },
+    { id: 'foundation', name: 'Foundation District', icon: '🏘️', theme: 'Basic concepts', minX: 0, maxX: 6, minY: 0, maxY: 6, ceil: [26, 18, 10], floor: [48, 34, 18] },
+    { id: 'peaks', name: 'Challenge Peaks', icon: '🏔️', theme: 'Hard problems', minX: 6, maxX: 19, minY: 0, maxY: 6, ceil: [16, 22, 36], floor: [30, 40, 58] },
+    { id: 'wilds', name: 'Practice Wilds', icon: '🌲', theme: 'Repeated application', minX: 0, maxX: 19, minY: 6, maxY: 20, ceil: [10, 24, 16], floor: [18, 42, 26] },
+  ];
+  const getDistrictAt = (x: number, y: number) => CAMPUS_DISTRICTS.find((d) => x >= d.minX && x < d.maxX && y >= d.minY && y < d.maxY) ?? CAMPUS_DISTRICTS[3];
+
+  // Ties each district to what it means for the player's actual strand (STEM / ABM / HUMSS /
+  // GENERAL KNOWLEDGE — the same four values chosen at signup). This is the only thing that
+  // changes per strand: the map, challengers, notes and guides stay one shared lightweight
+  // world rather than four separate ones — just relabeled so it reads as "your" campus.
+  const DISTRICT_STRAND_FOCUS: Record<string, Record<string, string>> = {
+    foundation: {
+      STEM: 'Core science & math fundamentals', ABM: 'Core accounting & business fundamentals',
+      HUMSS: 'Core language & social science fundamentals', 'GENERAL KNOWLEDGE': 'Core fundamentals across every subject',
+    },
+    peaks: {
+      STEM: 'Advanced problem sets in physics & calculus', ABM: 'Advanced case studies in finance & management',
+      HUMSS: 'Advanced analysis in literature & history', 'GENERAL KNOWLEDGE': 'Advanced cross-topic problem sets',
+    },
+    wilds: {
+      STEM: 'Repeated practice: equations, formulas, lab logic', ABM: 'Repeated practice: ledgers, statements, market logic',
+      HUMSS: 'Repeated practice: essays, sources, argumentation', 'GENERAL KNOWLEDGE': 'Repeated practice across every subject',
+    },
+    citadel: {
+      STEM: 'Comprehensive science & math examination', ABM: 'Comprehensive business & economics examination',
+      HUMSS: 'Comprehensive humanities examination', 'GENERAL KNOWLEDGE': 'Comprehensive general-knowledge examination',
+    },
+  };
+  const getDistrictFocus = (districtId: string, strand: string) =>
+    DISTRICT_STRAND_FOCUS[districtId]?.[strand] ?? CAMPUS_DISTRICTS.find((d) => d.id === districtId)?.theme ?? '';
+
 
   const CAMPUS_MAP = [
     [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
@@ -3713,10 +4054,10 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     [1,0,0,0,0,0,1,4,4,4,4,4,4,1,0,0,0,0,0,1,0,1,1,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
     [1,1,2,1,1,1,1,0,0,1,1,1,1,0,0,1,1,2,1,1,1,1,2,1,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,3,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
+    [1,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,5,0,0,3,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
     [1,1,2,1,1,1,1,0,0,1,1,1,1,0,0,1,1,2,1,1,1,1,2,1,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
     [1,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,1],
@@ -3727,42 +4068,156 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
     [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
   ];
+  // Tile legend: 0 open floor, 1/2/3/4 wall variants (visual only), 5 = locked gate
+  // (blocks movement + sight like a wall until CAMPUS_GATE.requiredIds are all defeated,
+  // at which point the cell is opened permanently — see checkGateUnlock in CampusExplorer).
   const CAMPUS_CHALLENGERS: (CampusChallenger & { x: number; y: number; dir: number })[] = [
-    { id: 'npc_1', x: 9.5, y: 2.0, name: 'Rival Student Alex', area: 'East Wing: Science Labs', statement: 'Heh! Think you can pass the laboratory research assessment? Prove it!', dir: 1 },
-    { id: 'npc_2', x: 3.5, y: 3.5, name: 'Elite Scholar Beta', area: 'West Wing: Business Pavilion', statement: 'Halt! You must pass my specialized strand quiz to earn passage through the pavilion!', dir: -1 },
-    { id: 'npc_3', x: 15.5, y: 3.5, name: 'Rival Prefect Gamma', area: 'North Corridor: Humanities & Arts', statement: 'Rule enforcement time! Answer my philosophy and literature questions or face discipline!', dir: 1 },
-    { id: 'npc_4', x: 21.5, y: 8.5, name: "Dean's Assistant Delta", area: 'Central Atrium: Grand Hall', statement: 'Welcome to the Grand Hall! Only top scholars complete my mastery examination.', dir: -1 },
+    {
+      id: 'npc_1', x: 9.5, y: 2.0, dir: 1, districtId: 'peaks',
+      name: 'Dr. Reyes, Senior Faculty', area: '🏔️ Challenge Peaks: Advanced Research Wing',
+      statement: "I don't go easy on advanced material. Show me you've earned the right to be up here.",
+      questTitle: 'The Research Defense', lore: "Dr. Reyes doesn't curve grades. Passing here means the upper-division coursework won't blindside you.",
+      recommendedLevel: 5, rewardXp: 250, rewardCoins: 120,
+      // Peaks = advanced problem sets: the two questions that demand the most reasoning
+      // rather than straight recall.
+      subjects: ['Calculus', 'Physics'],
+    },
+    {
+      id: 'npc_2', x: 3.5, y: 3.5, dir: -1, districtId: 'foundation',
+      name: 'TA Priya Santos', area: '🏘️ Foundation District: Intro Studies Office',
+      statement: "Before you go further, let's make sure the basics actually stuck. Pass my review quiz first.",
+      questTitle: 'Foundations Check-In', lore: 'Every term starts here — a quick review checkpoint before the real coursework begins.',
+      recommendedLevel: 1, rewardXp: 100, rewardCoins: 50,
+      // Foundation = a quick basics check: a single straightforward recall question.
+      subjects: ['Biology'],
+    },
+    {
+      id: 'npc_3', x: 12.5, y: 15.5, dir: 1, districtId: 'wilds',
+      name: 'Teaching Fellow Owens', area: '🌲 Practice Wilds: Weekly Problem-Set Review',
+      statement: "Out here it's just reps. Answer set after set until it's automatic — starting now.",
+      questTitle: 'The Problem-Set Gauntlet', lore: 'No new material out here — just repetition until the concepts stop feeling foreign.',
+      recommendedLevel: 3, rewardXp: 150, rewardCoins: 75,
+      // Wilds = repeated application across more than one subject.
+      subjects: ['Biology', 'Physics'],
+    },
+    {
+      id: 'npc_4', x: 21.5, y: 8.5, dir: -1, districtId: 'citadel',
+      name: 'Dean Alvarez', area: '🏰 Mastery Citadel: Comprehensive Examination Hall',
+      statement: "You've cleared every district. Now for the exam that actually counts.",
+      questTitle: 'Comprehensive Examination', lore: "The exam that decides whether the term's work actually stuck. Every district's material is fair game.",
+      recommendedLevel: 8, rewardXp: 400, rewardCoins: 200,
+      // Citadel = comprehensive: every subject from every district is fair game, which
+      // is why this is the only encounter that pulls the full battleQuestions pool.
+      subjects: ['Biology', 'Calculus', 'Physics'],
+    },
   ];
 
-  function CampusExplorer({ level, defeatedIds, onChallengerFound, onExit }: { level: number; defeatedIds: string[]; onChallengerFound: (challenger: CampusChallenger) => void; onExit: () => void }) {
+  // Selects the slice of the shared battleQuestions pool a given challenger tests —
+  // the mechanism that makes "which district you explore" actually determine "which
+  // subjects get logged to Academic Mastery," instead of every encounter asking the
+  // same fixed set regardless of where or who it came from. Falls back to the full
+  // pool if a challenger's subjects don't match anything (keeps this safe against
+  // future data typos rather than silently producing a zero-question battle).
+  const getChallengerQuestions = (challenger: Pick<CampusChallenger, 'subjects'> | null) => {
+    if (!challenger?.subjects?.length) return battleQuestions;
+    const matched = battleQuestions.filter((q) => challenger.subjects.includes(q.subject));
+    return matched.length > 0 ? matched : battleQuestions;
+  };
+
+  // Lost Notes: small pickups scattered around the map. Walking over one reveals a bite-size
+  // review tip via a toast — low-commitment content for players who just want to poke around.
+  type CampusNote = { id: string; x: number; y: number; title: string; hint: string };
+  const CAMPUS_NOTES: CampusNote[] = [
+    { id: 'note_1', x: 4.5, y: 8.5, title: 'Lab Safety Memo', hint: 'Review tip: dimensional analysis catches unit errors before they catch you.' },
+    { id: 'note_2', x: 15.5, y: 9.5, title: 'Faculty Sticky Note', hint: 'Review tip: a thesis statement answers "so what," not just "what."' },
+    { id: 'note_3', x: 3.5, y: 15.5, title: 'Torn Notebook Page', hint: 'Review tip: supply and demand only shift together when a factor moves both sides.' },
+    { id: 'note_4', x: 21.5, y: 15.5, title: 'Old Exam Scrap', hint: 'Review tip: skim a passage\'s last paragraph first — it often states the point.' },
+    { id: 'note_5', x: 9.5, y: 12.5, title: 'Crumpled Flyer', hint: 'Review tip: eliminate the two most extreme answer choices first on multiple choice.' },
+  ];
+
+  // NPC guides: friendly, non-battle campus staff who drop context, rumors, and hints about the
+  // challengers and the sealed Mastery Citadel gate. Triggered once per visit, just by walking near.
+  // Most just talk — but the Librarian actually hands over something (a small credit/XP bonus),
+  // so guides feel like real campus resources you'd want to seek out, not just lore triggers.
+  type CampusGuide = { id: string; x: number; y: number; dir: number; name: string; lines: string[]; reward?: { coins: number; xp: number } };
+  const CAMPUS_GUIDES: CampusGuide[] = [
+    { id: 'guide_1', x: 12.5, y: 9.5, dir: 1, name: 'Campus Custodian Reyes', lines: [
+      "The Mastery Citadel gate won't budge till all three Districts are cleared.",
+      'I sweep these halls every night — still find lost notes tucked under the benches.',
+    ] },
+    { id: 'guide_2', x: 6.5, y: 13.5, dir: -1, name: 'Peer Tutor Mira Santos', lines: [
+      'Teaching Fellow Owens runs the review sessions out in the Practice Wilds — south of here.',
+      'TA Priya Santos holds office hours in the Foundation District. Fundamentals-first questions, mostly.',
+    ] },
+    { id: 'guide_3', x: 17.5, y: 12.5, dir: 1, name: 'Head Librarian Alderman', lines: [
+      "Here — every student who actually stops by gets a little something for it.",
+      "Dr. Reyes up in the Peaks has a reputation, but the material is fair if you've studied.",
+    ], reward: { coins: 25, xp: 15 } },
+  ];
+
+  // Locked gate: a wall tile (5) that only opens once every id in requiredIds has been defeated.
+  // It's the sole passage into the Mastery Citadel, so it gates real progress behind mastery
+  // rather than just being scenery.
+  type CampusGate = { x: number; y: number; requiredIds: string[]; label: string };
+  const CAMPUS_GATE: CampusGate = { x: 18, y: 8, requiredIds: ['npc_1', 'npc_2', 'npc_3'], label: 'Mastery Citadel Gate' };
+
+  function CampusExplorer({ level, strand, defeatedIds, onChallengerFound, onExit, notify, onReward }: { level: number; strand: string; defeatedIds: string[]; onChallengerFound: (challenger: CampusChallenger) => void; onExit: () => void; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void; onReward: (coins: number, xp: number) => void }) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const worldRef = useRef<HTMLDivElement | null>(null);
     const promptRef = useRef<HTMLDivElement | null>(null);
+    const badgeRef = useRef<HTMLButtonElement | null>(null);
+    const districtChipRef = useRef<HTMLDivElement | null>(null);
+    const progressChipRef = useRef<HTMLDivElement | null>(null);
     const tapStartRef = useRef<HTMLDivElement | null>(null);
-    const leftBaseRef = useRef<HTMLDivElement | null>(null);
     const leftThumbRef = useRef<HTMLDivElement | null>(null);
-    const rightBaseRef = useRef<HTMLDivElement | null>(null);
-    const rightThumbRef = useRef<HTMLDivElement | null>(null);
     const leftZoneRef = useRef<HTMLDivElement | null>(null);
-    const rightZoneRef = useRef<HTMLDivElement | null>(null);
+    const lookLayerRef = useRef<HTMLDivElement | null>(null);
     const defeatedIdsRef = useRef(defeatedIds);
     defeatedIdsRef.current = defeatedIds;
     const onFoundRef = useRef(onChallengerFound);
     onFoundRef.current = onChallengerFound;
+    const notifyRef = useRef(notify);
+    notifyRef.current = notify;
+    const onRewardRef = useRef(onReward);
+    onRewardRef.current = onReward;
 
     useEffect(() => {
       const canvas = canvasRef.current;
       const world = worldRef.current;
       const prompt = promptRef.current;
+      const badge = badgeRef.current;
       const tapStart = tapStartRef.current;
-      if (!canvas || !world || !prompt || !tapStart) return;
-      const ctx = canvas.getContext('2d');
+      if (!canvas || !world || !prompt || !badge || !tapStart) return;
+      const ctx = canvas.getContext('2d', { alpha: false });
       if (!ctx) return;
 
-      const map = CAMPUS_MAP;
+      const map = CAMPUS_MAP.map((row) => row.slice());
       const mapWidth = map[0].length;
       const mapHeight = map.length;
       const challengers = CAMPUS_CHALLENGERS.map((c) => ({ ...c, active: true }));
+      const notes = CAMPUS_NOTES.map((n) => ({ ...n }));
+      const guides = CAMPUS_GUIDES.map((g) => ({ ...g }));
+      const gate = { ...CAMPUS_GATE, open: false };
+      const collectedNotes = new Set<string>();
+      const triggeredGuides = new Set<string>();
+      const signaledIds = new Set<string>();
+      const announcedDistricts = new Set<string>();
+      const SIGNAL_RANGE = 7;
+      let currentDistrictId: string | null = null;
+      let lastProgressCount = -1;
+      // "Discovered" = every signal pinged, note picked up, guide met — a simple, honest
+      // count of how much of this run's world the player has actually found so far.
+      const totalDiscoverable = challengers.length + notes.length + guides.length;
+
+      const checkGateUnlock = () => {
+        if (gate.open) return;
+        if (gate.requiredIds.every((id) => defeatedIdsRef.current.includes(id))) {
+          gate.open = true;
+          map[gate.y][gate.x] = 0;
+          notifyRef.current(gate.label, 'The seal breaks — all three Districts have been bested. The Mastery Citadel is open.');
+        }
+      };
+      checkGateUnlock();
 
       let playerX = 9.0;
       let playerY = 10.0;
@@ -3774,22 +4229,43 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 
       const keys: Record<string, boolean> = {};
       let mouseDX = 0;
+      let touchLookDX = 0; // accumulated finger-drag delta since last frame — drives smooth free-look
       const isMobile = 'ontouchstart' in window;
       const moveSpeed = 3.0;
       const sensitivity = 1.0;
+      const touchLookSensitivity = 0.0035; // tuned so a full-width swipe ~= a comfortable 180deg turn
 
-      let leftJoy = { active: false, id: null as number | null, startX: 0, startY: 0, dx: 0, dy: 0 };
-      let rightJoy = { active: false, id: null as number | null, startX: 0, startY: 0, dx: 0, dy: 0 };
+      let leftJoy = { active: false, id: null as number | null, dx: 0, dy: 0 };
 
+      // Reused every frame instead of `new Array(numRays)` each time — avoids allocating
+      // (and garbage-collecting) a fresh array 60x/sec, which was a source of intermittent
+      // stutter during movement, especially on mobile GC pauses.
+      let zBuffer: Float32Array = new Float32Array(0);
+      // Mobile devices raycast+fill noticeably more columns per frame than desktop needs
+      // for the same visual density (phone viewport widths often exceed the old 360 cap in
+      // some orientations); trimming the cap there is the single biggest lever for smoother
+      // movement on phones, with a difference too small to notice on a small screen.
+      const rayCap = isMobile ? 220 : 360;
+      // Ceiling/floor gradients only actually depend on the current district's colors and the
+      // canvas height — both change rarely (a district crossing, or a resize) — so they're
+      // cached and only rebuilt when either changes, instead of calling createLinearGradient
+      // twice every single frame regardless of whether anything changed.
+      let cachedSkyGradients: { districtId: string; h: number; ceil: CanvasGradient; floor: CanvasGradient } | null = null;
+
+      let resizeRaf = 0;
       const resizeCanvas = () => {
         canvas.width = world.clientWidth;
         canvas.height = world.clientHeight;
       };
+      const scheduleResize = () => {
+        if (resizeRaf) return;
+        resizeRaf = requestAnimationFrame(() => { resizeRaf = 0; resizeCanvas(); });
+      };
       resizeCanvas();
-      window.addEventListener('resize', resizeCanvas);
+      window.addEventListener('resize', scheduleResize);
 
       if (isMobile) {
-        tapStart.innerHTML = 'TAP TO START EXPLORING<span>Left stick: move | Right stick: look</span>';
+        tapStart.innerHTML = 'TAP TO START EXPLORING<span>Left stick: move | Drag anywhere: look</span>';
         tapStart.style.display = 'none';
       }
 
@@ -3821,6 +4297,15 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
         else if (!isMobile && roamingActive) tapStart.style.display = 'block';
       };
       const handlePromptTap = () => { if (activeTerminalTarget) interact(activeTerminalTarget); };
+      // Floating badge above the NPC: tapping/touching it opens the quest modal directly,
+      // same as pressing 'E' or tapping the bottom prompt bar. touchstart (with
+      // preventDefault) makes mobile taps feel instant instead of waiting on the
+      // synthetic click; the click listener covers mouse/desktop taps.
+      const handleBadgeActivate = (e: Event) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (activeTerminalTarget) interact(activeTerminalTarget);
+      };
 
       document.addEventListener('keydown', handleKeyDown);
       document.addEventListener('keyup', handleKeyUp);
@@ -3828,58 +4313,101 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
       canvas.addEventListener('click', handleCanvasClick);
       document.addEventListener('pointerlockchange', handlePointerLockChange);
       prompt.addEventListener('click', handlePromptTap);
+      badge.addEventListener('click', handleBadgeActivate);
+      badge.addEventListener('touchstart', handleBadgeActivate, { passive: false });
 
       const joyCleanups: Array<() => void> = [];
       if (isMobile) {
-        const leftZone = leftZoneRef.current, rightZone = rightZoneRef.current;
-        const leftBase = leftBaseRef.current, leftThumb = leftThumbRef.current;
-        const rightBase = rightBaseRef.current, rightThumb = rightThumbRef.current;
-        if (leftZone && rightZone && leftBase && leftThumb && rightBase && rightThumb) {
-          const start = (e: TouchEvent, joy: typeof leftJoy, base: HTMLDivElement, thumb: HTMLDivElement, zone: HTMLDivElement) => {
+        // --- Left stick: compact fixed MOBA-style movement pad. Touching anywhere on the
+        // pad recenters the thumb to the pad's middle and drags relative to that center,
+        // so it always feels the same regardless of where the thumb finger lands.
+        const leftZone = leftZoneRef.current;
+        const leftThumb = leftThumbRef.current;
+        if (leftZone && leftThumb) {
+          const PAD = 116, THUMB = 42, CENTER = PAD / 2, HALF_THUMB = THUMB / 2;
+          const MAX_DIST = CENTER - HALF_THUMB - 4;
+          const restTransform = `translate(${CENTER - HALF_THUMB}px, ${CENTER - HALF_THUMB}px)`;
+          leftThumb.style.transform = restTransform;
+
+          const lStart = (e: TouchEvent) => {
+            e.preventDefault();
             const touch = e.changedTouches[0];
-            joy.active = true; joy.id = touch.identifier;
-            const rect = zone.getBoundingClientRect();
-            joy.startX = touch.clientX - rect.left; joy.startY = touch.clientY - rect.top;
-            base.style.display = 'block'; base.style.left = (joy.startX - 55) + 'px'; base.style.top = (joy.startY - 55) + 'px';
-            thumb.style.display = 'block'; thumb.style.left = (joy.startX - 26) + 'px'; thumb.style.top = (joy.startY - 26) + 'px';
+            leftJoy.active = true; leftJoy.id = touch.identifier; leftJoy.dx = 0; leftJoy.dy = 0;
           };
-          const move = (e: TouchEvent, joy: typeof leftJoy, thumb: HTMLDivElement, zone: HTMLDivElement) => {
+          const lMove = (e: TouchEvent) => {
             for (let i = 0; i < e.changedTouches.length; i++) {
               const touch = e.changedTouches[i];
-              if (touch.identifier === joy.id) {
-                const rect = zone.getBoundingClientRect();
-                let dx = touch.clientX - rect.left - joy.startX;
-                let dy = touch.clientY - rect.top - joy.startY;
+              if (touch.identifier === leftJoy.id) {
+                e.preventDefault();
+                const rect = leftZone.getBoundingClientRect();
+                let dx = touch.clientX - rect.left - CENTER;
+                let dy = touch.clientY - rect.top - CENTER;
                 const dist = Math.sqrt(dx * dx + dy * dy);
-                const maxDist = 50;
-                if (dist > maxDist) { dx = (dx / dist) * maxDist; dy = (dy / dist) * maxDist; }
-                joy.dx = dx / maxDist; joy.dy = dy / maxDist;
-                thumb.style.left = (joy.startX + dx - 26) + 'px'; thumb.style.top = (joy.startY + dy - 26) + 'px';
+                if (dist > MAX_DIST) { dx = (dx / dist) * MAX_DIST; dy = (dy / dist) * MAX_DIST; }
+                leftJoy.dx = dx / MAX_DIST; leftJoy.dy = dy / MAX_DIST;
+                leftThumb.style.transform = `translate(${CENTER - HALF_THUMB + dx}px, ${CENTER - HALF_THUMB + dy}px)`;
               }
             }
           };
-          const end = (e: TouchEvent, joy: typeof leftJoy, base: HTMLDivElement, thumb: HTMLDivElement) => {
+          const lEnd = (e: TouchEvent) => {
             for (let i = 0; i < e.changedTouches.length; i++) {
-              if (e.changedTouches[i].identifier === joy.id) {
-                joy.active = false; joy.dx = 0; joy.dy = 0;
-                base.style.display = 'none'; thumb.style.display = 'none';
+              if (e.changedTouches[i].identifier === leftJoy.id) {
+                leftJoy.active = false; leftJoy.id = null; leftJoy.dx = 0; leftJoy.dy = 0;
+                leftThumb.style.transform = restTransform;
               }
             }
           };
-          const lStart = (e: TouchEvent) => { e.preventDefault(); start(e, leftJoy, leftBase, leftThumb, leftZone); };
-          const lMove = (e: TouchEvent) => { e.preventDefault(); move(e, leftJoy, leftThumb, leftZone); };
-          const lEnd = (e: TouchEvent) => end(e, leftJoy, leftBase, leftThumb);
-          const rStart = (e: TouchEvent) => { e.preventDefault(); start(e, rightJoy, rightBase, rightThumb, rightZone); };
-          const rMove = (e: TouchEvent) => { e.preventDefault(); move(e, rightJoy, rightThumb, rightZone); };
-          const rEnd = (e: TouchEvent) => end(e, rightJoy, rightBase, rightThumb);
-          leftZone.addEventListener('touchstart', lStart); leftZone.addEventListener('touchmove', lMove); leftZone.addEventListener('touchend', lEnd);
-          rightZone.addEventListener('touchstart', rStart); rightZone.addEventListener('touchmove', rMove); rightZone.addEventListener('touchend', rEnd);
+          leftZone.addEventListener('touchstart', lStart, { passive: false });
+          leftZone.addEventListener('touchmove', lMove, { passive: false });
+          leftZone.addEventListener('touchend', lEnd);
+          leftZone.addEventListener('touchcancel', lEnd);
           joyCleanups.push(() => {
-            leftZone.removeEventListener('touchstart', lStart); leftZone.removeEventListener('touchmove', lMove); leftZone.removeEventListener('touchend', lEnd);
-            rightZone.removeEventListener('touchstart', rStart); rightZone.removeEventListener('touchmove', rMove); rightZone.removeEventListener('touchend', rEnd);
+            leftZone.removeEventListener('touchstart', lStart); leftZone.removeEventListener('touchmove', lMove);
+            leftZone.removeEventListener('touchend', lEnd); leftZone.removeEventListener('touchcancel', lEnd);
+          });
+        }
+
+        // --- Free look: drag anywhere on screen (outside the movement pad) to pan/rotate the
+        // camera. We accumulate raw per-event finger delta (touchLookDX) exactly like the
+        // desktop mouselook accumulates movementX, and drain it once per rendered frame in
+        // gameLoop — so response tracks the finger 1:1 with no smoothing/inertia lag, and
+        // fast vs. slow swipes stay proportional instead of clamping at a joystick's edge.
+        const lookLayer = lookLayerRef.current;
+        if (lookLayer) {
+          const lookTouch = { id: null as number | null, lastX: 0 };
+          const lookStart = (e: TouchEvent) => {
+            if (lookTouch.id !== null) return;
+            const touch = e.changedTouches[0];
+            lookTouch.id = touch.identifier; lookTouch.lastX = touch.clientX;
+          };
+          const lookMove = (e: TouchEvent) => {
+            for (let i = 0; i < e.changedTouches.length; i++) {
+              const touch = e.changedTouches[i];
+              if (touch.identifier === lookTouch.id) {
+                e.preventDefault();
+                touchLookDX += touch.clientX - lookTouch.lastX;
+                lookTouch.lastX = touch.clientX;
+              }
+            }
+          };
+          const lookEnd = (e: TouchEvent) => {
+            for (let i = 0; i < e.changedTouches.length; i++) {
+              if (e.changedTouches[i].identifier === lookTouch.id) lookTouch.id = null;
+            }
+          };
+          lookLayer.addEventListener('touchstart', lookStart, { passive: true });
+          lookLayer.addEventListener('touchmove', lookMove, { passive: false });
+          lookLayer.addEventListener('touchend', lookEnd);
+          lookLayer.addEventListener('touchcancel', lookEnd);
+          joyCleanups.push(() => {
+            lookLayer.removeEventListener('touchstart', lookStart); lookLayer.removeEventListener('touchmove', lookMove);
+            lookLayer.removeEventListener('touchend', lookEnd); lookLayer.removeEventListener('touchcancel', lookEnd);
           });
         }
       }
+
+      const CHALLENGER_FONT = 'bold 18px sans-serif';
+      const GUIDE_FONT = 'bold 16px sans-serif';
 
       function castRayDDA(angle: number) {
         const dirX = Math.cos(angle), dirY = Math.sin(angle);
@@ -3902,17 +4430,38 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 
       function render() {
         const w = canvas!.width, h = canvas!.height;
+        const now = performance.now();
         const fov = Math.PI / 3;
-        const ceilGrad = ctx!.createLinearGradient(0, 0, 0, h / 2);
-        ceilGrad.addColorStop(0, '#070b14'); ceilGrad.addColorStop(1, '#0f172a');
-        ctx!.fillStyle = ceilGrad; ctx!.fillRect(0, 0, w, h / 2);
-        const floorGrad = ctx!.createLinearGradient(0, h / 2, 0, h);
-        floorGrad.addColorStop(0, '#0f172a'); floorGrad.addColorStop(1, '#070b14');
-        ctx!.fillStyle = floorGrad; ctx!.fillRect(0, h / 2, w, h / 2);
 
-        const numRays = Math.min(w, 360);
+        const district = getDistrictAt(playerX, playerY);
+        if (district.id !== currentDistrictId) {
+          currentDistrictId = district.id;
+          if (districtChipRef.current) districtChipRef.current.textContent = `${district.icon} ${district.name.toUpperCase()}`;
+          // Only announce a district the first time it's entered — the chip label above
+          // still updates on every crossing, but re-crossing a boundary back and forth
+          // shouldn't spam a toast each time.
+          if (!announcedDistricts.has(district.id)) {
+            announcedDistricts.add(district.id);
+            notifyRef.current(`${district.icon} ${district.name}`, getDistrictFocus(district.id, strand));
+          }
+        }
+        const [fr, fg, fb] = district.floor;
+        const [cr, cg, cb] = district.ceil;
+        if (!cachedSkyGradients || cachedSkyGradients.districtId !== district.id || cachedSkyGradients.h !== h) {
+          const ceilGrad = ctx!.createLinearGradient(0, 0, 0, h / 2);
+          ceilGrad.addColorStop(0, `rgb(${Math.floor(cr * .6)},${Math.floor(cg * .6)},${Math.floor(cb * .6)})`);
+          ceilGrad.addColorStop(1, `rgb(${cr},${cg},${cb})`);
+          const floorGrad = ctx!.createLinearGradient(0, h / 2, 0, h);
+          floorGrad.addColorStop(0, `rgb(${fr},${fg},${fb})`);
+          floorGrad.addColorStop(1, `rgb(${Math.floor(fr * .55)},${Math.floor(fg * .55)},${Math.floor(fb * .55)})`);
+          cachedSkyGradients = { districtId: district.id, h, ceil: ceilGrad, floor: floorGrad };
+        }
+        ctx!.fillStyle = cachedSkyGradients.ceil; ctx!.fillRect(0, 0, w, h / 2);
+        ctx!.fillStyle = cachedSkyGradients.floor; ctx!.fillRect(0, h / 2, w, h / 2);
+
+        const numRays = Math.min(w, rayCap);
         const stripWidth = w / numRays;
-        const zBuffer = new Array(numRays);
+        if (zBuffer.length !== numRays) zBuffer = new Float32Array(numRays);
 
         for (let i = 0; i < numRays; i++) {
           const rayAngle = playerAngle - fov / 2 + (i / numRays) * fov;
@@ -3926,41 +4475,112 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
           if (result.tile === 2) { r = Math.floor(120 * brightness); g = Math.floor(80 * brightness); b = Math.floor(40 * brightness); }
           else if (result.tile === 3) { r = Math.floor(56 * brightness); g = Math.floor(189 * brightness); b = Math.floor(248 * brightness); }
           else if (result.tile === 4) { r = Math.floor(160 * brightness); g = Math.floor(160 * brightness); b = Math.floor(180 * brightness); }
+          else if (result.tile === 5) {
+            const pulse = 0.5 + 0.5 * Math.sin(now / 260);
+            r = Math.floor((190 + 40 * pulse) * brightness); g = Math.floor((70 + 25 * pulse) * brightness); b = Math.floor(45 * brightness);
+          }
           else if (result.side === 0) { r = Math.floor(45 * brightness); g = Math.floor(55 * brightness); b = Math.floor(80 * brightness); }
           else { r = Math.floor(30 * brightness); g = Math.floor(40 * brightness); b = Math.floor(60 * brightness); }
           ctx!.fillStyle = `rgb(${r},${g},${b})`;
           ctx!.fillRect(Math.floor(i * stripWidth), wallTop, Math.ceil(stripWidth) + 1, wallHeight);
         }
 
+        // Reusable billboard-sprite projection: world (sx,sy) -> screen position, or null if
+        // it's behind the player or occluded by a nearer wall strip in the z-buffer.
+        function projectSprite(sx: number, sy: number) {
+          const spriteX = sx - playerX, spriteY = sy - playerY;
+          const transformX = Math.cos(playerAngle) * spriteX + Math.sin(playerAngle) * spriteY;
+          const transformY = -Math.sin(playerAngle) * spriteX + Math.cos(playerAngle) * spriteY;
+          if (transformX <= 0.1) return null;
+          const screenX = (w / 2) * (1 + transformY / transformX);
+          const size = Math.abs(h / transformX);
+          const drawY = (h - size) / 2;
+          const rayIdx = Math.floor((screenX / w) * numRays);
+          if (rayIdx < 0 || rayIdx >= numRays || transformX >= zBuffer[rayIdx]) return null;
+          return { screenX, size, drawY };
+        }
+
         challengers.forEach((term) => {
           term.x += term.dir * 0.005;
           if (term.x < 2 || term.x > 23) term.dir *= -1;
-          const spriteX = term.x - playerX, spriteY = term.y - playerY;
-          const transformX = Math.cos(playerAngle) * spriteX + Math.sin(playerAngle) * spriteY;
-          const transformY = -Math.sin(playerAngle) * spriteX + Math.cos(playerAngle) * spriteY;
-          if (transformX > 0.1) {
-            const spriteScreenX = Math.floor((w / 2) * (1 + transformY / transformX));
-            const spriteSize = Math.abs(Math.floor(h / transformX));
-            const drawX = spriteScreenX - spriteSize * 0.25;
-            const drawY = (h - spriteSize) / 2;
-            const rayIdx = Math.floor((spriteScreenX / w) * numRays);
-            if (rayIdx >= 0 && rayIdx < numRays && transformX < zBuffer[rayIdx]) {
-              const bWidth = spriteSize * 0.5, bHeight = spriteSize * 0.8;
-              const isFinished = defeatedIdsRef.current.includes(term.id);
-              ctx!.fillStyle = isFinished ? '#059669' : term.active ? '#1e293b' : '#334155';
-              ctx!.fillRect(drawX + bWidth * 0.2, drawY + bHeight * 0.4, bWidth * 0.6, bHeight * 0.6);
-              ctx!.fillStyle = isFinished ? '#34d399' : term.active ? '#38bdf8' : '#64748b';
-              ctx!.fillRect(drawX + bWidth * 0.3, drawY + bHeight * 0.45, bWidth * 0.4, bHeight * 0.3);
-              if (term.active && !isFinished) {
-                ctx!.fillStyle = '#ffffff';
-                ctx!.font = 'bold 18px sans-serif';
-                ctx!.fillText('⚔', spriteScreenX - 8, drawY - 10);
-              }
+          const isFinished = defeatedIdsRef.current.includes(term.id);
+          if (term.active && !isFinished && !signaledIds.has(term.id)) {
+            const rangeDist = Math.hypot(playerX - term.x, playerY - term.y);
+            if (rangeDist < SIGNAL_RANGE) {
+              signaledIds.add(term.id);
+              notifyRef.current('📡 Unknown signal detected', `Something's active nearby in ${term.area.replace(/^[^\s]+ /, '')}. Follow the glow to investigate.`);
             }
+          }
+          const proj = projectSprite(term.x, term.y);
+          if (!proj) return;
+          const { screenX: spriteScreenX, size: spriteSize, drawY } = proj;
+          const drawX = spriteScreenX - spriteSize * 0.25;
+          const bWidth = spriteSize * 0.5, bHeight = spriteSize * 0.8;
+          ctx!.fillStyle = isFinished ? '#059669' : term.active ? '#1e293b' : '#334155';
+          ctx!.fillRect(drawX + bWidth * 0.2, drawY + bHeight * 0.4, bWidth * 0.6, bHeight * 0.6);
+          ctx!.fillStyle = isFinished ? '#34d399' : term.active ? '#38bdf8' : '#64748b';
+          ctx!.fillRect(drawX + bWidth * 0.3, drawY + bHeight * 0.45, bWidth * 0.4, bHeight * 0.3);
+          if (term.active && !isFinished) {
+            ctx!.fillStyle = '#ffffff';
+            ctx!.font = CHALLENGER_FONT;
+            ctx!.fillText('⚔', spriteScreenX - 8, drawY - 10);
+
+            // Signal: a soft pulsing beacon above every un-defeated challenger, visible from
+            // far across the map (not just up close) so players get a sense of "something's
+            // over there" long before they can make out the NPC itself.
+            const pulse = 0.5 + 0.5 * Math.sin(now / 420 + term.x);
+            const beaconY = drawY - 34 - spriteSize * 0.05;
+            const grad = ctx!.createRadialGradient(spriteScreenX, beaconY, 0, spriteScreenX, beaconY, 14 * pulse + 8);
+            grad.addColorStop(0, `rgba(248, 184, 78, ${0.55 * pulse + 0.15})`);
+            grad.addColorStop(1, 'rgba(248, 184, 78, 0)');
+            ctx!.fillStyle = grad;
+            ctx!.beginPath();
+            ctx!.arc(spriteScreenX, beaconY, 14 * pulse + 8, 0, Math.PI * 2);
+            ctx!.fill();
           }
         });
 
+        // Lost Notes: small glowing pickups that bob gently in place. Walking close enough
+        // "collects" one (handled in the proximity pass below) and it stops being drawn.
+        notes.forEach((note) => {
+          if (collectedNotes.has(note.id)) return;
+          const bob = Math.sin(now / 500 + note.x * 3) * 0.06;
+          const proj = projectSprite(note.x, note.y + bob);
+          if (!proj) return;
+          const { screenX, size, drawY } = proj;
+          const glow = 0.4 + 0.3 * Math.sin(now / 300 + note.x);
+          const grad = ctx!.createRadialGradient(screenX, drawY + size * 0.72, 0, screenX, drawY + size * 0.72, size * 0.22);
+          grad.addColorStop(0, `rgba(244, 240, 231, ${glow})`);
+          grad.addColorStop(1, 'rgba(244, 240, 231, 0)');
+          ctx!.fillStyle = grad;
+          ctx!.beginPath();
+          ctx!.arc(screenX, drawY + size * 0.72, size * 0.22, 0, Math.PI * 2);
+          ctx!.fill();
+          ctx!.font = `${Math.max(10, Math.floor(size * 0.18))}px sans-serif`;
+          ctx!.textAlign = 'center';
+          ctx!.fillText('📝', screenX, drawY + size * 0.78);
+          ctx!.textAlign = 'left';
+        });
+
+        // Friendly guide NPCs: same billboard treatment as challengers but teal-coded and
+        // marked with a speech bubble instead of crossed swords, so they read as safe.
+        guides.forEach((guide) => {
+          const proj = projectSprite(guide.x, guide.y);
+          if (!proj) return;
+          const { screenX: spriteScreenX, size: spriteSize, drawY } = proj;
+          const drawX = spriteScreenX - spriteSize * 0.25;
+          const gWidth = spriteSize * 0.5, gHeight = spriteSize * 0.8;
+          ctx!.fillStyle = '#0f2e2c';
+          ctx!.fillRect(drawX + gWidth * 0.2, drawY + gHeight * 0.4, gWidth * 0.6, gHeight * 0.6);
+          ctx!.fillStyle = '#67cdd1';
+          ctx!.fillRect(drawX + gWidth * 0.3, drawY + gHeight * 0.45, gWidth * 0.4, gHeight * 0.3);
+          ctx!.fillStyle = '#ffffff';
+          ctx!.font = GUIDE_FONT;
+          ctx!.fillText('💬', spriteScreenX - 8, drawY - 8);
+        });
+
         activeTerminalTarget = null;
+        let badgeTarget: { x: number; y: number } | null = null;
         for (const term of challengers) {
           const distToTerm = Math.hypot(playerX - term.x, playerY - term.y);
           if (distToTerm < 1.5 && term.active) {
@@ -3968,10 +4588,74 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
             const alreadyDone = defeatedIdsRef.current.includes(term.id);
             prompt.innerText = alreadyDone ? `[${term.area}] ${term.name} — QUEST ALREADY COMPLETED` : `[${term.area}] PRESS 'E' OR TAP TO CHALLENGE: ${term.name}`;
             prompt.style.display = 'block';
+            if (!alreadyDone) {
+              // Reproject this NPC to screen space so the floating badge can sit right
+              // above its sprite. Only shown when it's actually in front of the player and
+              // not hidden behind a wall — matches how the sprite itself is drawn/occluded.
+              const bProj = projectSprite(term.x, term.y);
+              if (bProj) badgeTarget = { x: bProj.screenX, y: bProj.drawY };
+            }
             break;
           }
         }
-        if (!activeTerminalTarget && prompt.style.display === 'block') prompt.style.display = 'none';
+
+        // Lost Note pickups: no button/press needed, just walk close enough.
+        for (const note of notes) {
+          if (collectedNotes.has(note.id)) continue;
+          if (Math.hypot(playerX - note.x, playerY - note.y) < 0.6) {
+            collectedNotes.add(note.id);
+            notifyRef.current(note.title, note.hint);
+          }
+        }
+
+        // Guide NPCs: ambient one-shot hint, triggered by proximity rather than an interact key.
+        // A guide with a `reward` also hands over real credits/XP the moment they're found —
+        // this is what makes them worth seeking out, not just background lore.
+        for (const guide of guides) {
+          if (triggeredGuides.has(guide.id)) continue;
+          if (Math.hypot(playerX - guide.x, playerY - guide.y) < 1.3) {
+            triggeredGuides.add(guide.id);
+            const line = guide.lines[Math.floor(Math.random() * guide.lines.length)];
+            if (guide.reward) {
+              onRewardRef.current(guide.reward.coins, guide.reward.xp);
+              notifyRef.current(guide.name, `${line} (+${guide.reward.coins} credits, +${guide.reward.xp} XP)`);
+            } else {
+              notifyRef.current(guide.name, line);
+            }
+          }
+        }
+
+        // Visible progression: a plain "X / Y discovered" readout so a run always has a
+        // sense of how much ground has actually been covered. Only touches the DOM when the
+        // count changes, same as the district chip above.
+        const discoveredCount = signaledIds.size + collectedNotes.size + triggeredGuides.size;
+        if (discoveredCount !== lastProgressCount) {
+          lastProgressCount = discoveredCount;
+          if (progressChipRef.current) progressChipRef.current.textContent = `🧭 ${discoveredCount}/${totalDiscoverable} DISCOVERED`;
+        }
+
+        // Locked gate: shows a status line in the prompt bar (no badge, nothing to press —
+        // it opens itself once the mastery condition is met) whenever the player is nearby
+        // and no challenger prompt is already claiming the bar.
+        checkGateUnlock();
+        let gateNearby = false;
+        if (!activeTerminalTarget && !gate.open) {
+          const gateDist = Math.hypot(playerX - (gate.x + 0.5), playerY - (gate.y + 0.5));
+          if (gateDist < 1.6) {
+            gateNearby = true;
+            const doneCount = gate.requiredIds.filter((id) => defeatedIdsRef.current.includes(id)).length;
+            prompt.innerText = `🔒 ${gate.label} — SEALED. Defeat all three Districts first. (${doneCount}/${gate.requiredIds.length} mastered)`;
+            prompt.style.display = 'block';
+          }
+        }
+        if (!activeTerminalTarget && !gateNearby && prompt.style.display === 'block') prompt.style.display = 'none';
+
+        if (badgeTarget) {
+          badge.style.display = 'flex';
+          badge.style.transform = `translate(${badgeTarget.x - 17}px, ${badgeTarget.y - 42}px)`;
+        } else {
+          badge.style.display = 'none';
+        }
       }
 
       function canMove(nx: number, ny: number) {
@@ -3980,7 +4664,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
         for (const [cx, cy] of testPoints) {
           const mx = Math.floor(cx), my = Math.floor(cy);
           if (mx < 0 || mx >= mapWidth || my < 0 || my >= mapHeight) return false;
-          if (map[my][mx] === 1) return false;
+          if (map[my][mx] === 1 || map[my][mx] === 5) return false;
         }
         return true;
       }
@@ -3991,8 +4675,8 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
         lastTime = timestamp;
         if (roamingActive) {
           if (pointerLocked) { playerAngle += mouseDX * 0.002 * sensitivity; mouseDX = 0; }
+          if (touchLookDX !== 0) { playerAngle += touchLookDX * touchLookSensitivity; touchLookDX = 0; }
           playerAngle = playerAngle % (Math.PI * 2);
-          if (rightJoy.active) playerAngle += rightJoy.dx * 3.0 * sensitivity * dt;
           let moveX = 0, moveY = 0;
           if (keys['w'] || keys['arrowup']) { moveX += Math.cos(playerAngle); moveY += Math.sin(playerAngle); }
           if (keys['s'] || keys['arrowdown']) { moveX -= Math.cos(playerAngle); moveY -= Math.sin(playerAngle); }
@@ -4018,13 +4702,16 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 
       return () => {
         cancelAnimationFrame(raf);
-        window.removeEventListener('resize', resizeCanvas);
+        if (resizeRaf) cancelAnimationFrame(resizeRaf);
+        window.removeEventListener('resize', scheduleResize);
         document.removeEventListener('keydown', handleKeyDown);
         document.removeEventListener('keyup', handleKeyUp);
         document.removeEventListener('mousemove', handleMouseMove);
         canvas.removeEventListener('click', handleCanvasClick);
         document.removeEventListener('pointerlockchange', handlePointerLockChange);
         prompt.removeEventListener('click', handlePromptTap);
+        badge.removeEventListener('click', handleBadgeActivate);
+        badge.removeEventListener('touchstart', handleBadgeActivate);
         joyCleanups.forEach((fn) => fn());
         if (document.pointerLockElement === canvas) document.exitPointerLock();
       };
@@ -4035,17 +4722,25 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
         <div ref={worldRef} className="campus-world">
           <canvas ref={canvasRef} className="campus-canvas" />
           <div className="campus-hud-bar">
-            <div className="campus-chip">LEVEL {level}</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <div className="campus-chip">LVL {level} · {strand}</div>
+              <div className="campus-chip" ref={districtChipRef} />
+              <div className="campus-chip" ref={progressChipRef} />
+            </div>
             <button className="campus-exit-btn" onClick={onExit}><X size={12} /> Exit campus</button>
           </div>
           <div ref={promptRef} className="campus-prompt" />
-          <div className="campus-joystick-zone left" ref={leftZoneRef}>
-            <div className="campus-joystick-base" ref={leftBaseRef} />
+          <button type="button" className="campus-interact-badge" ref={badgeRef} aria-label="Interact with quest giver">
+            <Swords size={15} />
+          </button>
+          <div className="campus-look-layer" ref={lookLayerRef} />
+          <div className="campus-joystick-zone" ref={leftZoneRef}>
+            <div className="campus-joystick-ring" />
+            <ChevronRight size={12} className="campus-joystick-arrow up" />
+            <ChevronRight size={12} className="campus-joystick-arrow down" />
+            <ChevronRight size={12} className="campus-joystick-arrow left" />
+            <ChevronRight size={12} className="campus-joystick-arrow right" />
             <div className="campus-joystick-thumb" ref={leftThumbRef} />
-          </div>
-          <div className="campus-joystick-zone right" ref={rightZoneRef}>
-            <div className="campus-joystick-base" ref={rightBaseRef} />
-            <div className="campus-joystick-thumb" ref={rightThumbRef} />
           </div>
           <div ref={tapStartRef} className="campus-tap-start">CLICK TO LOOK AROUND<span>WASD to move, mouse to look</span></div>
         </div>
@@ -4053,21 +4748,24 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     );
   }
 
-  function QuestBriefing({ challenger, onAccept, onLeave }: { challenger: CampusChallenger; onAccept: () => void; onLeave: () => void }) {
+  function QuestBriefing({ challenger, playerLevel, strand, onAccept, onLeave }: { challenger: CampusChallenger; playerLevel: number; strand: string; onAccept: () => void; onLeave: () => void }) {
+    const underleveled = playerLevel < challenger.recommendedLevel;
+    // Same district-to-strand mapping the campus itself uses when you enter a district
+    // (see CampusExplorer) — so the briefing tells you what you're actually about to be
+    // tested on, in terms of your own strand, not just a generic area name.
+    const focus = getDistrictFocus(challenger.districtId, strand);
+    const questionCount = getChallengerQuestions(challenger).length;
     return (
       <div className="page-wrap">
         <div className="page-toolbar">
           <div>
-            <div className="eyebrow">MISSION BRIEFING // 01 ACCEPT QUEST</div>
-            <h1 className="page-title">Enter the <em>duel?</em></h1>
-            <p className="muted text-sm mt-3">Read the challenge, then commit. Leaving costs nothing — losing focus mid-fight does.</p>
+            <div className="eyebrow">📡 SIGNAL INVESTIGATED // QUEST DISCOVERED</div>
+            <h1 className="page-title">{challenger.questTitle}</h1>
+            <p className="muted text-sm mt-3">{challenger.area}</p>
           </div>
           <button className="btn-secondary" onClick={onLeave}><X size={14} /> Leave</button>
         </div>
         <div className="panel battle-arena">
-          <div className="battle-top">
-            <span className="battle-label">{challenger.area.toUpperCase()}</span>
-          </div>
           <div className="combatants" style={{ gridTemplateColumns: '.6fr 1.4fr' }}>
             <div className="combatant">
               <div className="combatant-avatar enemy"><UserRound size={30} /></div>
@@ -4077,17 +4775,24 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
               <div className="feedback" style={{ fontStyle: 'italic' }}>
                 "{challenger.statement}"
               </div>
-              <p className="muted text-sm mt-3">Answer the knowledge check under pressure and prove you can keep your attention when the questions get sharp.</p>
-              <div className="quest-tags mt-3">
-                <span className="tag"><Gem size={10} className="inline mr-1" />+300 XP</span>
-                <span className="tag"><Coins size={10} className="inline mr-1" />+150 credits</span>
-                <span className="tag"><Sparkles size={10} className="inline mr-1" />high focus</span>
-              </div>
+              <p className="muted text-sm mt-3">{challenger.lore}</p>
             </div>
           </div>
         </div>
+        <div className="panel mt-3" style={{ padding: '16px 20px' }}>
+          <div className="quest-tags">
+            <span className="tag"><BookOpen size={10} className="inline mr-1" />{focus}</span>
+            <span className="tag"><Check size={10} className="inline mr-1" />{questionCount} question{questionCount === 1 ? '' : 's'}</span>
+            <span className="tag" style={underleveled ? { color: 'var(--coral)' } : undefined}>
+              <Zap size={10} className="inline mr-1" />Recommended level: {challenger.recommendedLevel}{underleveled ? ` (you're ${challenger.recommendedLevel - playerLevel} below)` : ''}
+            </span>
+            <span className="tag"><Gem size={10} className="inline mr-1" />+{challenger.rewardXp} XP</span>
+            <span className="tag"><Coins size={10} className="inline mr-1" />+{challenger.rewardCoins} credits</span>
+          </div>
+          {underleveled && <p className="muted text-sm mt-3">This one's tuned above your current level — still winnable, just expect it to be tougher.</p>}
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 14 }}>
-          <button className="btn-primary" onClick={onAccept}><Swords size={15} /> Accept</button>
+          <button className="btn-primary" onClick={onAccept}><Swords size={15} /> Accept quest</button>
           <button className="btn-secondary" onClick={onLeave}>Leave</button>
         </div>
       </div>
@@ -4110,18 +4815,22 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
         <div className="quest-cards">
           <div className="panel quest-card featured animate-rise">
             <div>
-              <div className="quest-type">Boss encounter · 15 min</div>
-              <h3>The Procrastination Hydra</h3>
-              <p>Three heads, one deadline. Enter the quiz battle and prove you can keep your attention when the questions get sharp.</p>
+              <div className="quest-type">Campus exploration · live signals</div>
+              <h3>Four quests are out there, waiting to be found.</h3>
+              <p>Walk the halls, follow the pulsing signal when one's nearby, and investigate to reveal what it is before you commit. Rewards — and the subjects tested — scale with each district's difficulty.</p>
+              {/* Read straight off CAMPUS_CHALLENGERS/CAMPUS_DISTRICTS (the same data the
+                  map, briefing, and battle itself use) instead of a hand-kept duplicate
+                  list — so this can't drift out of sync with what's actually out there. */}
               <div className="quest-tags">
-                <span className="tag">+300 XP</span>
-                <span className="tag">+150 credits</span>
-                <span className="tag">high focus</span>
+                {[...CAMPUS_CHALLENGERS].sort((a, b) => a.recommendedLevel - b.recommendedLevel).map((challenger) => {
+                  const district = CAMPUS_DISTRICTS.find((d) => d.id === challenger.districtId);
+                  return <span className="tag" key={challenger.id}>{district?.icon} {district?.name} · Lv {challenger.recommendedLevel}+</span>;
+                })}
               </div>
             </div>
             <div className="quest-action">
               <button className="btn-primary" onClick={onBattle}>
-                <Swords size={15} /> Enter battle
+                <Swords size={15} /> Enter campus
               </button>
             </div>
           </div>
@@ -4157,7 +4866,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     );
   }
 
-  function Battle({ profile, onExit, onComplete, notify }: { profile: Profile; onExit: () => void; onComplete: () => void; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void }) {
+  function Battle({ profile, opponent, onExit, onComplete }: { profile: Profile; opponent: CampusChallenger | null; onExit: () => void; onComplete: (results: { subject: string; correct: boolean }[]) => void }) {
     const [question, setQuestion] = useState(0);
     const [selected, setSelected] = useState<number | null>(null);
     const [enemyHealth, setEnemyHealth] = useState(100);
@@ -4165,18 +4874,37 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     const [score, setScore] = useState(0);
     const [resolved, setResolved] = useState(false);
     const [complete, setComplete] = useState(false);
-    const current = battleQuestions[question];
+    // One entry per answered question — feeds subject-level mastery tracking on the
+    // dashboard once the encounter finishes (see onComplete below).
+    const resultsRef = useRef<{ subject: string; correct: boolean }[]>([]);
+    // This encounter's question set is the opponent's own subject slice of the shared
+    // pool (see getChallengerQuestions) — e.g. a Foundation District check-in is one
+    // quick recall question, while the Citadel's comprehensive exam pulls all of them.
+    // Memoized on the opponent id so it's stable for the lifetime of one battle even
+    // though getChallengerQuestions returns a fresh array each render.
+    const questions = useMemo(() => getChallengerQuestions(opponent), [opponent?.id]);
+    const current = questions[question];
+    const opponentName = opponent?.name ?? 'the challenger';
+    const opponentInitial = opponentName.trim().charAt(0).toUpperCase() || 'C';
     const answer = (index: number) => {
       if (resolved || complete) return;
       setSelected(index); setResolved(true);
-      if (index === current.answer) { setEnemyHealth((value) => Math.max(0, value - 33)); setScore((value) => value + 100); notify('Critical hit', 'Correct answer. The Hydra lost a head.'); }
-      else { setPlayerHealth((value) => Math.max(0, value - 25)); notify('Glancing blow', 'Not quite. Read the prompt, then keep moving.', 'error'); }
+      const isCorrect = index === current.answer;
+      resultsRef.current.push({ subject: current.subject, correct: isCorrect });
+      // No toast here on purpose — the answer buttons, health bars, and hit animation
+      // already give immediate feedback per question. A toast per answer would just be
+      // the same information twice, several times a battle.
+      if (isCorrect) { setEnemyHealth((value) => Math.max(0, value - 33)); setScore((value) => value + 100); }
+      else { setPlayerHealth((value) => Math.max(0, value - 25)); }
     };
     const next = () => {
-      if (question < battleQuestions.length - 1) { setQuestion((value) => value + 1); setSelected(null); setResolved(false); return; }
-      setComplete(true); onComplete(); notify('Battle cleared', `You earned ${score + (selected === current.answer ? 100 : 0)} XP.`);
+      if (question < questions.length - 1) { setQuestion((value) => value + 1); setSelected(null); setResolved(false); return; }
+      // Completion is announced once, by the caller (completeBattle), which knows the real
+      // reward numbers and can also surface any subject mastery improvement — no duplicate
+      // toast here.
+      setComplete(true); onComplete(resultsRef.current);
     };
-    return <div className="page-wrap battle-layout"><div className="page-toolbar"><div><div className="eyebrow">LIVE ENCOUNTER // SECTOR 03</div><h1 className="page-title">The <em>Hydra</em> waits.</h1></div><button className="btn-secondary" onClick={onExit}><X size={14} /> Retreat</button></div><div className="panel battle-arena"><div className="battle-top"><span className="battle-label">QUIZ BATTLE // {complete ? battleQuestions.length : question + 1} / {battleQuestions.length}</span><span className="battle-score">SCORE {String(score).padStart(4, '0')}</span></div><div className="combatants"><div className="combatant"><div className={`combatant-avatar hero ${resolved && selected !== current.answer ? 'animate-hit' : ''}`}>{getInitials(profile.name)}</div><div className="combatant-name">{profile.name}</div><div className="health-track"><div className="health-fill" style={{ width: `${playerHealth}%` }} /></div></div><div className="versus">VS</div><div className="combatant"><div className={`combatant-avatar enemy ${resolved && selected === current.answer ? 'animate-hit' : ''}`}>H</div><div className="combatant-name">The Hydra</div><div className="health-track"><div className="health-fill enemy-health" style={{ width: `${enemyHealth}%` }} /></div></div></div></div>{complete ? <div className="panel question-panel battle-complete"><Trophy size={34} className="text-amber-300 mx-auto" /><div className="question-index mt-4">ENCOUNTER CLEARED</div><h2 className="question-text">You stayed with the hard part.</h2><p className="muted text-sm">The result is logged to your player file. Take the momentum with you.</p><button className="btn-primary mt-5" onClick={onExit}>Return to mission control <ChevronRight size={14} /></button></div> : <div className="panel question-panel"><div className="question-index">QUESTION 0{question + 1} / KNOWLEDGE CHECK</div><h2 className="question-text">{current.question}</h2><div className="answers">{current.options.map((option, index) => <button className={`answer-btn ${resolved && index === current.answer ? 'correct' : ''} ${resolved && selected === index && index !== current.answer ? 'wrong' : ''}`} key={option} disabled={resolved} onClick={() => answer(index)}>{String.fromCharCode(65 + index)} <span className="ml-2">{option}</span></button>)}</div>{resolved && <><div className="feedback">{selected === current.answer ? 'DIRECT HIT // The concept is locked in.' : `MISS // The correct answer was ${current.options[current.answer]}.`}</div><button className="btn-primary mt-4" onClick={next}>{question === battleQuestions.length - 1 ? 'Finish encounter' : 'Next question'} <ChevronRight size={14} /></button></>}</div>}</div>;
+    return <div className="page-wrap battle-layout"><div className="page-toolbar"><div><div className="eyebrow">{opponent?.questTitle ? opponent.questTitle.toUpperCase() : 'LIVE ENCOUNTER'}</div><h1 className="page-title"><em>{opponentName}</em> is waiting.</h1></div><button className="btn-secondary" onClick={onExit}><X size={14} /> Retreat</button></div><div className="panel battle-arena"><div className="battle-top"><span className="battle-label">QUIZ BATTLE // {complete ? questions.length : question + 1} / {questions.length}</span><span className="battle-score">SCORE {String(score).padStart(4, '0')}</span></div><div className="combatants"><div className="combatant"><div className={`combatant-avatar hero ${resolved && selected !== current.answer ? 'animate-hit' : ''}`}>{getInitials(profile.name)}</div><div className="combatant-name">{profile.name}</div><div className="health-track"><div className="health-fill" style={{ width: `${playerHealth}%` }} /></div></div><div className="versus">VS</div><div className="combatant"><div className={`combatant-avatar enemy ${resolved && selected === current.answer ? 'animate-hit' : ''}`}>{opponentInitial}</div><div className="combatant-name">{opponentName}</div><div className="health-track"><div className="health-fill enemy-health" style={{ width: `${enemyHealth}%` }} /></div></div></div></div>{complete ? <div className="panel question-panel battle-complete"><Trophy size={34} className="text-amber-300 mx-auto" /><div className="question-index mt-4">ENCOUNTER CLEARED</div><h2 className="question-text">You stayed with the hard part.</h2><p className="muted text-sm">The result is logged to your player file. Take the momentum with you.</p><button className="btn-primary mt-5" onClick={onExit}>Return to mission control <ChevronRight size={14} /></button></div> : <div className="panel question-panel"><div className="question-index">QUESTION 0{question + 1} / KNOWLEDGE CHECK</div><h2 className="question-text">{current.question}</h2><div className="answers">{current.options.map((option, index) => <button className={`answer-btn ${resolved && index === current.answer ? 'correct' : ''} ${resolved && selected === index && index !== current.answer ? 'wrong' : ''}`} key={option} disabled={resolved} onClick={() => answer(index)}>{String.fromCharCode(65 + index)} <span className="ml-2">{option}</span></button>)}</div>{resolved && <><div className="feedback">{selected === current.answer ? 'DIRECT HIT // The concept is locked in.' : `MISS // The correct answer was ${current.options[current.answer]}.`}</div><button className="btn-primary mt-4" onClick={next}>{question === questions.length - 1 ? 'Finish encounter' : 'Next question'} <ChevronRight size={14} /></button></>}</div>}</div>;
   }
 
   function Shop({ coins, owned, equipped, buyItem, equipItem, quests }: { coins: number; owned: string[]; equipped: string | null; buyItem: (id: string, price: number, name: string) => void; equipItem: (id: string, name: string) => void; quests: Quest[] }) {
@@ -4236,7 +4964,15 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     );
   }
 
-  function Profile({ profile, xp, setAvatar, owned, equipped, updateProfileName, updateProfilePassword, notify, onLogout }: { profile: Profile; xp: number; setAvatar: (value: AvatarConfig) => void; owned: string[]; equipped: string | null; updateProfileName: (newName: string) => Promise<{ ok: boolean; message?: string }>; updateProfilePassword: (currentPassword: string, newPass: string) => Promise<{ ok: boolean; message?: string }>; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void; onLogout: () => void }) {
+  function Profile({
+    profile, xp, setAvatar, owned, equipped, quests, studyMinutes, defeatedChallengerIds, subjectMastery, setScreen, onExploreCampus,
+    updateProfileName, updateProfilePassword, notify, onLogout,
+  }: {
+    profile: Profile; xp: number; setAvatar: (value: AvatarConfig) => void; owned: string[]; equipped: string | null;
+    quests: Quest[]; studyMinutes: number; defeatedChallengerIds: string[]; subjectMastery: Record<string, { correct: number; total: number }>;
+    setScreen: (screen: Screen) => void; onExploreCampus: () => void;
+    updateProfileName: (newName: string) => Promise<{ ok: boolean; message?: string }>; updateProfilePassword: (currentPassword: string, newPass: string) => Promise<{ ok: boolean; message?: string }>; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void; onLogout: () => void
+  }) {
     const [sound, setSound] = useState(true);
     const [feedback, setFeedback] = useState(false);
     const [editingAvatar, setEditingAvatar] = useState(false);
@@ -4257,6 +4993,22 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
     const [confirmPassword, setConfirmPassword] = useState('');
 
     const { level, floorXp, ceilingXp, progressPct } = getLevelInfo(xp);
+    const levelTitle = getLevelTitle(level);
+
+    // Overall Academic Mastery: same real per-question accuracy data the Dashboard uses —
+    // just the single overall number here, deliberately without the per-subject breakdown,
+    // so the Profile page stays an identity summary rather than a second stats page.
+    const subjectEntries = Object.entries(subjectMastery).filter(([, stat]) => stat.total > 0);
+    const masteryTotals = subjectEntries.reduce((sum, [, stat]) => ({ correct: sum.correct + stat.correct, total: sum.total + stat.total }), { correct: 0, total: 0 });
+    const overallMasteryPct = masteryTotals.total > 0 ? Math.round((masteryTotals.correct / masteryTotals.total) * 100) : null;
+
+    // Accomplishments: the real unlocked subset (same shared unlock rule used everywhere else).
+    const unlockedAchievements = achievementsList.filter((item) => isAchievementUnlocked(item, { quests, studyMinutes, owned }));
+
+    // Discovered areas + the equipped cosmetic both read off real, already-tracked state —
+    // nothing invented for this page.
+    const gateMasteredCount = CAMPUS_GATE.requiredIds.filter((id) => defeatedChallengerIds.includes(id)).length;
+    const equippedItem = shopItems.find((item) => item.id === equipped) ?? null;
 
     const handleSaveName = async (e: FormEvent) => {
       e.preventDefault();
@@ -4309,86 +5061,178 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
       <div className="page-wrap">
         <div className="eyebrow">PLAYER FILE // RUN 014</div>
         <h1 className="page-title">Your <em>loadout.</em></h1>
+
+        {/* ============ RPG PROFILE — identity + academic journey ============ */}
         <div className="profile-grid mt-7">
           <div className="panel profile-card">
             <div className="profile-avatar"><AvatarFigure avatar={profile.avatar} initials={getInitials(profile.name)} size="medium" /></div>
             <h2>{profile.name}</h2>
             <p>{profile.strand} strand</p>
-            <div className="level-chip"><Zap size={12} /> LEVEL {level}</div>
+            <div className="level-chip"><Zap size={12} /> LEVEL {level} · {levelTitle}</div>
             <div className="progress-track mt-5"><div className="progress-fill" style={{ width: `${progressPct}%` }} /></div>
             <div className="flex justify-between mt-2"><span className="panel-kicker">{floorXp.toLocaleString()} XP</span><span className="panel-kicker">{ceilingXp.toLocaleString()} XP</span></div>
+            {equippedItem && (
+              <div className="mt-5" style={{ paddingTop: '16px', borderTop: '1px solid var(--line)' }}>
+                <div className="panel-kicker">Equipped</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginTop: '6px', fontSize: '12px', fontWeight: 600 }}>
+                  <equippedItem.icon size={13} /> {equippedItem.name}
+                </div>
+              </div>
+            )}
             <button className="btn-secondary profile-customize-toggle" onClick={() => setEditingAvatar((value) => !value)}><Shirt size={14} /> {editingAvatar ? 'Done customizing' : 'Customize avatar'}</button>
             {editingAvatar && <AvatarSelectors avatar={profile.avatar} setAvatar={setAvatar} />}
           </div>
-          
+
           <div style={{ display: 'grid', gap: '14px' }}>
-            {/* Credentials & Security Card */}
+            {/* Academic Mastery — the one overall number, not the per-subject table (that
+                lives on the Dashboard); this page stays an identity summary. */}
             <div className="panel profile-panel">
               <div className="panel-head !p-0 !pb-4">
-                <div>
-                  <div className="panel-title">Credentials & Security</div>
-                  <div className="panel-kicker mt-1">Manage your username and account password</div>
-                </div>
-                <ShieldCheck size={18} className="text-amber-300" />
+                <div><div className="panel-title">Academic Mastery</div><div className="panel-kicker mt-1">Accuracy across every quiz battle so far</div></div>
+                <BookOpen size={18} className="text-amber-300" />
               </div>
-
-              <div className="setting-row" style={{ alignItems: 'flex-start', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              {overallMasteryPct !== null ? (
+                <div className="mastery-overall">
                   <div>
-                    <strong>Email Address</strong>
-                    <span>{profile.email}</span>
+                    <div className="panel-kicker">Overall mastery</div>
+                    <div className="mastery-overall-pct">{overallMasteryPct}%</div>
                   </div>
+                  <div className="progress-track mastery-overall-bar"><div className="progress-fill" style={{ width: `${overallMasteryPct}%` }} /></div>
+                </div>
+              ) : (
+                <div className="mastery-empty">
+                  <Brain size={20} />
+                  <p>No mastery data yet.</p>
+                  <p className="muted text-xs">Answer questions in a campus challenge and your accuracy will show up here.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Important accomplishments — a few real unlocked achievements, with the full
+                list one tap away rather than duplicated here. */}
+            <div className="panel profile-panel">
+              <div className="panel-head !p-0 !pb-4">
+                <div><div className="panel-title">Accomplishments</div><div className="panel-kicker mt-1">{unlockedAchievements.length} / {achievementsList.length} unlocked</div></div>
+                <Trophy size={18} className="text-amber-300" />
+              </div>
+              {unlockedAchievements.length > 0 ? (
+                <div style={{ display: 'grid', gap: '10px' }}>
+                  {unlockedAchievements.slice(0, 3).map((item) => (
+                    <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--line)' }}>
+                      <div className="quest-mark" style={{ color: 'var(--amber)' }}><item.icon size={14} /></div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '12px', fontWeight: 600 }}>{item.title}</div>
+                        <div className="muted" style={{ fontSize: '10px' }}>{item.desc}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="muted text-sm">Nothing unlocked yet — clear a quest or finish a focus session to start.</p>
+              )}
+              <button className="btn-secondary w-full mt-4" onClick={() => setScreen('achievements')}>View all</button>
+            </div>
+
+            {/* Discovered areas — real campus exploration progress. */}
+            <div className="panel profile-panel">
+              <div className="panel-head !p-0 !pb-4">
+                <div><div className="panel-title">Discovered Areas</div><div className="panel-kicker mt-1">{defeatedChallengerIds.length} / {CAMPUS_CHALLENGERS.length} campus districts</div></div>
+                <Compass size={18} className="text-amber-300" />
+              </div>
+              <div style={{ display: 'grid', gap: '10px' }}>
+                {CAMPUS_CHALLENGERS.map((challenger) => {
+                  const isDone = defeatedChallengerIds.includes(challenger.id);
+                  const districtLabel = challenger.area.split(':')[0].trim();
+                  return (
+                    <div key={challenger.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--line)' }}>
+                      <div className="quest-mark" style={{ color: isDone ? 'var(--cyan)' : 'var(--slate-500)' }}>{isDone ? <Check size={14} /> : <MapPin size={14} />}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '12px', fontWeight: 600 }}>{districtLabel}</div>
+                        <div className="muted" style={{ fontSize: '10px' }}>{isDone ? 'Cleared' : 'Undiscovered'}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="panel-kicker mt-3">🔒 {CAMPUS_GATE.label}: {gateMasteredCount}/{CAMPUS_GATE.requiredIds.length} mastered</div>
+              <button className="btn-secondary w-full mt-4" onClick={onExploreCampus}><Swords size={14} /> Explore campus</button>
+            </div>
+          </div>
+        </div>
+
+        {/* ============ ACCOUNT & SETTINGS — deliberately separate from the RPG profile
+            above: this is administrative (login, security, notification prefs), not part
+            of the student's identity or academic journey. ============ */}
+        <div className="mt-8" style={{ paddingTop: '24px', borderTop: '1px solid var(--line)' }}>
+          <div className="eyebrow">ACCOUNT</div>
+          <h2 style={{ fontSize: '16px', fontWeight: 600, marginTop: '4px' }}>Personal & account settings</h2>
+        </div>
+        <div className="profile-grid mt-5" style={{ gridTemplateColumns: '1fr 1fr' }}>
+          <div className="panel profile-panel">
+            <div className="panel-head !p-0 !pb-4">
+              <div>
+                <div className="panel-title">Credentials & Security</div>
+                <div className="panel-kicker mt-1">Manage your username and account password</div>
+              </div>
+              <ShieldCheck size={18} className="text-amber-300" />
+            </div>
+
+            <div className="setting-row" style={{ alignItems: 'flex-start', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <strong>Email Address</strong>
+                  <span>{profile.email}</span>
                 </div>
               </div>
+            </div>
 
-              <form onSubmit={handleSaveName} className="setting-row" style={{ alignItems: 'flex-start', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
-                <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ flex: 1 }}>
-                    <strong>Username</strong>
-                    {isEditingName ? (
-                      <input className="field-input mt-2" style={{ padding: '7px 9px', fontSize: '12px' }} value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="Your username" autoFocus />
-                    ) : (
-                      <span>{profile.name}</span>
-                    )}
-                  </div>
+            <form onSubmit={handleSaveName} className="setting-row" style={{ alignItems: 'flex-start', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+              <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ flex: 1 }}>
+                  <strong>Username</strong>
                   {isEditingName ? (
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <button type="button" className="btn-secondary" style={{ padding: '5px 9px', fontSize: '11px' }} onClick={() => { setIsEditingName(false); setNameInput(profile.name); }} disabled={savingName}>Cancel</button>
-                      <button type="submit" className="btn-primary" style={{ padding: '5px 9px', fontSize: '11px' }} disabled={savingName}>{savingName ? 'Saving…' : 'Save'}</button>
-                    </div>
+                    <input className="field-input mt-2" style={{ padding: '7px 9px', fontSize: '12px' }} value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="Your username" autoFocus />
                   ) : (
-                    <button type="button" className="btn-secondary" style={{ padding: '5px 9px', fontSize: '11px' }} onClick={() => setIsEditingName(true)}>Edit</button>
+                    <span>{profile.name}</span>
                   )}
                 </div>
-              </form>
-
-              <form onSubmit={handleSavePassword} style={{ marginTop: '16px' }}>
-                <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <KeyRound size={14} /> Password Management
-                </div>
-                <div style={{ display: 'grid', gap: '10px' }}>
-                  <label className="field-label" style={{ margin: 0 }}>Current Password
-                    <input className="field-input" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="••••••••" required />
-                  </label>
-                  <label className="field-label" style={{ margin: 0 }}>New Password
-                    <input className="field-input" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="At least 6 characters" required />
-                  </label>
-                  <label className="field-label" style={{ margin: 0 }}>Confirm Password
-                    <input className="field-input" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm new password" required />
-                  </label>
-                </div>
-                <button className="btn-primary mt-4 w-full" type="submit">Update Credentials</button>
-              </form>
-            </div>
-
-            <div className="panel profile-panel">
-              <div className="panel-head !p-0 !pb-4">
-                <div><div className="panel-title">Preferences</div><div className="panel-kicker mt-1">Audio and app notification triggers</div></div>
-                <Bell size={18} className="text-amber-300" />
+                {isEditingName ? (
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button type="button" className="btn-secondary" style={{ padding: '5px 9px', fontSize: '11px' }} onClick={() => { setIsEditingName(false); setNameInput(profile.name); }} disabled={savingName}>Cancel</button>
+                    <button type="submit" className="btn-primary" style={{ padding: '5px 9px', fontSize: '11px' }} disabled={savingName}>{savingName ? 'Saving…' : 'Save'}</button>
+                  </div>
+                ) : (
+                  <button type="button" className="btn-secondary" style={{ padding: '5px 9px', fontSize: '11px' }} onClick={() => setIsEditingName(true)}>Edit</button>
+                )}
               </div>
-              <div className="setting-row"><div><strong>Sound effects</strong><span>Play audio cues on focus completion</span></div><button type="button" aria-label="Toggle sound effects" className={`toggle ${sound ? 'on' : ''}`} onClick={() => setSound(!sound)}><i /></button></div>
-              <div className="setting-row"><div><strong>Encounter feedback</strong><span>Show detailed prompts during quiz battles</span></div><button type="button" aria-label="Toggle encounter feedback" className={`toggle ${feedback ? 'on' : ''}`} onClick={() => setFeedback(!feedback)}><i /></button></div>
+            </form>
+
+            <form onSubmit={handleSavePassword} style={{ marginTop: '16px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <KeyRound size={14} /> Password Management
+              </div>
+              <div style={{ display: 'grid', gap: '10px' }}>
+                <label className="field-label" style={{ margin: 0 }}>Current Password
+                  <input className="field-input" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="••••••••" required />
+                </label>
+                <label className="field-label" style={{ margin: 0 }}>New Password
+                  <input className="field-input" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="At least 6 characters" required />
+                </label>
+                <label className="field-label" style={{ margin: 0 }}>Confirm Password
+                  <input className="field-input" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm new password" required />
+                </label>
+              </div>
+              <button className="btn-primary mt-4 w-full" type="submit">Update Credentials</button>
+            </form>
+          </div>
+
+          <div className="panel profile-panel">
+            <div className="panel-head !p-0 !pb-4">
+              <div><div className="panel-title">Preferences</div><div className="panel-kicker mt-1">Audio and app notification triggers</div></div>
+              <Bell size={18} className="text-amber-300" />
             </div>
+            <div className="setting-row"><div><strong>Sound effects</strong><span>Play audio cues on focus completion</span></div><button type="button" aria-label="Toggle sound effects" className={`toggle ${sound ? 'on' : ''}`} onClick={() => setSound(!sound)}><i /></button></div>
+            <div className="setting-row"><div><strong>Encounter feedback</strong><span>Show detailed prompts during quiz battles</span></div><button type="button" aria-label="Toggle encounter feedback" className={`toggle ${feedback ? 'on' : ''}`} onClick={() => setFeedback(!feedback)}><i /></button></div>
           </div>
         </div>
 
@@ -4523,6 +5367,32 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
       setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, read } : item)));
     };
     const clearAllNotifications = () => setNotifications([]);
+
+    // Achievements: notify once, the moment one actually transitions from locked to
+    // unlocked — never on load (the baseline snapshot on the first run absorbs whatever's
+    // already unlocked) and never more than once per achievement. Uses the exact same
+    // unlock check the Achievements screen renders with, so a notification and what the
+    // player sees when they check always agree.
+    const previousUnlockedAchievementIdsRef = useRef<Set<string> | null>(null);
+    useEffect(() => {
+      if (!accountData) return;
+      const quests = accountData.game.quests;
+      const currentUnlocked = new Set(
+        achievementsList
+          .filter((item) => item.unlocked || (item.requiredQuestId && quests.find((q) => q.id === item.requiredQuestId)?.done))
+          .map((item) => item.id)
+      );
+      if (previousUnlockedAchievementIdsRef.current === null) {
+        previousUnlockedAchievementIdsRef.current = currentUnlocked;
+        return;
+      }
+      for (const item of achievementsList) {
+        if (currentUnlocked.has(item.id) && !previousUnlockedAchievementIdsRef.current.has(item.id)) {
+          notify(`🏆 ${item.title}`, item.desc);
+        }
+      }
+      previousUnlockedAchievementIdsRef.current = currentUnlocked;
+    }, [accountData]);
 
     // --- Loading fallback timeout ---
     // Firebase is usually near-instant, but a slow/unreachable network can leave either
@@ -4756,12 +5626,34 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
       notify('Quest cleared', `Received +${quest.rewardXp} XP and +${quest.rewardCoins} credits.`);
     };
 
-    const completeBattle = () => {
-      updateAccountData((acc) => ({
-        ...acc,
-        game: { ...acc.game, xp: acc.game.xp + 300, coins: acc.game.coins + 150 },
-      }));
-      notify('Boss encounter cleared', 'Received +300 XP and +150 credits.');
+    const completeBattle = (results: { subject: string; correct: boolean }[]) => {
+      const xpReward = foundChallenger?.rewardXp ?? 300;
+      const coinReward = foundChallenger?.rewardCoins ?? 150;
+
+      // Merge this battle's results into subject mastery here (not inside updateAccountData's
+      // updater) so we have one clean before/after snapshot to diff for genuine tier
+      // improvements — an updater can in principle run more than once, and we only want to
+      // notify once.
+      const subjectMastery = { ...game.subjectMastery };
+      const improvedSubjects: { subject: string; tier: MasteryTier; pct: number }[] = [];
+      for (const subject of new Set(results.map((r) => r.subject))) {
+        const prev = subjectMastery[subject] ?? { correct: 0, total: 0 };
+        const prevTier = prev.total > 0 ? masteryTierOf(Math.round((prev.correct / prev.total) * 100)) : null;
+        const delta = results.filter((r) => r.subject === subject).reduce((acc, r) => ({ correct: acc.correct + (r.correct ? 1 : 0), total: acc.total + 1 }), { correct: 0, total: 0 });
+        const merged = { correct: prev.correct + delta.correct, total: prev.total + delta.total };
+        subjectMastery[subject] = merged;
+        const pct = Math.round((merged.correct / merged.total) * 100);
+        const tier = masteryTierOf(pct);
+        if (prevTier === null || MASTERY_TIER_RANK[tier] > MASTERY_TIER_RANK[prevTier]) improvedSubjects.push({ subject, tier, pct });
+      }
+
+      updateAccountData((acc) => ({ ...acc, game: { ...acc.game, xp: acc.game.xp + xpReward, coins: acc.game.coins + coinReward, subjectMastery } }));
+      notify('Quest cleared', `Received +${xpReward} XP and +${coinReward} credits.`);
+      // Academic improvement: only fires when a subject actually crosses into a better
+      // mastery tier, not on every battle — keeps it meaningful instead of routine.
+      for (const improvement of improvedSubjects) {
+        notify(`📈 ${improvement.subject} improving`, `Now ${improvement.tier} — ${improvement.pct}% accuracy.`);
+      }
       if (foundChallenger) setDefeatedChallengerIds((ids) => (ids.includes(foundChallenger.id) ? ids : [...ids, foundChallenger.id]));
       setFoundChallenger(null);
       setQuestStage('roaming');
@@ -4851,8 +5743,10 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
                   xp={game.xp}
                   coins={game.coins}
                   streak={streak}
-                  activityDates={game.activityDates}
                   setScreen={setScreen}
+                  defeatedChallengerIds={defeatedChallengerIds}
+                  subjectMastery={game.subjectMastery}
+                  onExploreCampus={() => { setScreen('quests'); enterImmersiveBattle(); setQuestStage('roaming'); }}
                 />
               )}
               {screen === 'quests' && questStage === 'list' && (
@@ -4861,19 +5755,22 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
               {screen === 'quests' && questStage === 'roaming' && (
                 <CampusExplorer
                   level={getLevelInfo(game.xp).level}
+                  strand={profile.strand}
                   defeatedIds={defeatedChallengerIds}
                   onChallengerFound={(challenger) => { setFoundChallenger(challenger); setQuestStage('briefing'); }}
                   onExit={() => setQuestStage('list')}
+                  notify={notify}
+                  onReward={(coins, xp) => updateAccountData((acc) => ({ ...acc, game: { ...acc.game, coins: acc.game.coins + coins, xp: acc.game.xp + xp } }))}
                 />
               )}
               {screen === 'quests' && questStage === 'briefing' && foundChallenger && (
-                <QuestBriefing challenger={foundChallenger} onAccept={() => setQuestStage('battle')} onLeave={() => { setFoundChallenger(null); setQuestStage('roaming'); }} />
+                <QuestBriefing challenger={foundChallenger} playerLevel={getLevelInfo(game.xp).level} strand={profile.strand} onAccept={() => setQuestStage('battle')} onLeave={() => { setFoundChallenger(null); setQuestStage('roaming'); }} />
               )}
               {screen === 'quests' && questStage === 'battle' && (
-                <Battle profile={profile} onExit={() => { setFoundChallenger(null); setQuestStage('roaming'); }} onComplete={completeBattle} notify={notify} />
+                <Battle profile={profile} opponent={foundChallenger} onExit={() => { setFoundChallenger(null); setQuestStage('roaming'); }} onComplete={completeBattle} />
               )}
               {screen === 'shop' && <Shop coins={game.coins} owned={game.owned} equipped={game.equipped} buyItem={buyItem} equipItem={equipItem} quests={game.quests} />}
-              {screen === 'achievements' && <AchievementsView quests={game.quests} />}
+              {screen === 'achievements' && <AchievementsView quests={game.quests} studyMinutes={game.studyMinutes} owned={game.owned} />}
               {screen === 'profile' && (
                 <Profile
                   profile={profile}
@@ -4881,6 +5778,12 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
                   setAvatar={updateAvatar}
                   owned={game.owned}
                   equipped={game.equipped}
+                  quests={game.quests}
+                  studyMinutes={game.studyMinutes}
+                  defeatedChallengerIds={defeatedChallengerIds}
+                  subjectMastery={game.subjectMastery}
+                  setScreen={setScreen}
+                  onExploreCampus={() => { setScreen('quests'); enterImmersiveBattle(); setQuestStage('roaming'); }}
                   updateProfileName={updateProfileName}
                   updateProfilePassword={updateProfilePassword}
                   notify={notify}
