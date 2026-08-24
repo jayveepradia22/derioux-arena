@@ -3809,6 +3809,585 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       .battle-layout .feedback { margin-top: 4px; padding: 5px 7px; font-size: 8px; }
     }
   }
+
+  /* ===================================================================================
+     VIEWPORT-FIT IMMERSIVE BATTLE
+     The battle is a composition, not a scrolling document. The viewport is divided into
+     three purposeful zones: compact title/HUD, flexible arena, compact question deck.
+     Nothing is globally scaled; each zone gives up space independently when the viewport
+     becomes shorter or narrower.
+  =================================================================================== */
+  .main-area.main-area--immersive {
+    overflow: hidden;
+  }
+
+  .battle-layout {
+    width: 100%;
+    max-width: 1180px;
+    height: 100dvh;
+    min-height: 0;
+    margin: 0 auto;
+    padding: clamp(8px, 1.4vh, 18px) clamp(10px, 2vw, 28px) clamp(8px, 1vh, 14px);
+    box-sizing: border-box;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: clamp(6px, 1vh, 12px);
+    overflow: hidden;
+  }
+
+  .battle-layout .page-toolbar {
+    min-width: 0;
+    min-height: clamp(38px, 7vh, 68px);
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .battle-layout .page-toolbar > div:first-child {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .battle-layout .eyebrow {
+    font-size: clamp(8px, 1vw, 10px);
+    line-height: 1;
+  }
+
+  .battle-layout .page-title {
+    margin-top: 4px;
+    font-size: clamp(20px, 3.1vw, 40px);
+    line-height: 1.02;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .battle-layout .page-toolbar .btn-secondary {
+    flex: 0 0 auto;
+    min-height: 38px;
+    padding: 8px 12px;
+  }
+
+  .battle-layout .battle-arena {
+    min-height: 0;
+    height: 100%;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .battle-layout .arena-wall {
+    flex: 0 0 auto;
+    padding: clamp(7px, 1.1vh, 14px) clamp(10px, 1.8vw, 22px) clamp(6px, .9vh, 11px);
+    gap: clamp(5px, 1vw, 12px);
+  }
+
+  .battle-layout .plate-name {
+    font-size: clamp(9px, 1vw, 12px);
+    margin-bottom: 4px;
+  }
+
+  .battle-layout .battle-label {
+    font-size: clamp(8px, .9vw, 10px);
+  }
+
+  .battle-layout .battle-score {
+    font-size: clamp(9px, 1vw, 11px);
+  }
+
+  .battle-layout .health-track {
+    height: clamp(3px, .55vh, 5px);
+    margin-top: 0;
+  }
+
+  .battle-layout .arena-floor {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+    grid-template-columns: minmax(0, 1fr) clamp(38px, 6vw, 76px) minmax(0, 1fr);
+    align-items: end;
+    gap: clamp(4px, 1vw, 12px);
+    padding: clamp(6px, 1.2vh, 18px) clamp(8px, 2vw, 24px) clamp(7px, 1vh, 14px);
+  }
+
+  .battle-layout .combatant {
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+  }
+
+  .battle-layout .combatant-fighter {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    overflow: visible;
+  }
+
+  .battle-layout .combatant-fighter .pixel-avatar {
+    width: 96px;
+    height: 152px;
+    flex: 0 0 96px;
+    margin: 0;
+    transform: scale(clamp(.76, calc(.58 + 1.7vw), 1.08));
+    transform-origin: center bottom;
+  }
+
+  .battle-layout .enemy-fighter-flip {
+    display: inline-flex;
+    align-items: flex-end;
+    height: 100%;
+  }
+
+  .battle-layout .versus {
+    align-self: center;
+    font-size: clamp(10px, 1.2vw, 14px);
+  }
+
+  .battle-layout .question-panel {
+    width: 100%;
+    max-height: min(36dvh, 330px);
+    min-height: 0;
+    margin: 0;
+    padding: clamp(9px, 1.3vh, 18px) clamp(10px, 1.8vw, 22px);
+    box-sizing: border-box;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .battle-layout .question-index {
+    flex: 0 0 auto;
+    font-size: clamp(8px, .9vw, 10px);
+  }
+
+  .battle-layout .question-text {
+    flex: 0 0 auto;
+    margin: clamp(4px, .7vh, 9px) 0 clamp(7px, 1vh, 13px);
+    font-size: clamp(13px, 1.5vw, 20px);
+    line-height: 1.22;
+  }
+
+  .battle-layout .answers {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: minmax(44px, 1fr);
+    gap: clamp(5px, .7vw, 9px);
+  }
+
+  .battle-layout .answer-btn {
+    min-width: 0;
+    min-height: 44px;
+    padding: 8px 10px;
+    display: flex;
+    align-items: center;
+    text-align: left;
+    font-size: clamp(10px, 1vw, 13px);
+    line-height: 1.25;
+    overflow: hidden;
+  }
+
+  .battle-layout .answer-btn span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .battle-layout .feedback {
+    flex: 0 0 auto;
+    margin-top: 6px;
+    padding: 7px 9px;
+    font-size: clamp(8px, .85vw, 10px);
+    line-height: 1.25;
+  }
+
+  .battle-layout .question-panel .btn-primary {
+    flex: 0 0 auto;
+    margin-top: 7px !important;
+    min-height: 38px;
+  }
+
+  .battle-layout .battle-complete {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+
+  /* Short viewports get more question space and a shorter arena, while the fighter
+     footprint remains large enough to read as a full character. */
+  @media (max-height: 700px) {
+    .battle-layout {
+      grid-template-rows: auto minmax(170px, 1fr) minmax(190px, 37dvh);
+      gap: 5px;
+    }
+    .battle-layout .page-toolbar { min-height: 38px; }
+    .battle-layout .page-title { font-size: clamp(18px, 2.8vw, 28px); }
+    .battle-layout .arena-wall { padding-top: 5px; padding-bottom: 5px; }
+    .battle-layout .arena-floor { padding-top: 4px; padding-bottom: 5px; }
+    .battle-layout .combatant-fighter .pixel-avatar {
+      transform: scale(clamp(.72, calc(.55 + 1.4vw), .94));
+    }
+    .battle-layout .question-panel { max-height: none; }
+    .battle-layout .question-text { font-size: clamp(12px, 1.5vw, 16px); }
+  }
+
+  /* Very short landscape phones: preserve the question deck and compress only decorative
+     chrome. Answers remain >=44px high for touch accessibility. */
+  @media (max-height: 540px) {
+    .battle-layout {
+      padding: 5px 8px;
+      grid-template-rows: 34px minmax(128px, 1fr) minmax(180px, 39dvh);
+      gap: 4px;
+    }
+    .battle-layout .eyebrow { display: none; }
+    .battle-layout .page-title { font-size: 18px; margin-top: 0; }
+    .battle-layout .page-toolbar .btn-secondary { min-height: 32px; padding: 5px 9px; font-size: 10px; }
+    .battle-layout .arena-wall { padding: 4px 8px; }
+    .battle-layout .plate-name,
+    .battle-layout .battle-score { font-size: 8px; }
+    .battle-layout .battle-label { font-size: 7px; }
+    .battle-layout .health-track { height: 3px; }
+    .battle-layout .arena-floor { grid-template-columns: 1fr 30px 1fr; padding: 2px 5px 4px; }
+    .battle-layout .combatant-fighter .pixel-avatar {
+      transform: scale(.72);
+    }
+    .battle-layout .question-panel { padding: 6px 8px; }
+    .battle-layout .question-text { margin: 3px 0 5px; font-size: 11px; }
+    .battle-layout .answers { gap: 4px; grid-auto-rows: minmax(44px, 1fr); }
+    .battle-layout .answer-btn { padding: 5px 7px; font-size: 9px; }
+    .battle-layout .question-panel .btn-primary { min-height: 34px; margin-top: 4px !important; font-size: 10px; }
+  }
+
+  /* Narrow portrait phones: keep the two-column answer deck so four answers do not push
+     the question below the viewport. The text wraps inside each button instead of making
+     the entire battle taller. */
+  @media (max-width: 430px) and (min-height: 541px) {
+    .battle-layout {
+      padding-left: 7px;
+      padding-right: 7px;
+      grid-template-rows: auto minmax(185px, 1fr) minmax(245px, 39dvh);
+    }
+    .battle-layout .page-title { font-size: clamp(17px, 5.2vw, 22px); }
+    .battle-layout .battle-arena { border-radius: 12px; }
+    .battle-layout .arena-wall { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); padding: 6px 8px; }
+    .battle-layout .arena-floor { grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr); }
+    .battle-layout .combatant-fighter .pixel-avatar { transform: scale(.78); }
+    .battle-layout .question-panel { border-radius: 12px; }
+    .battle-layout .question-text { font-size: 13px; }
+    .battle-layout .answer-btn { font-size: 10px; }
+  }
+
+  /* Landscape tablets/phones have more horizontal room; use the extra width for larger
+     fighters rather than adding empty vertical space. */
+  @media (orientation: landscape) and (min-width: 600px) {
+    .battle-layout .combatant-fighter .pixel-avatar {
+      transform: scale(clamp(.78, calc(.62 + 1.6vw), 1.08));
+    }
+  }
+
+  /* Quest briefing is also a viewport composition. It must never become a second scrolling
+     document inside the immersive flow: discovery, challenger, focus, difficulty, and the
+     two actions are all kept visible by compressing decoration first. */
+  .holo-briefing-backdrop {
+    width: 100%;
+    height: 100dvh;
+    min-height: 0;
+    box-sizing: border-box;
+    padding: clamp(8px, 2vh, 24px) clamp(8px, 2vw, 20px);
+    overflow: hidden;
+  }
+
+  .holo-briefing-panel {
+    width: min(560px, 100%);
+    max-height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    padding: clamp(14px, 2.2vh, 24px);
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .holo-briefing-panel > .page-title {
+    flex: 0 0 auto;
+    margin-top: 5px;
+    line-height: 1.05;
+  }
+
+  .holo-briefing-panel .quest-briefing-topic {
+    flex: 0 0 auto;
+    margin-top: 7px;
+  }
+
+  .holo-briefing-panel .quest-briefing-intro {
+    flex: 0 0 auto;
+    margin-top: 9px;
+    padding: clamp(9px, 1.4vh, 14px);
+  }
+
+  .holo-briefing-panel .quest-briefing-meta {
+    flex: 0 0 auto;
+    margin-top: 8px;
+    padding: clamp(8px, 1.2vh, 12px);
+  }
+
+  .holo-briefing-panel .quest-briefing-actions {
+    flex: 0 0 auto;
+    margin-top: 9px;
+  }
+
+  @media (max-height: 620px) {
+    .holo-briefing-backdrop { padding: 6px 8px; }
+    .holo-briefing-panel { padding: 11px 14px; border-radius: 13px; }
+    .holo-briefing-panel > .page-title { font-size: clamp(19px, 4.5vw, 25px) !important; }
+    .holo-briefing-panel .quest-briefing-topic { font-size: 10px; gap: 5px 9px; }
+    .holo-briefing-panel .quest-briefing-intro { margin-top: 6px; padding: 7px 9px; gap: 7px; }
+    .holo-briefing-panel .quest-briefing-npc { width: 56px; }
+    .holo-briefing-panel .quest-briefing-npc .pixel-avatar.small { transform: scale(.34); margin: -27px -25px; }
+    .holo-briefing-panel .quest-briefing-statement { font-size: 11px; line-height: 1.25; }
+    .holo-briefing-panel .quest-briefing-meta { margin-top: 6px; padding: 6px 8px; }
+    .holo-briefing-panel .quest-tags { gap: 5px; }
+    .holo-briefing-panel .tag { padding: 4px 6px; font-size: 9px; }
+    .holo-briefing-panel .quest-briefing-actions { margin-top: 6px; gap: 6px; }
+    .holo-briefing-panel .quest-briefing-actions button { min-height: 34px; padding: 6px 10px; font-size: 10px; }
+  }
+
+  @media (max-width: 430px) {
+    .holo-briefing-panel { padding: 12px; }
+    .holo-briefing-panel .quest-briefing-reward { display: none; }
+    .holo-briefing-panel .quest-briefing-actions { display: grid; grid-template-columns: 1fr 1fr; }
+    .holo-briefing-panel .quest-briefing-actions button { justify-content: center; }
+  }
+
+  /* ===================================================================================
+     FINAL BATTLE VISIBILITY PATCH
+     The question deck must never cover the fighters. On short landscape screens we reserve
+     a real, minimum-height character lane first, then fit the question/answers into the
+     remaining viewport. This is intentionally a final override so it wins over the earlier
+     responsive rules above.
+  =================================================================================== */
+  @media (max-height: 700px) {
+    .battle-layout {
+      gap: 6px;
+      grid-template-rows: 38px minmax(145px, 1fr) minmax(158px, 31dvh);
+    }
+
+    .battle-layout .battle-arena {
+      min-height: 145px;
+    }
+
+    .battle-layout .arena-wall {
+      min-height: 34px;
+      padding: 4px 8px 3px;
+    }
+
+    .battle-layout .arena-floor {
+      min-height: 108px;
+      padding: 2px 8px 4px;
+    }
+
+    .battle-layout .combatant-fighter {
+      min-height: 104px;
+      height: 104px;
+    }
+
+    .battle-layout .combatant-fighter .pixel-avatar {
+      width: 96px;
+      height: 152px;
+      transform: scale(.68);
+      transform-origin: center bottom;
+    }
+
+    .battle-layout .question-panel {
+      min-height: 158px;
+      max-height: none;
+      padding: 7px 9px;
+      gap: 0;
+    }
+
+    .battle-layout .question-index {
+      font-size: 8px;
+      line-height: 1;
+    }
+
+    .battle-layout .question-text {
+      margin: 3px 0 5px;
+      font-size: clamp(11px, 1.8vw, 15px);
+      line-height: 1.15;
+    }
+
+    .battle-layout .answers {
+      gap: 4px;
+      grid-auto-rows: minmax(36px, 1fr);
+    }
+
+    .battle-layout .answer-btn {
+      min-height: 36px;
+      padding: 5px 7px;
+      font-size: clamp(9px, 1vw, 11px);
+      line-height: 1.15;
+    }
+
+    .battle-layout .feedback {
+      margin-top: 3px;
+      padding: 4px 6px;
+      font-size: 8px;
+    }
+
+    .battle-layout .question-panel .btn-primary {
+      min-height: 32px;
+      margin-top: 4px !important;
+      padding: 5px 8px;
+      font-size: 9px;
+    }
+  }
+
+  /* Very short landscape devices, including the proportions shown in the reference
+     screenshot. The arena gets the first claim on vertical space so the entire character
+     (head, body, arms, legs and shoes) remains above the question deck. */
+  @media (max-height: 540px) and (orientation: landscape) {
+    .battle-layout {
+      height: 100dvh;
+      padding: 4px 7px 5px;
+      gap: 5px;
+      grid-template-rows: 30px minmax(145px, 1fr) 115px;
+    }
+
+    .battle-layout .page-toolbar {
+      min-height: 30px;
+      height: 30px;
+    }
+
+    .battle-layout .page-title {
+      font-size: clamp(17px, 2.6vw, 22px);
+      line-height: 1;
+      margin-top: 0;
+    }
+
+    .battle-layout .page-toolbar .btn-secondary {
+      min-height: 28px;
+      padding: 4px 8px;
+      font-size: 9px;
+    }
+
+    .battle-layout .battle-arena {
+      min-height: 145px;
+    }
+
+    .battle-layout .arena-wall {
+      min-height: 32px;
+      padding: 3px 7px 2px;
+    }
+
+    .battle-layout .plate-name,
+    .battle-layout .battle-score {
+      font-size: 7px;
+    }
+
+    .battle-layout .battle-label {
+      font-size: 7px;
+    }
+
+    .battle-layout .health-track {
+      height: 3px;
+      margin-top: 2px;
+    }
+
+    .battle-layout .arena-floor {
+      min-height: 109px;
+      padding: 1px 5px 3px;
+      grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr);
+      gap: 3px;
+    }
+
+    .battle-layout .combatant {
+      height: 109px;
+      min-height: 109px;
+    }
+
+    .battle-layout .combatant-fighter {
+      height: 105px;
+      min-height: 105px;
+    }
+
+    .battle-layout .combatant-fighter .pixel-avatar {
+      width: 96px;
+      height: 152px;
+      flex-basis: 96px;
+      transform: scale(.68);
+      transform-origin: center bottom;
+    }
+
+    .battle-layout .question-panel {
+      height: 115px;
+      min-height: 115px;
+      padding: 5px 7px;
+      border-radius: 10px;
+    }
+
+    .battle-layout .question-index {
+      font-size: 7px;
+    }
+
+    .battle-layout .question-text {
+      margin: 2px 0 4px;
+      font-size: 10px;
+      line-height: 1.1;
+    }
+
+    .battle-layout .answers {
+      gap: 3px;
+      grid-auto-rows: minmax(34px, 1fr);
+    }
+
+    .battle-layout .answer-btn {
+      min-height: 34px;
+      padding: 4px 6px;
+      font-size: 8px;
+      line-height: 1.1;
+      border-radius: 7px;
+    }
+
+    .battle-layout .feedback,
+    .battle-layout .question-panel .btn-primary {
+      display: none;
+    }
+  }
+
+  /* If the viewport is short but portrait, keep a modest separation between the arena and
+     question deck rather than allowing the deck to visually collide with the fighters. */
+  @media (max-width: 430px) and (max-height: 700px) and (orientation: portrait) {
+    .battle-layout {
+      gap: 7px;
+      grid-template-rows: 38px minmax(190px, 1fr) minmax(220px, 36dvh);
+    }
+
+    .battle-layout .battle-arena {
+      min-height: 190px;
+    }
+
+    .battle-layout .arena-floor {
+      min-height: 145px;
+    }
+  }
+
+  /* The immersive battle has no reason to scroll. If the OS/browser reports a slightly
+     different visual viewport because of a dynamic address bar, 100dvh tracks that change. */
+  @supports not (height: 100dvh) {
+    .battle-layout,
+    .main-area.main-area--immersive { height: 100vh; }
+  }
   `;
 
   if (!document.getElementById('derioux-styles')) {
@@ -5205,7 +5784,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const triggeredGuides = new Set<string>();
       const signaledIds = new Set<string>();
       const announcedDistricts = new Set<string>();
-      const SIGNAL_RANGE = 7;
       let currentDistrictId: string | null = null;
       let lastProgressCount = -1;
       // "Discovered" = every signal pinged, note picked up, guide met — a simple, honest
@@ -5244,7 +5822,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         if (discoveryActive || discoveryQueue.length === 0) { renderDiscoveryCard(); return; }
         discoveryActive = discoveryQueue.shift()!;
         renderDiscoveryCard();
-        discoveryTimer = window.setTimeout(() => dismissDiscovery(), discoveryActive.duration);
+        // A duration of 0 means an intentional quest-discovery card stays open until
+        // the player chooses the action. Informational cards can still auto-dismiss.
+        if (discoveryActive.duration > 0) {
+          discoveryTimer = window.setTimeout(() => dismissDiscovery(), discoveryActive.duration);
+        }
       };
       const dismissDiscovery = () => {
         if (discoveryTimer) { window.clearTimeout(discoveryTimer); discoveryTimer = null; }
@@ -5321,6 +5903,23 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           prompt.innerText = `[${target.area}] ${target.name} — QUEST ALREADY COMPLETED`;
           return;
         }
+
+        // Quest discovery is an intentional player action, not a proximity event.
+        // Let the player freely see and explore the campus first. The discovery card
+        // appears only after the player actually interacts with the quest-giver.
+        if (!signaledIds.has(target.id)) {
+          signaledIds.add(target.id);
+          roamingActive = false;
+          if (document.pointerLockElement === canvas) document.exitPointerLock();
+          pushDiscovery({
+            title: '✦ QUEST FOUND',
+            body: `${target.name} — ${target.area.replace(/^[^\s]+ /, '')}.`,
+            onTap: () => onFoundRef.current(target, { x: playerX, y: playerY, angle: playerAngle }),
+            duration: 0,
+          });
+          return;
+        }
+
         roamingActive = false;
         if (document.pointerLockElement === canvas) document.exitPointerLock();
         onFoundRef.current(target, { x: playerX, y: playerY, angle: playerAngle });
@@ -5626,25 +6225,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         }
 
         challengers.forEach((term) => {
-          // Quest-giver locations are intentionally fixed — term.x/term.y are never mutated,
-          // so a discovered quest is always exactly where it was signaled from (crucial for
-          // mobile, where re-finding a drifting NPC by touch controls is real friction).
-          // A tiny idle bob is applied only to the sprite's projected render position below,
-          // purely cosmetic — it never touches term.x/term.y, so distance checks (signal
-          // range, interact range) are always computed against the NPC's true, stable spot.
+          // Quest-giver locations are intentionally fixed — term.x/term.y are never mutated.
+          // IMPORTANT: quest discovery is NOT triggered by proximity. The player should first
+          // be able to freely see and explore the campus. The discovery card is created only
+          // when the player intentionally interacts with this quest-giver (see interact()).
+          // A tiny idle bob is applied only to the sprite's projected render position below;
+          // purely cosmetic — it never touches term.x/term.y.
           const isFinished = defeatedIdsRef.current.includes(term.id);
-          if (term.active && !isFinished && !signaledIds.has(term.id)) {
-            const rangeDist = Math.hypot(playerX - term.x, playerY - term.y);
-            if (rangeDist < SIGNAL_RANGE) {
-              signaledIds.add(term.id);
-              pushDiscovery({
-                title: '✦ NEW DISCOVERY',
-                body: `The signal is coming from ${term.area.replace(/^[^\s]+ /, '')}.`,
-                onTap: () => interact(term),
-                duration: 6000,
-              });
-            }
-          }
           const idleBob = Math.sin(now / 650 + term.x * 4) * 0.035;
           // The beacon is documented/intended to read from far across the map, well past
           // where the NPC's own body would normally fog out — so it gets its own longer
