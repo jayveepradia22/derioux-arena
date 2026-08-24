@@ -1761,7 +1761,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     grid-template-columns: 1fr 100px 1fr;
     align-items: end;
     gap: 12px;
-    padding: 26px 18px 22px;
+    min-height: 218px;
+    padding: 24px 18px 18px;
     background: radial-gradient(ellipse 70% 100% at 50% 100%, rgba(0, 0, 0, .3), transparent 72%);
     position: relative;
   }
@@ -1825,8 +1826,96 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     display: flex;
     justify-content: center;
     align-items: flex-end;
-    min-height: 84px;
+    min-height: 190px;
+    position: relative;
+    overflow: visible;
   }
+
+  /* Battle uses one shared full-body scale for both fighters. We intentionally do not use
+     the compact small avatar here: that was the reason the battle versions looked like
+     tiny profile thumbnails. Both head-to-shoe figures now occupy the same visual footprint. */
+  .battle-layout .combatant-fighter .pixel-avatar {
+    transform: scale(1.08);
+    transform-origin: center bottom;
+    width: 96px;
+    height: 152px;
+    margin: 0 -2px 0;
+    flex: 0 0 96px;
+  }
+
+  .battle-layout .combatant-fighter .teacher-enemy-avatar {
+    filter: drop-shadow(0 14px 12px rgba(0, 0, 0, .32));
+  }
+
+  /* Battle avatars reuse the same complete avatar component as the profile. Initials are
+     hidden only in combat so the face, hair, outfit, arms and legs remain visually clear. */
+  .battle-layout .combatant-fighter .avatar-initials { display: none; }
+
+  /* Full-body attack motion. The fighter wrapper handles travel across the arena while
+     individual body parts animate inside it, so arms swing, legs step, the torso leans,
+     and the head follows the motion instead of the whole avatar sliding as one block. */
+  @keyframes battleArmSwingRight {
+    0%, 100% { transform: rotate(0deg); }
+    35% { transform: rotate(-28deg) translateY(-2px); }
+    58% { transform: rotate(52deg) translate(4px, -4px); }
+    76% { transform: rotate(16deg); }
+  }
+
+  @keyframes battleArmSwingLeft {
+    0%, 100% { transform: rotate(0deg); }
+    35% { transform: rotate(24deg) translateY(-1px); }
+    58% { transform: rotate(-42deg) translate(-3px, -3px); }
+    76% { transform: rotate(-12deg); }
+  }
+
+  @keyframes battleStepForward {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    32% { transform: translateY(-3px) rotate(-9deg); }
+    58% { transform: translateY(1px) rotate(11deg); }
+    78% { transform: translateY(-1px) rotate(-4deg); }
+  }
+
+  @keyframes battleBodyLean {
+    0%, 100% { transform: rotate(0deg) translateY(0); }
+    38% { transform: rotate(-4deg) translateY(1px); }
+    58% { transform: rotate(8deg) translate(3px, -2px); }
+    76% { transform: rotate(2deg); }
+  }
+
+  @keyframes battleHeadFollow {
+    0%, 100% { transform: rotate(0deg); }
+    40% { transform: rotate(-3deg) translateY(1px); }
+    60% { transform: rotate(6deg) translateY(-1px); }
+  }
+
+  @keyframes battleFootStep {
+    0%, 100% { transform: translateY(0); }
+    34% { transform: translateY(-4px); }
+    58% { transform: translateY(1px); }
+  }
+
+  .combatant-fighter .pixel-arm,
+  .combatant-fighter .pixel-leg,
+  .combatant-fighter .pixel-shoes span,
+  .combatant-fighter .pixel-body,
+  .combatant-fighter .pixel-head {
+    will-change: transform;
+  }
+
+  .lunge-toward-enemy .pixel-arm.right,
+  .lunge-toward-player .pixel-arm.left { transform-origin: top center; animation: battleArmSwingRight .72s ease-in-out; }
+  .lunge-toward-enemy .pixel-arm.left,
+  .lunge-toward-player .pixel-arm.right { transform-origin: top center; animation: battleArmSwingLeft .72s ease-in-out; }
+  .lunge-toward-enemy .pixel-leg:first-child,
+  .lunge-toward-player .pixel-leg:last-child { transform-origin: top center; animation: battleStepForward .72s ease-in-out; }
+  .lunge-toward-enemy .pixel-leg:last-child,
+  .lunge-toward-player .pixel-leg:first-child { transform-origin: top center; animation: battleFootStep .72s ease-in-out; }
+  .lunge-toward-enemy .pixel-shoes span:first-child,
+  .lunge-toward-player .pixel-shoes span:last-child { animation: battleFootStep .72s ease-in-out; }
+  .lunge-toward-enemy .pixel-body,
+  .lunge-toward-player .pixel-body { transform-origin: center bottom; animation: battleBodyLean .72s ease-in-out; }
+  .lunge-toward-enemy .pixel-head,
+  .lunge-toward-player .pixel-head { transform-origin: center bottom; animation: battleHeadFollow .72s ease-in-out; }
 
   @keyframes battleLungeRight {
     0% { transform: translateX(0) scale(1); filter: blur(0); }
@@ -1907,6 +1996,24 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     100% { opacity: 0; transform: translateX(-50%) scale(1.35) translateY(-8px); }
   }
 
+  @keyframes battleDefenderArm {
+    0%, 100% { transform: rotate(0deg); }
+    38% { transform: rotate(26deg) translateY(-2px); }
+    70% { transform: rotate(-12deg); }
+  }
+
+  @keyframes battleDefenderLeg {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    38% { transform: translate(-2px, 2px) rotate(-7deg); }
+    70% { transform: translate(1px, 0) rotate(3deg); }
+  }
+
+  @keyframes battleDefenderTorso {
+    0%, 100% { transform: rotate(0deg); }
+    38% { transform: rotate(-7deg) translateX(-3px); }
+    70% { transform: rotate(3deg); }
+  }
+
   @keyframes battleHitReact {
     0% { transform: translateX(0); filter: brightness(1) saturate(1); }
     22% { transform: translateX(7px); filter: brightness(1.7) saturate(1.5); }
@@ -1930,6 +2037,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     animation: battleHitReact .5s ease-in-out;
     animation-delay: .26s;
   }
+
+  .hit-react .pixel-arm { transform-origin: top center; animation: battleDefenderArm .5s ease-in-out .26s; }
+  .hit-react .pixel-leg { transform-origin: top center; animation: battleDefenderLeg .5s ease-in-out .26s; }
+  .hit-react .pixel-shoes span { animation: battleDefenderLeg .5s ease-in-out .26s; }
+  .hit-react .pixel-body { transform-origin: center bottom; animation: battleDefenderTorso .5s ease-in-out .26s; }
+  .hit-react .pixel-head { transform-origin: center bottom; animation: battleDefenderTorso .5s ease-in-out .26s; }
 
   /* Mirrors the opponent's character so it faces left, toward the player, instead of
      facing the same direction as the hero — the two fighters read as standing on
@@ -2790,6 +2903,75 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     right: 10px;
   }
 
+  /* Intimidating teacher details are battle-only. They are deliberately separate from
+     AvatarConfig so the enemy can never inherit the player's cosmetic choices. */
+  .teacher-glasses {
+    position: absolute;
+    z-index: 5;
+    top: 17px;
+    left: 5px;
+    right: 5px;
+    height: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: none;
+  }
+
+  .teacher-glasses::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 4px;
+    width: 9px;
+    height: 3px;
+    transform: translateX(-50%);
+    background: #171a2c;
+  }
+
+  .teacher-glasses i {
+    display: block;
+    width: 16px;
+    height: 11px;
+    border: 3px solid #171a2c;
+    background: rgba(103, 205, 209, .18);
+  }
+
+  .teacher-tie {
+    position: absolute;
+    z-index: 4;
+    top: 5px;
+    left: 50%;
+    width: 9px;
+    height: 37px;
+    transform: translateX(-50%);
+    background: #241c2b;
+    border: 2px solid rgba(20, 22, 38, .9);
+    clip-path: polygon(20% 0, 80% 0, 100% 68%, 50% 100%, 0 68%);
+    pointer-events: none;
+  }
+
+  .teacher-enemy-avatar .pixel-head {
+    box-shadow: inset 0 -5px 0 rgba(20, 22, 38, .12);
+  }
+
+  .teacher-enemy-avatar .pixel-eye {
+    width: 4px;
+    height: 3px;
+    top: 23px;
+    background: #0e1020;
+  }
+
+  .researcher-enemy-avatar .pixel-head { box-shadow: inset 0 -5px 0 rgba(20, 22, 38, .12); }
+  .researcher-goggles { position: absolute; z-index: 5; top: 17px; left: 4px; right: 4px; height: 11px; display: flex; justify-content: space-between; pointer-events: none; }
+  .researcher-goggles i { width: 17px; height: 10px; border: 3px solid #162b35; background: rgba(103,205,209,.2); display:block; }
+  .researcher-badge { position:absolute; z-index:5; right:6px; top:7px; width:12px; height:12px; border:2px solid #162b35; border-radius:2px; background:#e7f6f7; color:#24757a; font:bold 8px sans-serif; line-height:8px; text-align:center; }
+  .coach-enemy-avatar .pixel-head { box-shadow: inset 0 -5px 0 rgba(20, 22, 38, .12); }
+  .coach-whistle { position:absolute; z-index:5; right:7px; top:9px; width:8px; height:8px; border:2px solid #171a2c; border-radius:50%; background:#f6d365; }
+  .coach-whistle::after { content:''; position:absolute; width:2px; height:15px; background:#171a2c; left:-6px; top:5px; transform:rotate(28deg); transform-origin:top; }
+  .dean-enemy-avatar .pixel-head { box-shadow: inset 0 -5px 0 rgba(20, 22, 38, .12); }
+  .dean-bowtie { position:absolute; z-index:5; top:7px; left:50%; width:20px; height:12px; transform:translateX(-50%); background:#f2b84b; clip-path:polygon(0 0,45% 25%,50% 0,55% 25%,100% 0,70% 100%,50% 70%,30% 100%); }
+
   .pixel-body {
     position: relative;
     z-index: 1;
@@ -3516,6 +3698,116 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     .profile-avatar .pixel-avatar {
       transform: scale(1.05);
     }
+
+    /* ===== MOBILE BATTLE: KEEP THE ENTIRE ENCOUNTER ON ONE SCREEN ===== */
+    .battle-layout {
+      min-height: 100dvh;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .battle-layout .page-toolbar {
+      flex: 0 0 auto;
+      margin-bottom: 6px;
+    }
+    .battle-layout .page-title {
+      font-size: clamp(18px, 5.5vw, 24px);
+      line-height: 1.05;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .battle-layout .page-toolbar .btn-secondary {
+      min-height: 38px;
+      padding: 8px 12px;
+      font-size: 11px;
+    }
+    .battle-layout .battle-arena {
+      flex: 0 0 clamp(176px, 34dvh, 230px);
+      min-height: 0;
+      margin-bottom: 6px;
+      overflow: hidden;
+    }
+    .battle-layout .arena-wall {
+      padding: 8px 10px 6px;
+    }
+    .battle-layout .arena-floor {
+      min-height: 0;
+      height: calc(100% - 48px);
+      padding: 6px 10px 8px;
+      align-items: end;
+    }
+    .battle-layout .combatant-fighter {
+      min-height: 156px;
+      overflow: visible;
+    }
+    .battle-layout .combatant-fighter .pixel-avatar {
+      transform: scale(.88);
+      transform-origin: center bottom;
+      width: 96px;
+      height: 152px;
+      margin: 0 -4px 0;
+      flex-basis: 96px;
+    }
+    .battle-layout .question-panel {
+      flex: 1 1 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      padding: 10px 12px;
+      overflow: hidden;
+    }
+    .battle-layout .question-text {
+      flex: 0 0 auto;
+      margin: 4px 0 8px;
+      font-size: clamp(13px, 3.8vw, 16px);
+      line-height: 1.25;
+    }
+    .battle-layout .answers {
+      flex: 1 1 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: repeat(4, minmax(0, 1fr));
+      gap: 5px;
+    }
+    .battle-layout .answer-btn {
+      min-height: 0;
+      padding: 6px 10px;
+      font-size: clamp(10px, 3vw, 12px);
+      display: flex;
+      align-items: center;
+    }
+    .battle-layout .feedback {
+      flex: 0 0 auto;
+      margin-top: 6px;
+      padding: 7px 9px;
+      font-size: 9px;
+    }
+
+    /* Very short landscape phones: compress spacing instead of creating a scrollbar. */
+    @media (max-height: 520px) {
+      .battle-layout .page-toolbar { margin-bottom: 3px; }
+      .battle-layout .eyebrow { display: none; }
+      .battle-layout .battle-arena { flex-basis: 154px; }
+      .battle-layout .arena-wall { padding: 5px 8px 3px; }
+      .battle-layout .arena-floor { height: calc(100% - 40px); padding: 3px 8px 5px; }
+      .battle-layout .plate-name, .battle-layout .battle-score { font-size: 8px; }
+      .battle-layout .health-track { height: 3px; margin-top: 3px; }
+      .battle-layout .combatant-fighter { min-height: 112px; overflow: visible; }
+      .battle-layout .combatant-fighter .pixel-avatar {
+        transform: scale(.72);
+        width: 96px;
+        height: 152px;
+        margin: 0 -10px;
+      }
+      .battle-layout .question-panel { padding: 7px 10px; }
+      .battle-layout .question-index { font-size: 8px; }
+      .battle-layout .question-text { margin: 2px 0 5px; font-size: 12px; }
+      .battle-layout .answers { gap: 4px; }
+      .battle-layout .answer-btn { padding: 4px 8px; font-size: 10px; }
+      .battle-layout .feedback { margin-top: 4px; padding: 5px 7px; font-size: 8px; }
+    }
   }
   `;
 
@@ -3868,16 +4160,37 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     return <div className="hero-logo"><img src={LOGO_HERO} alt="DERIOUX Explorer's Academy" /></div>;
   }
 
-  function AvatarFigure({ avatar, initials, size = 'medium' }: { avatar: AvatarConfig; initials: string; size?: 'small' | 'medium' | 'large' }) {
+  function AvatarFigure({
+    avatar,
+    initials,
+    size = 'medium',
+    variant = 'default',
+  }: {
+    avatar: AvatarConfig;
+    initials: string;
+    size?: 'small' | 'medium' | 'large';
+    variant?: 'default' | 'teacher-enemy' | 'researcher-enemy' | 'coach-enemy' | 'dean-enemy';
+  }) {
+    const isTeacherEnemy = variant === 'teacher-enemy';
+    const isResearcherEnemy = variant === 'researcher-enemy';
+    const isCoachEnemy = variant === 'coach-enemy';
+    const isDeanEnemy = variant === 'dean-enemy';
+    const isEnemy = isTeacherEnemy || isResearcherEnemy || isCoachEnemy || isDeanEnemy;
     return (
-      <div className={`pixel-avatar ${size}`} aria-label={`${initials} pixel avatar`}>
+      <div className={`pixel-avatar ${size} ${isEnemy ? `${variant}-avatar` : ''}`} aria-label={`${initials} pixel avatar`}>
         <div className="pixel-shadow" />
         <div className="pixel-head" style={{ background: avatar.skin }}>
           {avatar.hair !== 'bald' && <div className={`pixel-hair ${avatar.hair}`} style={{ background: avatar.hairColor }} />}
           <span className="pixel-eye left" /><span className="pixel-eye right" />
+          {isTeacherEnemy && <span className="teacher-glasses" aria-hidden="true"><i /><i /></span>}
+          {isResearcherEnemy && <span className="researcher-goggles" aria-hidden="true"><i /><i /></span>}
         </div>
         <div className={`pixel-body ${avatar.gender} ${avatar.topType}`} style={{ background: `var(--outfit-${avatar.topColor})` }}>
           <span className="pixel-arm left" style={{ background: avatar.skin }} /><span className="pixel-arm right" style={{ background: avatar.skin }} />
+          {isTeacherEnemy && <span className="teacher-tie" aria-hidden="true" />}
+          {isResearcherEnemy && <span className="researcher-badge" aria-hidden="true">+</span>}
+          {isCoachEnemy && <span className="coach-whistle" aria-hidden="true" />}
+          {isDeanEnemy && <span className="dean-bowtie" aria-hidden="true" />}
         </div>
         {avatar.bottomType === 'skirt'
           ? <div className="pixel-skirt" style={{ background: `var(--outfit-${avatar.topColor})` }} />
@@ -4217,7 +4530,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         </nav>
         <div className="sidebar-bottom">
           <div className="mini-profile">
-            <div className="avatar"><AvatarFigure avatar={profile.avatar} initials={getInitials(profile.name)} size="small" /></div>
+            <div className="avatar"><AvatarFigure avatar={profile.avatar} initials={getInitials(profile.name)} size="medium" /></div>
             <div className="mini-profile-copy"><strong>{profile.name}</strong><small>LVL {level} · {profile.strand}</small></div>
           </div>
           <button className="logout-btn" onClick={onLogout}><LogOut size={15} /><span>Log out</span></button>
@@ -4545,7 +4858,9 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // below — so a district's academic identity ("fundamentals", "advanced", "reps",
   // "comprehensive") is actually backed by which questions get asked there, not just
   // flavor text.
-  type CampusChallenger = { id: string; name: string; area: string; statement: string; questTitle: string; lore: string; recommendedLevel: number; rewardXp: number; rewardCoins: number; districtId: CampusDistrict['id'] };
+  type ChallengerStyle = 'professor' | 'researcher' | 'coach' | 'dean';
+  type CampusReturnPosition = { x: number; y: number; angle: number };
+  type CampusChallenger = { id: string; name: string; area: string; statement: string; questTitle: string; lore: string; recommendedLevel: number; rewardXp: number; rewardCoins: number; districtId: CampusDistrict['id']; style: ChallengerStyle };
 
   // Districts: the map is divided into four non-overlapping regions (checked by simple
   // bounding-box containment, in this priority order — Citadel's gated eastern strip is
@@ -4634,14 +4949,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       name: 'Dr. Reyes, Senior Faculty', area: '🏔️ Challenge Peaks: Advanced Research Wing',
       statement: "I don't go easy on advanced material. Show me you've earned the right to be up here.",
       questTitle: 'The Research Defense', lore: "Dr. Reyes doesn't curve grades. Passing here means the upper-division coursework won't blindside you.",
-      recommendedLevel: 5, rewardXp: 250, rewardCoins: 120,
+      recommendedLevel: 5, rewardXp: 250, rewardCoins: 120, style: 'researcher',
     },
     {
       id: 'npc_2', x: 3.5, y: 3.5, dir: -1, districtId: 'foundation',
       name: 'TA Priya Santos', area: '🏘️ Foundation District: Intro Studies Office',
       statement: "Before you go further, let's make sure the basics actually stuck. Pass my review quiz first.",
       questTitle: 'Foundations Check-In', lore: 'Every term starts here — a quick review checkpoint before the real coursework begins.',
-      recommendedLevel: 1, rewardXp: 100, rewardCoins: 50,
+      recommendedLevel: 1, rewardXp: 100, rewardCoins: 50, style: 'professor',
     },
     {
       // Standing in the open corridor between the Classroom and Library — matches
@@ -4651,46 +4966,48 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       name: 'Teaching Fellow Owens', area: '🌲 Practice Wilds: Weekly Problem-Set Review',
       statement: "Out here it's just reps. Answer set after set until it's automatic — starting now.",
       questTitle: 'The Problem-Set Gauntlet', lore: 'No new material out here — just repetition until the concepts stop feeling foreign.',
-      recommendedLevel: 3, rewardXp: 150, rewardCoins: 75,
+      recommendedLevel: 3, rewardXp: 150, rewardCoins: 75, style: 'coach',
     },
     {
       id: 'npc_4', x: 21.5, y: 8.5, dir: -1, districtId: 'citadel',
       name: 'Dean Alvarez', area: '🏰 Mastery Citadel: Comprehensive Examination Hall',
       statement: "You've cleared every district. Now for the exam that actually counts.",
       questTitle: 'Comprehensive Examination', lore: "The exam that decides whether the term's work actually stuck. Every district's material is fair game.",
-      recommendedLevel: 8, rewardXp: 400, rewardCoins: 200,
+      recommendedLevel: 8, rewardXp: 400, rewardCoins: 200, style: 'dean',
     },
   ];
 
-  // Every challenger gets a real character look instead of an initial letter, but none
-  // of them have designer-picked appearances the way the player does — so this derives
-  // one deterministically from the challenger's own id/name. Same challenger always
-  // renders with the same face/hair/outfit, every session, with no avatar data to store
-  // or keep in sync for NPCs.
   const hashSeed = (input: string) => {
     let hash = 0;
     for (let i = 0; i < input.length; i++) hash = (hash * 31 + input.charCodeAt(i)) >>> 0;
     return hash;
   };
-  const pickBySeed = <T,>(seed: number, salt: number, options: readonly T[]): T => options[(seed + salt) % options.length];
-  const CHALLENGER_HAIR_STYLES: AvatarConfig['hair'][] = ['short', 'long', 'curly', 'bald'];
-  const CHALLENGER_HAIR_COLORS = ['#2d1b2e', '#4a2c1d', '#1c1c1c', '#5b3a29', '#7a3b2e', '#2f2f45'];
-  const CHALLENGER_TOP_TYPES: AvatarConfig['topType'][] = ['tshirt', 'hoodie', 'jacket'];
-  const CHALLENGER_TOP_COLORS: AvatarConfig['topColor'][] = ['indigo', 'coral', 'cyan', 'gold'];
-  const CHALLENGER_BOTTOM_TYPES: AvatarConfig['bottomType'][] = ['pants', 'shorts', 'skirt'];
-  const CHALLENGER_SHOES: AvatarConfig['shoes'][] = ['dark', 'white', 'amber'];
-  const getChallengerAvatar = (challenger: Pick<CampusChallenger, 'id' | 'name'>): AvatarConfig => {
+
+  // Every quest has a deliberately authored enemy identity. The loadout is owned by the
+  // challenger, never by the player, so changing the player's profile can never change an
+  // enemy. Each quest uses a different silhouette/outfit/accessory combination.
+  const getChallengerAvatar = (challenger: Pick<CampusChallenger, 'id' | 'name' | 'style'>): AvatarConfig => {
     const seed = hashSeed(`${challenger.id}:${challenger.name}`);
-    return {
-      gender: seed % 2 === 0 ? 'neutral' : 'feminine',
-      skin: pickBySeed(seed, 1, avatarColors),
-      hair: pickBySeed(seed, 2, CHALLENGER_HAIR_STYLES),
-      hairColor: pickBySeed(seed, 3, CHALLENGER_HAIR_COLORS),
-      topType: pickBySeed(seed, 4, CHALLENGER_TOP_TYPES),
-      topColor: pickBySeed(seed, 5, CHALLENGER_TOP_COLORS),
-      bottomType: pickBySeed(seed, 6, CHALLENGER_BOTTOM_TYPES),
-      shoes: pickBySeed(seed, 7, CHALLENGER_SHOES),
-    };
+    const skins = ['#f1c6a8', '#d59a78', '#8d5a42', '#6d4437'] as const;
+    const skin = skins[seed % skins.length];
+    switch (challenger.style) {
+      case 'researcher':
+        return { gender: 'neutral', skin, hair: 'short', hairColor: '#242033', topType: 'jacket', topColor: 'cyan', bottomType: 'pants', shoes: 'white' };
+      case 'professor':
+        return { gender: 'feminine', skin, hair: 'long', hairColor: '#3a2028', topType: 'jacket', topColor: 'coral', bottomType: 'skirt', shoes: 'dark' };
+      case 'coach':
+        return { gender: 'neutral', skin, hair: 'curly', hairColor: '#5b3a29', topType: 'hoodie', topColor: 'gold', bottomType: 'shorts', shoes: 'amber' };
+      case 'dean':
+      default:
+        return { gender: 'neutral', skin, hair: 'bald', hairColor: '#1c1c1c', topType: 'jacket', topColor: 'indigo', bottomType: 'pants', shoes: 'dark' };
+    }
+  };
+
+  const getChallengerVariant = (challenger: Pick<CampusChallenger, 'style'>): 'default' | 'teacher-enemy' | 'researcher-enemy' | 'coach-enemy' | 'dean-enemy' => {
+    if (challenger.style === 'professor') return 'teacher-enemy';
+    if (challenger.style === 'researcher') return 'researcher-enemy';
+    if (challenger.style === 'coach') return 'coach-enemy';
+    return 'dean-enemy';
   };
 
   // Builds the exact shuffled question set one challenger presents, from the player's own
@@ -4835,7 +5152,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // foreshorten it by viewing angle. See the `signs.forEach` render pass below.
   const SIGN_NORMALS: Record<CampusSign['side'], [number, number]> = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] };
 
-  function CampusExplorer({ level, strand, defeatedIds, onChallengerFound, onExit, notify, onReward }: { level: number; strand: string; defeatedIds: string[]; onChallengerFound: (challenger: CampusChallenger) => void; onExit: () => void; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void; onReward: (coins: number, xp: number) => void }) {
+  function CampusExplorer({ level, strand, defeatedIds, initialPosition, onChallengerFound, onExit, notify, onReward }: { level: number; strand: string; defeatedIds: string[]; initialPosition?: CampusReturnPosition | null; onChallengerFound: (challenger: CampusChallenger, position: CampusReturnPosition) => void; onExit: () => void; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void; onReward: (coins: number, xp: number) => void }) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const worldRef = useRef<HTMLDivElement | null>(null);
     const promptRef = useRef<HTMLDivElement | null>(null);
@@ -4944,9 +5261,9 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       discoveryBtn.addEventListener('click', handleDiscoveryTap);
       discoveryBtn.addEventListener('touchstart', handleDiscoveryTap, { passive: false });
 
-      let playerX = 9.0;
-      let playerY = 10.0;
-      let playerAngle = 0;
+      let playerX = initialPosition?.x ?? 9.0;
+      let playerY = initialPosition?.y ?? 10.0;
+      let playerAngle = initialPosition?.angle ?? 0;
       let pointerLocked = false;
       let roamingActive = true;
       let raf = 0;
@@ -5006,7 +5323,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         }
         roamingActive = false;
         if (document.pointerLockElement === canvas) document.exitPointerLock();
-        onFoundRef.current({ id: target.id, name: target.name, area: target.area, statement: target.statement });
+        onFoundRef.current(target, { x: playerX, y: playerY, angle: playerAngle });
       };
 
       const handleKeyDown = (e: KeyboardEvent) => {
@@ -5903,7 +6220,9 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // Every real challenger gets the same stable look every time (see
     // getChallengerAvatar); a null opponent shouldn't normally reach Battle, but falls
     // back to a generic id so the arena never renders with a missing/blank fighter.
-    const opponentAvatar = getChallengerAvatar(opponent ?? { id: 'unknown-challenger', name: opponentName });
+    const opponentData = opponent ?? { id: 'unknown-challenger', name: opponentName, style: 'professor' as ChallengerStyle };
+    const opponentAvatar = getChallengerAvatar(opponentData);
+    const opponentVariant = getChallengerVariant(opponentData);
     const answer = (index: number) => {
       if (resolved || complete) return;
       setSelected(index); setResolved(true);
@@ -5979,7 +6298,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           <div className="arena-floor">
             <div className="combatant">
               <div className={`combatant-fighter hero-fighter ${attackPhase === 'player-attack' ? 'lunge-toward-enemy' : ''} ${attackPhase === 'enemy-attack' ? 'hit-react' : ''}`}>
-                <AvatarFigure avatar={profile.avatar} initials={getInitials(profile.name)} size="small" />
+                <AvatarFigure avatar={profile.avatar} initials={getInitials(profile.name)} size="large" />
               </div>
             </div>
             <div className="versus">VS</div>
@@ -5989,7 +6308,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                     constant "facing left, toward the player" flip never fights with the
                     lunge/hit-react transform animations applied above it. */}
                 <div className="enemy-fighter-flip">
-                  <AvatarFigure avatar={opponentAvatar} initials={opponentInitial} size="small" />
+                  <AvatarFigure
+                    avatar={opponentAvatar}
+                    initials={opponentInitial}
+                    size="large"
+                    variant="teacher-enemy"
+                  />
                 </div>
               </div>
             </div>
@@ -6482,6 +6806,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       mainAreaRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
     }, [screen, questStage]);
     const [foundChallenger, setFoundChallenger] = useState<CampusChallenger | null>(null);
+    const [questReturnPosition, setQuestReturnPosition] = useState<CampusReturnPosition | null>(null);
     const [defeatedChallengerIds, setDefeatedChallengerIds] = useState<string[]>([]);
     const [toasts, setToasts] = useState<ToastItem[]>([]);
     // Persistent history of the same events shown as toasts, feeding the notification
@@ -6790,6 +7115,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       }
       if (foundChallenger) setDefeatedChallengerIds((ids) => (ids.includes(foundChallenger.id) ? ids : [...ids, foundChallenger.id]));
       setFoundChallenger(null);
+      // CampusExplorer remounts with questReturnPosition, placing the player exactly where
+      // this quest was accepted instead of resetting them to the campus spawn point.
       setQuestStage('roaming');
     };
 
@@ -6858,7 +7185,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           <div className="ambient-orb two" />
           <div className={`app-grid${isImmersiveQuest ? ' app-grid--immersive' : ''}`}>
             {!isImmersiveQuest && (
-              <Sidebar screen={screen} setScreen={(next) => { setQuestStage('list'); setFoundChallenger(null); setScreen(next); }} onLogout={() => setLogoutConfirmOpen(true)} profile={profile} xp={game.xp} quests={game.quests} />
+              <Sidebar screen={screen} setScreen={(next) => { setQuestStage('list'); setFoundChallenger(null); setQuestReturnPosition(null); setScreen(next); }} onLogout={() => setLogoutConfirmOpen(true)} profile={profile} xp={game.xp} quests={game.quests} />
             )}
             <div className={`main-area${isImmersiveQuest ? ' main-area--immersive' : ''}`} ref={mainAreaRef}>
               {!isImmersiveQuest && (
@@ -6880,19 +7207,20 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                   setScreen={setScreen}
                   defeatedChallengerIds={defeatedChallengerIds}
                   subjectMastery={game.subjectMastery}
-                  onExploreCampus={() => { setScreen('quests'); enterImmersiveBattle(); setQuestStage('roaming'); }}
+                  onExploreCampus={() => { setQuestReturnPosition(null); setScreen('quests'); enterImmersiveBattle(); setQuestStage('roaming'); }}
                 />
               )}
               {screen === 'quests' && questStage === 'list' && (
-                <Quests quests={game.quests} claimQuest={claimQuest} onBattle={() => { enterImmersiveBattle(); setQuestStage('roaming'); }} />
+                <Quests quests={game.quests} claimQuest={claimQuest} onBattle={() => { setQuestReturnPosition(null); enterImmersiveBattle(); setQuestStage('roaming'); }} />
               )}
               {screen === 'quests' && questStage === 'roaming' && (
                 <CampusExplorer
+                  initialPosition={questReturnPosition}
                   level={getLevelInfo(game.xp).level}
                   strand={profile.strand}
                   defeatedIds={defeatedChallengerIds}
-                  onChallengerFound={(challenger) => { setFoundChallenger(challenger); setQuestStage('briefing'); }}
-                  onExit={() => setQuestStage('list')}
+                  onChallengerFound={(challenger, position) => { setFoundChallenger(challenger); setQuestReturnPosition(position); setQuestStage('briefing'); }}
+                  onExit={() => { setQuestReturnPosition(null); setQuestStage('list'); }}
                   notify={notify}
                   onReward={(coins, xp) => updateAccountData((acc) => ({ ...acc, game: { ...acc.game, coins: acc.game.coins + coins, xp: acc.game.xp + xp } }))}
                 />
@@ -6917,7 +7245,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                   defeatedChallengerIds={defeatedChallengerIds}
                   subjectMastery={game.subjectMastery}
                   setScreen={setScreen}
-                  onExploreCampus={() => { setScreen('quests'); enterImmersiveBattle(); setQuestStage('roaming'); }}
+                  onExploreCampus={() => { setQuestReturnPosition(null); setScreen('quests'); enterImmersiveBattle(); setQuestStage('roaming'); }}
                   updateProfileName={updateProfileName}
                   updateProfilePassword={updateProfilePassword}
                   notify={notify}
