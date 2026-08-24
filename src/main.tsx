@@ -511,13 +511,18 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   /* Immersive "Enter battle" flow: sidebar and topbar are unmounted, so the game
      container gets the full fullscreen viewport edge-to-edge on every device. The
      two-class selectors below intentionally outrank the single-class breakpoint
-     rules further down so this wins at every screen size. */
+     rules further down so this wins at every screen size. Overflow is hidden here
+     (rather than left to inherit .main-area's overflow-y: auto) because every
+     immersive screen — roaming, briefing, battle — is sized to fit 100dvh on its
+     own; if one doesn't, that's a sizing bug in that screen to fix, not something
+     to paper over with a scrollbar. */
   .app-grid.app-grid--immersive {
     grid-template-columns: minmax(0, 1fr);
   }
   .main-area.main-area--immersive {
     padding: 0;
     height: 100dvh;
+    overflow: hidden;
   }
 
   .topbar {
@@ -1482,6 +1487,204 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     justify-content: end;
   }
 
+  /* Quest Briefing — the "which challenger, do I take this fight" screen shown after
+     CampusExplorer finds one. Deliberately lean: Quest → Topic/Subtopic → short
+     description → question count/difficulty → Accept/Leave, nothing else, so it reads
+     in one glance and fits 100dvh on mobile without scrolling. */
+  .quest-briefing-leave-top {
+    flex-shrink: 0;
+  }
+
+  .quest-briefing-topic {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+    margin-top: 10px;
+    color: #9ea8bf;
+    font-size: 12px;
+  }
+
+  .quest-briefing-topic span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    overflow-wrap: anywhere;
+  }
+
+  .quest-briefing-intro {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    margin-top: 14px;
+  }
+
+  .quest-briefing-npc {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+    width: 84px;
+  }
+
+  .quest-briefing-name {
+    font-size: 10px;
+    font-weight: 600;
+    color: #9ca7c4;
+    text-align: center;
+    line-height: 1.3;
+    overflow-wrap: break-word;
+  }
+
+  .quest-briefing-statement {
+    margin: 0;
+    font-style: italic;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #cad0df;
+    overflow-wrap: break-word;
+  }
+
+  .quest-briefing-meta {
+    padding: 14px 16px;
+    margin-top: 10px;
+  }
+
+  .quest-briefing-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 14px;
+  }
+
+  /* Holographic discovery card — shown inside the campus world itself (top-center,
+     never the corner toast stack) the moment a quest signal or a hint/note/guide is
+     found. Deliberately compact: a couple of lines and one button, so it never blocks
+     the character or interrupts movement underneath it. */
+  .holo-discovery-card {
+    position: absolute;
+    top: 64px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: min(340px, calc(100% - 32px));
+    padding: 14px 18px;
+    text-align: center;
+    background: linear-gradient(180deg, rgba(15, 26, 36, .88), rgba(10, 18, 26, .82));
+    border: 1px solid rgba(103, 205, 209, .55);
+    border-radius: 12px;
+    box-shadow: 0 0 0 1px rgba(103, 205, 209, .12), 0 0 30px rgba(103, 205, 209, .22), 0 14px 34px rgba(0, 0, 0, .5);
+    backdrop-filter: blur(10px);
+    pointer-events: auto;
+    z-index: 12;
+    animation: holo-discovery-in .35s cubic-bezier(.22, 1, .36, 1) both, holo-discovery-flicker 2.6s ease-in-out .35s infinite;
+  }
+  @keyframes holo-discovery-in {
+    from { opacity: 0; transform: translateX(-50%) translateY(-10px) scale(.96); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  }
+  @keyframes holo-discovery-flicker {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(103, 205, 209, .12), 0 0 30px rgba(103, 205, 209, .22), 0 14px 34px rgba(0, 0, 0, .5); }
+    50% { box-shadow: 0 0 0 1px rgba(103, 205, 209, .18), 0 0 42px rgba(103, 205, 209, .32), 0 14px 34px rgba(0, 0, 0, .5); }
+  }
+  .holo-discovery-eyebrow {
+    color: var(--cyan);
+    font: 10px var(--app-font-mono);
+    letter-spacing: .18em;
+    text-shadow: 0 0 10px rgba(103, 205, 209, .7);
+  }
+  .holo-discovery-body {
+    color: #eaf6f5;
+    font-size: 12px;
+    line-height: 1.5;
+    font-style: italic;
+  }
+  .holo-discovery-btn {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    margin-top: 2px;
+    padding: 7px 14px;
+    border: 1px solid var(--cyan);
+    border-radius: 20px;
+    background: rgba(103, 205, 209, .12);
+    color: var(--cyan);
+    font: 10px var(--app-font-mono);
+    letter-spacing: .1em;
+    touch-action: manipulation;
+  }
+  .holo-discovery-btn:hover {
+    background: rgba(103, 205, 209, .22);
+  }
+
+  /* Quest Briefing, redressed as a cinematic holographic dialogue panel rather than a
+     dense standalone page — a bounded, centered card over a dimmed/blurred backdrop, so
+     it reads as an overlay on top of the world instead of a full navigation away from it. */
+  .holo-briefing-backdrop {
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    background:
+      radial-gradient(circle at 50% 20%, rgba(103, 205, 209, .1), transparent 55%),
+      rgba(5, 8, 14, .92);
+  }
+  .holo-briefing-panel {
+    width: min(480px, 100%);
+    max-height: calc(100dvh - 48px);
+    overflow-y: auto;
+    padding: 22px;
+    border: 1px solid rgba(103, 205, 209, .4);
+    border-radius: 16px;
+    background: linear-gradient(165deg, rgba(17, 28, 40, .92), rgba(11, 16, 28, .94));
+    box-shadow: 0 0 0 1px rgba(103, 205, 209, .08), 0 0 60px rgba(103, 205, 209, .1), 0 30px 80px rgba(0, 0, 0, .55);
+    backdrop-filter: blur(14px);
+    animation: rise .4s cubic-bezier(.22, 1, .36, 1) both;
+  }
+  .holo-briefing-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+  }
+  .holo-voice-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .holo-voice-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 11px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: rgba(255, 255, 255, .03);
+    color: #b8c2d9;
+    font-size: 11px;
+  }
+  .holo-voice-btn:hover {
+    border-color: rgba(103, 205, 209, .4);
+    color: var(--cyan);
+  }
+  .holo-voice-btn.active {
+    border-color: rgba(103, 205, 209, .5);
+    color: var(--cyan);
+    background: rgba(103, 205, 209, .08);
+  }
+  .holo-voice-status {
+    color: #7f8aa5;
+    font: 9px var(--app-font-mono);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+
   /* Battle Layout & Arena */
   .battle-layout {
     width: 100%;
@@ -1490,17 +1693,54 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   }
 
   .battle-arena {
-    padding: 20px;
+    padding: 0;
     margin-bottom: 14px;
     background: radial-gradient(circle at 50% 0%, rgba(103, 205, 209, .09), transparent 47%), var(--panel);
+    overflow: hidden;
+    position: relative;
   }
 
-  .battle-top {
+  /* Upper wall of the arena: nameplates + health tracks read like banners mounted above
+     the fighters, not labels drifting loose over the scene. The quiz progress/score sits
+     on its own center plate between them, same band, same wall. */
+  .arena-wall {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px 18px 12px;
+    background: linear-gradient(180deg, rgba(0, 0, 0, .24), transparent);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .arena-plate {
+    min-width: 0;
+  }
+
+  .player-plate {
+    text-align: left;
+  }
+
+  .enemy-plate {
+    text-align: right;
+  }
+
+  .center-plate {
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
+    gap: 4px;
+    padding-top: 1px;
+    white-space: nowrap;
+  }
+
+  .plate-name {
+    font-size: 11px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-bottom: 6px;
   }
 
   .battle-label {
@@ -1514,12 +1754,16 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     font: 11px var(--app-font-mono);
   }
 
-  .combatants {
+  /* Floor of the arena: the fighters themselves stand here, grounded by a soft vignette,
+     directly beneath the wall that carries their names and health. */
+  .arena-floor {
     display: grid;
     grid-template-columns: 1fr 100px 1fr;
-    align-items: center;
+    align-items: end;
     gap: 12px;
-    padding: 28px 8px;
+    padding: 26px 18px 22px;
+    background: radial-gradient(ellipse 70% 100% at 50% 100%, rgba(0, 0, 0, .3), transparent 72%);
+    position: relative;
   }
 
   .combatant {
@@ -1550,15 +1794,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     border-color: rgba(103, 205, 209, .32);
   }
 
-  .combatant-name {
-    margin-top: 9px;
-    font-size: 11px;
-    font-weight: 600;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
   .health-track {
     height: 5px;
     margin-top: 8px;
@@ -1570,7 +1805,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   .health-fill {
     height: 100%;
     background: var(--coral);
-    transition: width .45s;
+    transition: width .5s cubic-bezier(.16, .84, .44, 1);
   }
 
   .health-fill.enemy-health {
@@ -1581,6 +1816,129 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     color: var(--coral);
     font: 13px var(--app-font-mono);
     text-align: center;
+  }
+
+  /* Battle attack animations — see the answer() handler in Battle for the timing.
+     Only transform/filter are touched, so these never affect layout: the fighter
+     springs out from and lands back on exactly the spot it started from. */
+  .combatant-fighter {
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    min-height: 84px;
+  }
+
+  @keyframes battleLungeRight {
+    0% { transform: translateX(0) scale(1); filter: blur(0); }
+    40% { transform: translateX(40px) scale(1.05); filter: blur(.6px); }
+    55% { transform: translateX(44px) scale(1.07); filter: blur(.2px); }
+    75% { transform: translateX(40px) scale(1.05); filter: blur(0); }
+    100% { transform: translateX(0) scale(1); filter: blur(0); }
+  }
+
+  @keyframes battleLungeLeft {
+    0% { transform: translateX(0) scale(1); filter: blur(0); }
+    40% { transform: translateX(-40px) scale(1.05); filter: blur(.6px); }
+    55% { transform: translateX(-44px) scale(1.07); filter: blur(.2px); }
+    75% { transform: translateX(-40px) scale(1.05); filter: blur(0); }
+    100% { transform: translateX(0) scale(1); filter: blur(0); }
+  }
+
+  /* Screen shake: a short, subtle jostle on the arena panel itself when a hit lands —
+     scoped to .battle-arena only, so nothing outside the arena ever moves. */
+  @keyframes battleScreenShake {
+    0%, 100% { transform: translate(0, 0); }
+    20% { transform: translate(-3px, 2px); }
+    40% { transform: translate(3px, -2px); }
+    60% { transform: translate(-2px, 1px); }
+    80% { transform: translate(2px, -1px); }
+  }
+
+  .battle-arena.screen-shake {
+    animation: battleScreenShake .32s ease-in-out;
+  }
+
+  /* Hit flash: a brief tinted wash across the arena at the instant of impact. Color
+     matches who just took the hit — amber for the enemy, coral for the player — so it
+     reads as feedback rather than a generic flicker. Absolutely positioned and
+     pointer-events: none, so it never affects layout or blocks clicks. */
+  .arena-hit-flash {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    animation: arenaHitFlash .32s ease-out;
+    z-index: 3;
+  }
+
+  .arena-hit-flash.flash-enemy {
+    background: radial-gradient(circle at 74% 62%, rgba(248, 184, 78, .38), transparent 60%);
+  }
+
+  .arena-hit-flash.flash-player {
+    background: radial-gradient(circle at 26% 62%, rgba(239, 117, 103, .38), transparent 60%);
+  }
+
+  @keyframes arenaHitFlash {
+    0% { opacity: 0; }
+    15% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
+  /* Impact burst: a small spark that pops where the attack lands, then fades.
+     Absolutely positioned within .arena-floor so it never affects the fighter grid
+     around it — purely a decorative overlay. */
+  .impact-burst {
+    position: absolute;
+    bottom: 30px;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+    z-index: 4;
+    animation: impactBurstPop .34s ease-out;
+  }
+
+  .impact-burst-enemy { left: 58%; color: var(--amber); }
+  .impact-burst-player { left: 42%; color: var(--coral); }
+
+  @keyframes impactBurstPop {
+    0% { opacity: 0; transform: translateX(-50%) scale(.4) translateY(4px); }
+    35% { opacity: 1; transform: translateX(-50%) scale(1.15) translateY(-2px); }
+    100% { opacity: 0; transform: translateX(-50%) scale(1.35) translateY(-8px); }
+  }
+
+  @keyframes battleHitReact {
+    0% { transform: translateX(0); filter: brightness(1) saturate(1); }
+    22% { transform: translateX(7px); filter: brightness(1.7) saturate(1.5); }
+    44% { transform: translateX(-6px); filter: brightness(1.25); }
+    66% { transform: translateX(4px); filter: brightness(1.1); }
+    100% { transform: translateX(0); filter: brightness(1); }
+  }
+
+  /* Attacker: lunges toward its target and back. */
+  .combatant-fighter.lunge-toward-enemy {
+    animation: battleLungeRight .72s ease-in-out;
+  }
+
+  .combatant-fighter.lunge-toward-player {
+    animation: battleLungeLeft .72s ease-in-out;
+  }
+
+  /* Defender: flinches right as the hit lands (delay matches BATTLE_IMPACT_DELAY_MS
+     in Battle, so the reaction is synced to the attacker's swing, not to the click). */
+  .combatant-fighter.hit-react {
+    animation: battleHitReact .5s ease-in-out;
+    animation-delay: .26s;
+  }
+
+  /* Mirrors the opponent's character so it faces left, toward the player, instead of
+     facing the same direction as the hero — the two fighters read as standing on
+     opposite sides of the arena looking at each other, not both facing the screen.
+     Lives on its own inner wrapper so it never composes with (and fights) the
+     lunge/hit-react transform animations on .enemy-fighter above it. */
+  .enemy-fighter-flip {
+    display: inline-flex;
+    transform: scaleX(-1);
   }
 
   .question-panel {
@@ -3007,21 +3365,116 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       align-items: start;
       flex-direction: column;
     }
-    .combatants {
-      grid-template-columns: 1fr 50px 1fr;
-      padding: 18px 0;
-      gap: 6px;
+
+    /* Immersive screens (roaming/briefing/battle): tighten the top gap since there's
+       no topbar above them, and fit the whole quest/challenge and question screens
+       inside 100dvh with room to spare — see .main-area.main-area--immersive above
+       for why overflow is hidden rather than scrollable. */
+    .main-area--immersive .page-wrap {
+      padding-top: 14px;
+    }
+
+    /* --- Quest Briefing: drop the reward chips (rewards aren't part of the core
+       decision — quest/topic/description/count/difficulty is) and the duplicate top
+       Leave button (the bottom one is more thumb-reachable), then tighten everything
+       else so Quest → Topic/Subtopic → description → count/difficulty → Accept/Leave
+       reads as one compact screen instead of a scroll. --- */
+    .quest-briefing-leave-top {
+      display: none;
+    }
+    .quest-briefing-reward {
+      display: none;
+    }
+    .quest-briefing-topic {
+      gap: 8px 12px;
+      margin-top: 6px;
+      font-size: 11px;
+    }
+    .quest-briefing-intro {
+      padding: 10px 12px;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .quest-briefing-npc {
+      width: 64px;
+    }
+    .quest-briefing-npc .pixel-avatar.small {
+      transform: scale(.4);
+      margin: -22px -20px;
+    }
+    .quest-briefing-statement {
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .quest-briefing-meta {
+      padding: 10px 12px;
+      margin-top: 8px;
+    }
+    .quest-briefing-actions {
+      margin-top: 10px;
+    }
+
+    /* --- Battle / question screen: shrink the title and the arena (avatars, health
+       bars, VS) down to a slim strip so the question and its answers — the actual
+       point of the screen — get the majority of the vertical space. --- */
+    .battle-layout .page-title {
+      font-size: 20px;
+    }
+    .battle-layout .eyebrow {
+      font-size: 9px;
+    }
+    .battle-arena {
+      margin-bottom: 8px;
+    }
+    .arena-wall {
+      padding: 10px 12px 8px;
+    }
+    .plate-name {
+      font-size: 10px;
+      margin-bottom: 4px;
+    }
+    .battle-score {
+      font-size: 10px;
+    }
+    .arena-floor {
+      grid-template-columns: 1fr 40px 1fr;
+      padding: 10px 12px 12px;
+      gap: 4px;
     }
     .combatant-avatar {
-      width: 54px;
-      height: 54px;
-      font-size: 17px;
+      width: 38px;
+      height: 38px;
+      font-size: 13px;
+      border-radius: 12px;
+    }
+    .health-track {
+      margin-top: 5px;
+      height: 4px;
+    }
+    .versus {
+      font-size: 10px;
     }
     .question-panel {
-      padding: 16px;
+      padding: 14px;
+    }
+    .question-index {
+      font-size: 9px;
     }
     .question-text {
-      font-size: 16px;
+      margin: 6px 0 12px;
+      font-size: 15px;
+    }
+    .answers {
+      gap: 6px;
+    }
+    .answer-btn {
+      padding: 10px 12px;
+      font-size: 11.5px;
+    }
+    .feedback {
+      margin-top: 10px;
+      padding: 9px 10px;
+      font-size: 10px;
     }
     .auth-card {
       padding: 22px 18px;
@@ -4136,33 +4589,45 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
   const CAMPUS_MAP = [
     [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-    [1,0,0,0,0,0,1,4,4,4,4,4,4,1,0,0,0,0,0,1,0,0,0,0,1],
-    [1,0,1,2,0,0,1,4,4,4,4,4,4,1,0,0,2,1,0,1,0,3,1,0,1],
-    [1,0,3,1,0,0,2,4,4,4,4,4,4,2,0,0,1,3,0,1,0,0,0,0,1],
-    [1,0,0,0,0,0,1,7,7,6,7,7,4,1,0,0,0,0,0,1,0,1,1,0,1],
+    [1,0,0,0,0,0,1,4,4,4,4,4,4,1,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,1,7,0,0,0,0,7,1,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,2,6,0,0,0,0,7,2,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
     [1,8,2,9,1,1,6,0,0,6,1,1,6,0,0,6,1,2,1,8,9,1,2,1,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
-    [1,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,5,0,0,3,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,0,0,0,0,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
     [1,9,2,8,1,1,6,0,0,6,1,1,6,0,0,6,1,2,1,9,1,1,2,1,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,1],
-    [1,0,2,0,2,0,0,0,0,0,0,0,0,2,0,0,2,0,0,1,0,2,0,0,1],
-    [1,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,1],
-    [1,0,1,3,0,0,0,0,0,0,0,0,0,0,0,3,1,0,0,0,0,3,1,0,1],
-    [1,0,3,1,0,0,0,0,0,0,0,0,0,0,0,1,3,0,0,0,0,1,3,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,7,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,7,0,0,0,0,0,1],
+    [1,6,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,6,0,0,0,0,0,1],
+    [1,7,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,7,0,0,0,0,0,1],
+    [1,1,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,1,1,0,0,0,0,0,1],
     [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
   ];
-  // Tile legend: 0 open floor, 1/2/3/4 wall variants (visual only), 5 = locked gate
-  // (blocks movement + sight like a wall until CAMPUS_GATE.requiredIds are all defeated,
-  // at which point the cell is opened permanently — see checkGateUnlock in CampusExplorer).
-  // 6 = door, 7 = window (science-lab south face — banded/tinted to hint at desks beyond
-  // the glass), 8 = lockers, 9 = notice board. All four are solid (see canMove) and render
-  // as banded patterns off the same one-fillRect-per-column wall pass — see the tile===6/7/8/9
-  // branches in render(), no extra draw calls versus a flat-color wall.
+  // Tile legend: 0 open floor, 1/2/3/4 wall variants (visual only — see canMove, which
+  // treats every non-zero tile as solid), 5 = locked gate (blocks movement + sight like a
+  // wall until CAMPUS_GATE.requiredIds are all defeated, at which point the cell is opened
+  // permanently — see checkGateUnlock in CampusExplorer). 6 = door, 7 = window, 8 = lockers,
+  // 9 = notice board — all render as banded patterns off the same one-fillRect-per-column
+  // wall pass (see the tile===6/7/8/9 branches in render()), no extra draw calls versus a
+  // flat-color wall, and are all solid same as 1-4: nothing here ever actually opens, so a
+  // "door" is a texture, not a passage — see the three interior rooms below for how that
+  // gets worked around.
+  //
+  // Three rooms — Laboratory (rows 1-4, the original building, now walkable), Classroom
+  // and Library (rows 13-18, newly built) — are each real walk-in spaces, not just
+  // decorative facades: three solid walls with door/window texture on one interior face for
+  // character, and the fourth side left completely open as the actual entrance, since a
+  // literal door/gate tile never opens. Furniture lives inside as CAMPUS_PROPS billboards
+  // (see below), with an aisle deliberately kept clear from each entrance to the back wall.
+  // Every other scattered wall/pillar tile that used to sit in the open plaza with no
+  // enclosing structure around it — no room, no function, nothing to justify why it was
+  // there — has been cleared back to floor.
   const CAMPUS_CHALLENGERS: (CampusChallenger & { x: number; y: number; dir: number })[] = [
     {
       id: 'npc_1', x: 9.5, y: 2.0, dir: 1, districtId: 'peaks',
@@ -4179,7 +4644,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       recommendedLevel: 1, rewardXp: 100, rewardCoins: 50,
     },
     {
-      id: 'npc_3', x: 12.5, y: 15.5, dir: 1, districtId: 'wilds',
+      // Standing in the open corridor between the Classroom and Library — matches
+      // "Practice Wilds: repeated application" better than being inside either room, and
+      // keeps this spot clear of both buildings' walls.
+      id: 'npc_3', x: 9.5, y: 12.5, dir: 1, districtId: 'wilds',
       name: 'Teaching Fellow Owens', area: '🌲 Practice Wilds: Weekly Problem-Set Review',
       statement: "Out here it's just reps. Answer set after set until it's automatic — starting now.",
       questTitle: 'The Problem-Set Gauntlet', lore: 'No new material out here — just repetition until the concepts stop feeling foreign.',
@@ -4193,6 +4661,37 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       recommendedLevel: 8, rewardXp: 400, rewardCoins: 200,
     },
   ];
+
+  // Every challenger gets a real character look instead of an initial letter, but none
+  // of them have designer-picked appearances the way the player does — so this derives
+  // one deterministically from the challenger's own id/name. Same challenger always
+  // renders with the same face/hair/outfit, every session, with no avatar data to store
+  // or keep in sync for NPCs.
+  const hashSeed = (input: string) => {
+    let hash = 0;
+    for (let i = 0; i < input.length; i++) hash = (hash * 31 + input.charCodeAt(i)) >>> 0;
+    return hash;
+  };
+  const pickBySeed = <T,>(seed: number, salt: number, options: readonly T[]): T => options[(seed + salt) % options.length];
+  const CHALLENGER_HAIR_STYLES: AvatarConfig['hair'][] = ['short', 'long', 'curly', 'bald'];
+  const CHALLENGER_HAIR_COLORS = ['#2d1b2e', '#4a2c1d', '#1c1c1c', '#5b3a29', '#7a3b2e', '#2f2f45'];
+  const CHALLENGER_TOP_TYPES: AvatarConfig['topType'][] = ['tshirt', 'hoodie', 'jacket'];
+  const CHALLENGER_TOP_COLORS: AvatarConfig['topColor'][] = ['indigo', 'coral', 'cyan', 'gold'];
+  const CHALLENGER_BOTTOM_TYPES: AvatarConfig['bottomType'][] = ['pants', 'shorts', 'skirt'];
+  const CHALLENGER_SHOES: AvatarConfig['shoes'][] = ['dark', 'white', 'amber'];
+  const getChallengerAvatar = (challenger: Pick<CampusChallenger, 'id' | 'name'>): AvatarConfig => {
+    const seed = hashSeed(`${challenger.id}:${challenger.name}`);
+    return {
+      gender: seed % 2 === 0 ? 'neutral' : 'feminine',
+      skin: pickBySeed(seed, 1, avatarColors),
+      hair: pickBySeed(seed, 2, CHALLENGER_HAIR_STYLES),
+      hairColor: pickBySeed(seed, 3, CHALLENGER_HAIR_COLORS),
+      topType: pickBySeed(seed, 4, CHALLENGER_TOP_TYPES),
+      topColor: pickBySeed(seed, 5, CHALLENGER_TOP_COLORS),
+      bottomType: pickBySeed(seed, 6, CHALLENGER_BOTTOM_TYPES),
+      shoes: pickBySeed(seed, 7, CHALLENGER_SHOES),
+    };
+  };
 
   // Builds the exact shuffled question set one challenger presents, from the player's own
   // strand bank. Districts partition their strand's 8-question bank so every NPC gets a
@@ -4264,35 +4763,77 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   type CampusGate = { x: number; y: number; requiredIds: string[]; label: string };
   const CAMPUS_GATE: CampusGate = { x: 18, y: 8, requiredIds: ['npc_1', 'npc_2', 'npc_3'], label: 'Mastery Citadel Gate' };
 
-  // Environmental props — trees, planters, benches, lamp posts. Purely decorative billboards:
-  // no collision, no interaction, no proximity/discovery tracking. Each one costs exactly one
-  // draw call (same as a Lost Note), which is what keeps a dozen of them on screen at once a
+  // Environmental props — trees, planters, lamp posts (outdoors) plus themed furniture for
+  // the three walk-in rooms below. Purely decorative billboards: no collision, no
+  // interaction, no proximity/discovery tracking. Each one costs exactly one draw call
+  // (same as a Lost Note), which is what keeps two dozen of them on screen at once a
   // non-issue on mobile. `sway` gets the same cheap single-sin idle motion already used for
   // challengers — everything else is fully static, since inanimate props shouldn't move.
+  // The three lone chairs that used to sit in the open plaza with no table or room around
+  // them are gone — furniture now only appears where it belongs, inside the room it
+  // furnishes, with an aisle deliberately left clear from each entrance to the back wall.
   type CampusProp = { id: string; x: number; y: number; glyph: string; sway?: boolean };
   const CAMPUS_PROPS: CampusProp[] = [
+    // Outdoor landscaping — trees, lamps, planters, the plaza's own dressing.
     { id: 'prop_1', x: 2.5, y: 5.5, glyph: '🌳', sway: true },
     { id: 'prop_2', x: 22.5, y: 5.5, glyph: '🌳', sway: true },
     { id: 'prop_3', x: 7.5, y: 5.3, glyph: '💡' },
     { id: 'prop_4', x: 16.8, y: 5.3, glyph: '💡' },
     { id: 'prop_5', x: 5.5, y: 12.3, glyph: '🪴', sway: true },
     { id: 'prop_6', x: 18.5, y: 12.3, glyph: '🌳', sway: true },
-    { id: 'prop_7', x: 13.5, y: 9.2, glyph: '🪑' },
-    { id: 'prop_8', x: 16.0, y: 12.3, glyph: '🪑' },
     { id: 'prop_9', x: 16.3, y: 8.3, glyph: '🪴', sway: true },
-    { id: 'prop_10', x: 9.5, y: 7.3, glyph: '🪑' },
     { id: 'prop_11', x: 9.5, y: 18.3, glyph: '🌳', sway: true },
+    // Laboratory interior (rows 2-3) — equipment along the back wall, walking space kept
+    // clear between it and the open south entrance.
+    { id: 'prop_lab_1', x: 8.5, y: 2.4, glyph: '🧪' },
+    { id: 'prop_lab_2', x: 9.5, y: 2.4, glyph: '⚗️' },
+    { id: 'prop_lab_3', x: 10.5, y: 2.4, glyph: '🔬' },
+    // Classroom interior — two rows of desks/chairs flanking a center aisle, board at the
+    // back wall marking the teacher's area.
+    { id: 'prop_class_desk_1', x: 2.5, y: 14.5, glyph: '🪑' },
+    { id: 'prop_class_desk_2', x: 5.5, y: 14.5, glyph: '🪑' },
+    { id: 'prop_class_desk_3', x: 2.5, y: 15.5, glyph: '🪑' },
+    { id: 'prop_class_desk_4', x: 5.5, y: 15.5, glyph: '🪑' },
+    { id: 'prop_class_board', x: 4.5, y: 17.5, glyph: '📋' },
+    // Library interior — bookshelves lining both side walls, a small reading table near
+    // the back, center aisle kept clear from the entrance.
+    { id: 'prop_lib_shelf_1', x: 13.5, y: 14.5, glyph: '📚' },
+    { id: 'prop_lib_shelf_2', x: 13.5, y: 16.5, glyph: '📚' },
+    { id: 'prop_lib_shelf_3', x: 16.5, y: 14.5, glyph: '📚' },
+    { id: 'prop_lib_shelf_4', x: 16.5, y: 16.5, glyph: '📚' },
+    { id: 'prop_lib_table', x: 15.0, y: 17.3, glyph: '📖' },
+    { id: 'prop_lib_chair', x: 15.8, y: 17.3, glyph: '🪑' },
   ];
 
   // Landmark signs — small text placards at a few key structures, so a district or building
-  // is recognizable by more than just wall color. Static, one rect + one fillText each.
-  type CampusSign = { id: string; x: number; y: number; label: string };
+  // is recognizable by more than just wall color. Each is mounted flush against the actual
+  // solid wall segment of the structure it names (`side` is the compass direction that wall
+  // face points, i.e. its outward normal) — not floating out in open floor near the building.
+  // Rendering (see the `signs.forEach` pass in CampusExplorer) uses that normal to fade the
+  // sign out entirely from the wrong side of the wall and to foreshorten it, like a real flat
+  // plaque, the further the player's viewing angle strays from square-on.
+  type CampusSign = { id: string; x: number; y: number; label: string; side: 'N' | 'S' | 'E' | 'W' };
   const CAMPUS_SIGNS: CampusSign[] = [
-    { id: 'sign_1', x: 9.5, y: 5.3, label: '🔬 SCIENCE LABS' },
-    { id: 'sign_2', x: 19.0, y: 12.3, label: '📚 LIBRARY' },
-    { id: 'sign_3', x: 15.5, y: 8.3, label: '🏰 MASTERY CITADEL' },
-    { id: 'sign_4', x: 4.0, y: 5.3, label: '🏘️ FOUNDATION DISTRICT' },
+    // Laboratory's west exterior wall (solid col 6, rows 1-4) — faces the open plaza to
+    // the west, where anyone approaching the building from that side would see it.
+    { id: 'sign_1', x: 5.96, y: 3.0, label: '🔬 SCIENCE LABS', side: 'W' },
+    // Library's west wall (solid col 12, rows 14-17) — faces the shared central corridor
+    // it and the Classroom sit on opposite sides of.
+    { id: 'sign_2', x: 11.96, y: 15.5, label: '📚 LIBRARY', side: 'W' },
+    // Mounted on the wall segment immediately north of the Mastery Citadel gate (col 18,
+    // row 8), facing the main plaza everyone approaches the gate from.
+    { id: 'sign_3', x: 17.96, y: 7.5, label: '🏰 MASTERY CITADEL', side: 'W' },
+    // One of the two door-textured jambs flanking the Foundation District's west gap in
+    // the row-6 boundary wall, facing directly into the passage.
+    { id: 'sign_4', x: 6.96, y: 6.5, label: '🏘️ FOUNDATION DISTRICT', side: 'E' },
+    // Classroom's east wall (solid col 7, rows 14-17) — faces the same corridor as the
+    // Library sign opposite it.
+    { id: 'sign_5', x: 7.04, y: 15.5, label: '🏫 CLASSROOM', side: 'E' },
   ];
+  // Outward-facing normal vector for each wall face a sign can be mounted on — used to
+  // tell whether the player is standing on the readable side of the sign, and to
+  // foreshorten it by viewing angle. See the `signs.forEach` render pass below.
+  const SIGN_NORMALS: Record<CampusSign['side'], [number, number]> = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] };
 
   function CampusExplorer({ level, strand, defeatedIds, onChallengerFound, onExit, notify, onReward }: { level: number; strand: string; defeatedIds: string[]; onChallengerFound: (challenger: CampusChallenger) => void; onExit: () => void; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void; onReward: (coins: number, xp: number) => void }) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -4306,6 +4847,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     const leftThumbRef = useRef<HTMLDivElement | null>(null);
     const leftZoneRef = useRef<HTMLDivElement | null>(null);
     const lookLayerRef = useRef<HTMLDivElement | null>(null);
+    const discoveryCardRef = useRef<HTMLDivElement | null>(null);
+    const discoveryTitleRef = useRef<HTMLDivElement | null>(null);
+    const discoveryBodyRef = useRef<HTMLDivElement | null>(null);
+    const discoveryBtnRef = useRef<HTMLButtonElement | null>(null);
     const defeatedIdsRef = useRef(defeatedIds);
     defeatedIdsRef.current = defeatedIds;
     const onFoundRef = useRef(onChallengerFound);
@@ -4322,7 +4867,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const badge = badgeRef.current;
       const interactCta = interactCtaRef.current;
       const tapStart = tapStartRef.current;
-      if (!canvas || !world || !prompt || !badge || !interactCta || !tapStart) return;
+      const discoveryCard = discoveryCardRef.current;
+      const discoveryTitle = discoveryTitleRef.current;
+      const discoveryBody = discoveryBodyRef.current;
+      const discoveryBtn = discoveryBtnRef.current;
+      if (!canvas || !world || !prompt || !badge || !interactCta || !tapStart || !discoveryCard || !discoveryTitle || !discoveryBody || !discoveryBtn) return;
       const ctx = canvas.getContext('2d', { alpha: false });
       if (!ctx) return;
 
@@ -4356,6 +4905,45 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       };
       checkGateUnlock();
 
+      // Holographic discovery queue: a quest signal gets a tappable "investigate" CTA
+      // that jumps straight into the quest dialogue; a hint (note/guide) just gets an
+      // auto-dismissing info card since there's nothing further to open. Either way this
+      // keeps quest/hint reveals inside the game world, top-center, instead of the
+      // corner toast stack — and only one is ever shown at a time, queued like Toasts.
+      type DiscoveryCard = { title: string; body: string; onTap?: () => void; duration: number };
+      const discoveryQueue: DiscoveryCard[] = [];
+      let discoveryActive: DiscoveryCard | null = null;
+      let discoveryTimer: number | null = null;
+
+      const renderDiscoveryCard = () => {
+        if (!discoveryActive) { discoveryCard.style.display = 'none'; return; }
+        discoveryCard.style.display = 'flex';
+        discoveryTitle.textContent = discoveryActive.title;
+        discoveryBody.textContent = discoveryActive.body;
+        if (discoveryActive.onTap) { discoveryBtn.style.display = 'inline-flex'; discoveryBtn.textContent = 'TAP TO INVESTIGATE'; }
+        else { discoveryBtn.style.display = 'inline-flex'; discoveryBtn.textContent = 'GOT IT'; }
+      };
+      const advanceDiscoveryQueue = () => {
+        if (discoveryActive || discoveryQueue.length === 0) { renderDiscoveryCard(); return; }
+        discoveryActive = discoveryQueue.shift()!;
+        renderDiscoveryCard();
+        discoveryTimer = window.setTimeout(() => dismissDiscovery(), discoveryActive.duration);
+      };
+      const dismissDiscovery = () => {
+        if (discoveryTimer) { window.clearTimeout(discoveryTimer); discoveryTimer = null; }
+        discoveryActive = null;
+        advanceDiscoveryQueue();
+      };
+      const pushDiscovery = (card: DiscoveryCard) => { discoveryQueue.push(card); advanceDiscoveryQueue(); };
+      const handleDiscoveryTap = (e: Event) => {
+        e.preventDefault(); e.stopPropagation();
+        const tap = discoveryActive?.onTap;
+        dismissDiscovery();
+        tap?.();
+      };
+      discoveryBtn.addEventListener('click', handleDiscoveryTap);
+      discoveryBtn.addEventListener('touchstart', handleDiscoveryTap, { passive: false });
+
       let playerX = 9.0;
       let playerY = 10.0;
       let playerAngle = 0;
@@ -4368,9 +4956,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       let mouseDX = 0;
       let touchLookDX = 0; // accumulated finger-drag delta since last frame — drives smooth free-look
       const isMobile = 'ontouchstart' in window;
-      const moveSpeed = 3.0;
+      // Mobile movement/look were tuned too hot: the joystick covered ground fast enough,
+      // and the touch-drag look turned sharp enough, that the (also-too-close) walls made
+      // navigation feel frantic rather than immersive. Desktop (keyboard + mouse) was never
+      // reported as a problem, so only the mobile-specific values change here.
+      const moveSpeed = isMobile ? 2.1 : 3.0;
       const sensitivity = 1.0;
-      const touchLookSensitivity = 0.0035; // tuned so a full-width swipe ~= a comfortable 180deg turn
+      const touchLookSensitivity = 0.0023; // was 0.0035 — same full-width-swipe-turns-you-around feel, just gentler
 
       let leftJoy = { active: false, id: null as number | null, dx: 0, dy: 0 };
 
@@ -4588,7 +5180,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       function render() {
         const w = canvas!.width, h = canvas!.height;
         const now = performance.now();
-        const fov = Math.PI / 3;
+        // Mobile's fixed-position camera (no mouse-look nuance to fall back on) made the
+        // narrower 60° FOV feel like navigating through a straw, and the fog cutting walls
+        // to black at 15 units meant surrounding rooms/paths/landmarks vanished before they
+        // were actually far away. Both widen a bit for mobile only — desktop is unchanged.
+        const fov = isMobile ? Math.PI / 2.7 : Math.PI / 3; // ~66.7° on mobile vs 60° on desktop
+        const fogDistance = isMobile ? 20 : 15;
 
         const district = getDistrictAt(playerX, playerY);
         if (district.id !== currentDistrictId) {
@@ -4627,7 +5224,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           zBuffer[i] = correctedDist;
           const wallHeight = h / correctedDist;
           const wallTop = (h - wallHeight) / 2;
-          const brightness = Math.max(0, 1 - correctedDist / 15);
+          const brightness = Math.max(0, 1 - correctedDist / fogDistance);
           let r: number, g: number, b: number;
           if (result.tile === 2) { r = Math.floor(120 * brightness); g = Math.floor(80 * brightness); b = Math.floor(40 * brightness); }
           else if (result.tile === 3) { r = Math.floor(56 * brightness); g = Math.floor(189 * brightness); b = Math.floor(248 * brightness); }
@@ -4676,18 +5273,39 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         }
 
         // Reusable billboard-sprite projection: world (sx,sy) -> screen position, or null if
-        // it's behind the player or occluded by a nearer wall strip in the z-buffer.
-        function projectSprite(sx: number, sy: number) {
+        // it's behind the player, beyond maxDist, or occluded by a nearer wall strip in the
+        // z-buffer. `maxDist` defaults to the same fog range walls use, so ordinary sprites
+        // (props/notes/signs/NPC bodies) fade and cull in lockstep with the environment
+        // instead of staying crisp past the point the walls around them go black — that
+        // mismatch is what made distant room interiors read as "floating"/bleeding through
+        // the fog. Callers that intentionally need longer range (the quest beacon, which is
+        // documented as visible "from far across the map") pass a larger maxDist explicitly;
+        // everything else just gets the default.
+        //
+        // Occlusion itself now samples three columns (left edge / center / right edge of the
+        // sprite's on-screen footprint) instead of only the center ray, so a sprite whose
+        // center happens to clear a wall corner but whose edge would poke through it gets
+        // culled too, rather than visibly bleeding through the corner.
+        function projectSprite(sx: number, sy: number, maxDist: number = fogDistance) {
           const spriteX = sx - playerX, spriteY = sy - playerY;
           const transformX = Math.cos(playerAngle) * spriteX + Math.sin(playerAngle) * spriteY;
           const transformY = -Math.sin(playerAngle) * spriteX + Math.cos(playerAngle) * spriteY;
-          if (transformX <= 0.1) return null;
+          if (transformX <= 0.1 || transformX > maxDist) return null;
           const screenX = (w / 2) * (1 + transformY / transformX);
           const size = Math.abs(h / transformX);
           const drawY = (h - size) / 2;
-          const rayIdx = Math.floor((screenX / w) * numRays);
-          if (rayIdx < 0 || rayIdx >= numRays || transformX >= zBuffer[rayIdx]) return null;
-          return { screenX, size, drawY };
+          const halfWidthPx = Math.max(1, size * 0.28);
+          const sampleXs = [screenX - halfWidthPx, screenX, screenX + halfWidthPx];
+          for (const sampleX of sampleXs) {
+            const rayIdx = Math.floor((sampleX / w) * numRays);
+            if (rayIdx < 0 || rayIdx >= numRays) continue; // off-canvas edge — nothing to occlude against
+            if (transformX >= zBuffer[rayIdx]) return null;
+          }
+          // Same falloff curve the walls use, so a sprite reaches zero opacity exactly where
+          // the wall behind it would have gone black — no more full-brightness objects
+          // sitting in front of (or glimpsed beyond) fogged-out geometry.
+          const fogAlpha = Math.max(0, Math.min(1, 1 - transformX / fogDistance));
+          return { screenX, size, drawY, dist: transformX, fogAlpha };
         }
 
         challengers.forEach((term) => {
@@ -4702,36 +5320,89 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             const rangeDist = Math.hypot(playerX - term.x, playerY - term.y);
             if (rangeDist < SIGNAL_RANGE) {
               signaledIds.add(term.id);
-              notifyRef.current('📡 Unknown signal detected', `Something's active nearby in ${term.area.replace(/^[^\s]+ /, '')}. Follow the glow to investigate.`);
+              pushDiscovery({
+                title: '✦ NEW DISCOVERY',
+                body: `The signal is coming from ${term.area.replace(/^[^\s]+ /, '')}.`,
+                onTap: () => interact(term),
+                duration: 6000,
+              });
             }
           }
           const idleBob = Math.sin(now / 650 + term.x * 4) * 0.035;
-          const proj = projectSprite(term.x, term.y + idleBob);
+          // The beacon is documented/intended to read from far across the map, well past
+          // where the NPC's own body would normally fog out — so it gets its own longer
+          // projection range. The body, sword icon, and name tag all still respect the
+          // standard fogDistance below (checked via proj.dist), keeping their fade in sync
+          // with the walls around them; only the beacon uses the extended range directly.
+          const beaconRange = fogDistance * 1.8;
+          const proj = projectSprite(term.x, term.y + idleBob, beaconRange);
           if (!proj) return;
-          const { screenX: spriteScreenX, size: spriteSize, drawY } = proj;
-          const drawX = spriteScreenX - spriteSize * 0.25;
-          const bWidth = spriteSize * 0.5, bHeight = spriteSize * 0.8;
-          ctx!.fillStyle = isFinished ? '#059669' : term.active ? '#1e293b' : '#334155';
-          ctx!.fillRect(drawX + bWidth * 0.2, drawY + bHeight * 0.4, bWidth * 0.6, bHeight * 0.6);
-          ctx!.fillStyle = isFinished ? '#34d399' : term.active ? '#38bdf8' : '#64748b';
-          ctx!.fillRect(drawX + bWidth * 0.3, drawY + bHeight * 0.45, bWidth * 0.4, bHeight * 0.3);
+          const { screenX: spriteScreenX, size: spriteSize, drawY, dist: spriteDist } = proj;
+          const inBodyRange = spriteDist <= fogDistance;
+          const bodyAlpha = Math.max(0, Math.min(1, 1 - spriteDist / fogDistance));
+          if (inBodyRange) {
+            const drawX = spriteScreenX - spriteSize * 0.25;
+            const bWidth = spriteSize * 0.5, bHeight = spriteSize * 0.8;
+            ctx!.globalAlpha = bodyAlpha;
+            ctx!.fillStyle = isFinished ? '#059669' : term.active ? '#1e293b' : '#334155';
+            ctx!.fillRect(drawX + bWidth * 0.2, drawY + bHeight * 0.4, bWidth * 0.6, bHeight * 0.6);
+            ctx!.fillStyle = isFinished ? '#34d399' : term.active ? '#38bdf8' : '#64748b';
+            ctx!.fillRect(drawX + bWidth * 0.3, drawY + bHeight * 0.45, bWidth * 0.4, bHeight * 0.3);
+            if (term.active && !isFinished) {
+              ctx!.fillStyle = '#ffffff';
+              ctx!.font = CHALLENGER_FONT;
+              ctx!.fillText('⚔', spriteScreenX - 8, drawY - 10);
+            }
+            ctx!.globalAlpha = 1;
+          }
+
           if (term.active && !isFinished) {
-            ctx!.fillStyle = '#ffffff';
-            ctx!.font = CHALLENGER_FONT;
-            ctx!.fillText('⚔', spriteScreenX - 8, drawY - 10);
+            // Name tag: same pill treatment as the room/building signs, anchored a fixed
+            // offset above the sword icon so the two never collide. Only drawn within a
+            // "readable" band (comfortably inside normal fog range, not full range) — past
+            // that, the beacon below is the only signal, exactly like squinting at a distant
+            // light without being able to make out a name yet.
+            const readableRange = fogDistance * 0.7;
+            if (spriteDist <= readableRange) {
+              const nameAlpha = Math.max(0, Math.min(1, 1 - spriteDist / readableRange));
+              const fontSize = Math.max(9, Math.min(15, Math.floor(spriteSize * 0.1)));
+              ctx!.font = `bold ${fontSize}px sans-serif`;
+              const labelText = term.name;
+              const textWidth = ctx!.measureText(labelText).width;
+              const padX = 7, padY = 4;
+              const boxW = textWidth + padX * 2, boxH = fontSize + padY * 2;
+              const labelY = drawY - 34 - spriteSize * 0.05 - 26; // fixed gap above the beacon center
+              ctx!.globalAlpha = nameAlpha;
+              ctx!.fillStyle = 'rgba(15, 20, 36, 0.72)';
+              ctx!.fillRect(spriteScreenX - boxW / 2, labelY - boxH / 2, boxW, boxH);
+              ctx!.strokeStyle = 'rgba(248, 184, 78, 0.5)';
+              ctx!.lineWidth = 1;
+              ctx!.strokeRect(spriteScreenX - boxW / 2, labelY - boxH / 2, boxW, boxH);
+              ctx!.fillStyle = '#f1f5f9';
+              ctx!.textAlign = 'center';
+              ctx!.textBaseline = 'middle';
+              ctx!.fillText(labelText, spriteScreenX, labelY + 1);
+              ctx!.textAlign = 'left';
+              ctx!.textBaseline = 'alphabetic';
+              ctx!.globalAlpha = 1;
+            }
 
             // Signal: a soft pulsing beacon above every un-defeated challenger, visible from
             // far across the map (not just up close) so players get a sense of "something's
-            // over there" long before they can make out the NPC itself.
+            // over there" long before they can make out the NPC itself. Fades out smoothly
+            // over its own extended range rather than cutting off hard at beaconRange.
+            const beaconAlpha = Math.max(0, Math.min(1, 1 - spriteDist / beaconRange));
             const pulse = 0.5 + 0.5 * Math.sin(now / 420 + term.x);
             const beaconY = drawY - 34 - spriteSize * 0.05;
             const grad = ctx!.createRadialGradient(spriteScreenX, beaconY, 0, spriteScreenX, beaconY, 14 * pulse + 8);
             grad.addColorStop(0, `rgba(248, 184, 78, ${0.55 * pulse + 0.15})`);
             grad.addColorStop(1, 'rgba(248, 184, 78, 0)');
+            ctx!.globalAlpha = beaconAlpha;
             ctx!.fillStyle = grad;
             ctx!.beginPath();
             ctx!.arc(spriteScreenX, beaconY, 14 * pulse + 8, 0, Math.PI * 2);
             ctx!.fill();
+            ctx!.globalAlpha = 1;
           }
         });
 
@@ -4742,7 +5413,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           const bob = Math.sin(now / 500 + note.x * 3) * 0.06;
           const proj = projectSprite(note.x, note.y + bob);
           if (!proj) return;
-          const { screenX, size, drawY } = proj;
+          const { screenX, size, drawY, fogAlpha } = proj;
+          ctx!.globalAlpha = fogAlpha;
           const glow = 0.4 + 0.3 * Math.sin(now / 300 + note.x);
           const grad = ctx!.createRadialGradient(screenX, drawY + size * 0.72, 0, screenX, drawY + size * 0.72, size * 0.22);
           grad.addColorStop(0, `rgba(244, 240, 231, ${glow})`);
@@ -4755,6 +5427,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           ctx!.textAlign = 'center';
           ctx!.fillText('📝', screenX, drawY + size * 0.78);
           ctx!.textAlign = 'left';
+          ctx!.globalAlpha = 1;
         });
 
         // Friendly guide NPCs: same billboard treatment as challengers but teal-coded and
@@ -4762,7 +5435,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         guides.forEach((guide) => {
           const proj = projectSprite(guide.x, guide.y);
           if (!proj) return;
-          const { screenX: spriteScreenX, size: spriteSize, drawY } = proj;
+          const { screenX: spriteScreenX, size: spriteSize, drawY, fogAlpha } = proj;
+          ctx!.globalAlpha = fogAlpha;
           const drawX = spriteScreenX - spriteSize * 0.25;
           const gWidth = spriteSize * 0.5, gHeight = spriteSize * 0.8;
           ctx!.fillStyle = '#0f2e2c';
@@ -4772,6 +5446,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           ctx!.fillStyle = '#ffffff';
           ctx!.font = GUIDE_FONT;
           ctx!.fillText('💬', spriteScreenX - 8, drawY - 8);
+          ctx!.globalAlpha = 1;
         });
 
         // Environmental props: trees/planters/benches/lamps. One glyph draw each, no state,
@@ -4782,37 +5457,62 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           const bob = prop.sway ? Math.sin(now / 900 + prop.x * 2) * 0.03 : 0;
           const proj = projectSprite(prop.x, prop.y + bob);
           if (!proj) return;
-          const { screenX, size, drawY } = proj;
+          const { screenX, size, drawY, fogAlpha } = proj;
+          ctx!.globalAlpha = fogAlpha;
           ctx!.font = `${Math.max(10, Math.floor(size * 0.22))}px sans-serif`;
           ctx!.textAlign = 'center';
           ctx!.fillText(prop.glyph, screenX, drawY + size * 0.82);
           ctx!.textAlign = 'left';
+          ctx!.globalAlpha = 1;
         });
 
         // Landmark signs: a small placard (rounded rect + label) at a handful of notable
         // structures, so a building reads as "the science labs" or "the library" from across
-        // the room — not just a different wall color. Four of these, total, on purpose.
+        // the room — not just a different wall color. Four of these, total, on purpose. Font
+        // size is clamped on both ends, so a sign standing right in front of the player can't
+        // balloon into an oversized, spacing-breaking label.
+        //
+        // Each sign is flush-mounted on one specific wall face (see CAMPUS_SIGNS' `side`), so
+        // it has to actually behave like a plaque bolted to that wall rather than a sticker
+        // hovering in the air: it's invisible from the far side of its own wall, it fades out
+        // the more edge-on the player's viewing angle gets, and it foreshortens horizontally
+        // over that same range — the same way a flat rectangular sign would if you walked past
+        // it at an angle instead of straight up to it.
         signs.forEach((sign) => {
           const proj = projectSprite(sign.x, sign.y);
           if (!proj) return;
-          const { screenX, size, drawY } = proj;
-          const fontSize = Math.max(9, Math.floor(size * 0.11));
+          const { screenX, size, drawY, fogAlpha } = proj;
+          const [nx, ny] = SIGN_NORMALS[sign.side];
+          const toPlayerX = playerX - sign.x, toPlayerY = playerY - sign.y;
+          const toPlayerLen = Math.hypot(toPlayerX, toPlayerY) || 1;
+          const facing = (nx * toPlayerX + ny * toPlayerY) / toPlayerLen;
+          if (facing <= 0.05) return; // player is on the blank side of the wall — nothing to read
+          const foreshorten = Math.max(0.45, facing); // floor keeps it from collapsing to a sliver
+          ctx!.globalAlpha = fogAlpha;
+          const fontSize = Math.max(9, Math.min(20, Math.floor(size * 0.11)));
           ctx!.font = `bold ${fontSize}px sans-serif`;
           const textWidth = ctx!.measureText(sign.label).width;
           const padX = 8, padY = 5;
           const boxW = textWidth + padX * 2, boxH = fontSize + padY * 2;
-          const boxX = screenX - boxW / 2, boxY = drawY + size * 0.28;
-          ctx!.fillStyle = 'rgba(15, 20, 36, 0.72)';
-          ctx!.fillRect(boxX, boxY, boxW, boxH);
+          // Mounted high on the wall, like real signage above head height, instead of
+          // hovering at torso height out in front of it.
+          const boxCenterY = drawY - size * 0.3 + boxH / 2;
+          ctx!.save();
+          ctx!.translate(screenX, boxCenterY);
+          ctx!.scale(foreshorten, 1);
+          ctx!.fillStyle = 'rgba(15, 20, 36, 0.78)';
+          ctx!.fillRect(-boxW / 2, -boxH / 2, boxW, boxH);
           ctx!.strokeStyle = 'rgba(248, 184, 78, 0.5)';
-          ctx!.lineWidth = 1;
-          ctx!.strokeRect(boxX, boxY, boxW, boxH);
+          ctx!.lineWidth = 1 / foreshorten;
+          ctx!.strokeRect(-boxW / 2, -boxH / 2, boxW, boxH);
           ctx!.fillStyle = '#f1f5f9';
           ctx!.textAlign = 'center';
           ctx!.textBaseline = 'middle';
-          ctx!.fillText(sign.label, screenX, boxY + boxH / 2 + 1);
+          ctx!.fillText(sign.label, 0, 1);
+          ctx!.restore();
           ctx!.textAlign = 'left';
           ctx!.textBaseline = 'alphabetic';
+          ctx!.globalAlpha = 1;
         });
 
         activeTerminalTarget = null;
@@ -4842,7 +5542,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           if (collectedNotes.has(note.id)) continue;
           if (Math.hypot(playerX - note.x, playerY - note.y) < 0.6) {
             collectedNotes.add(note.id);
-            notifyRef.current(note.title, note.hint);
+            pushDiscovery({ title: `✦ HINT — ${note.title}`, body: note.hint, duration: 4500 });
           }
         }
 
@@ -4856,12 +5556,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             const line = guide.lines[Math.floor(Math.random() * guide.lines.length)];
             if (guide.reward) {
               onRewardRef.current(guide.reward.coins, guide.reward.xp);
-              notifyRef.current(guide.name, `${line} (+${guide.reward.coins} credits, +${guide.reward.xp} XP)`);
+              pushDiscovery({ title: `✦ ${guide.name}`, body: `${line} (+${guide.reward.coins} credits, +${guide.reward.xp} XP)`, duration: 5000 });
             } else {
-              notifyRef.current(guide.name, line);
+              pushDiscovery({ title: `✦ ${guide.name}`, body: line, duration: 4500 });
             }
           }
         }
+
 
         // Visible progression: a plain "X / Y discovered" readout so a run always has a
         // sense of how much ground has actually been covered. Only touches the DOM when the
@@ -4911,7 +5612,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         for (const [cx, cy] of testPoints) {
           const mx = Math.floor(cx), my = Math.floor(cy);
           if (mx < 0 || mx >= mapWidth || my < 0 || my >= mapHeight) return false;
-          if (map[my][mx] === 1 || map[my][mx] === 5 || map[my][mx] === 6 || map[my][mx] === 7 || map[my][mx] === 8 || map[my][mx] === 9) return false;
+          const tile = map[my][mx];
+          // Every non-floor tile blocks movement — 1/2/3/4 are wall-texture variants
+          // (color only, per the tile legend), so all four are solid on par with the
+          // others, not just 1. Previously 2/3/4 were left out here, meaning strips of
+          // the map that render as solid colored wall could actually be walked straight
+          // through — fixed so what's visually a wall is always actually a wall.
+          if (tile !== 0) return false;
         }
         return true;
       }
@@ -4962,6 +5669,9 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         badge.removeEventListener('touchstart', handleBadgeActivate);
         interactCta.removeEventListener('click', handleCtaActivate);
         interactCta.removeEventListener('touchstart', handleCtaActivate);
+        discoveryBtn.removeEventListener('click', handleDiscoveryTap);
+        discoveryBtn.removeEventListener('touchstart', handleDiscoveryTap);
+        if (discoveryTimer) window.clearTimeout(discoveryTimer);
         joyCleanups.forEach((fn) => fn());
         if (document.pointerLockElement === canvas) document.exitPointerLock();
       };
@@ -4977,9 +5687,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
               <div className="campus-chip" ref={districtChipRef} />
               <div className="campus-chip" ref={progressChipRef} />
             </div>
-            <button className="campus-exit-btn" onClick={onExit}><X size={12} /> Exit campus</button>
+            <button className="campus-exit-btn" onClick={onExit}><X size={12} /> Exit </button>
           </div>
           <div ref={promptRef} className="campus-prompt" />
+          <div className="holo-discovery-card" ref={discoveryCardRef}>
+            <div className="holo-discovery-eyebrow" ref={discoveryTitleRef} />
+            <div className="holo-discovery-body" ref={discoveryBodyRef} />
+            <button type="button" className="holo-discovery-btn" ref={discoveryBtnRef} />
+          </div>
           <button type="button" className="campus-interact-badge" ref={badgeRef} aria-label="Interact with quest giver">
             <Swords size={15} />
           </button>
@@ -5006,45 +5721,56 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // tested on, in terms of your own strand, not just a generic area name.
     const focus = getDistrictFocus(challenger.districtId, strand);
     const questionCount = getEncounterQuestions(challenger, strand).length;
+    // Same avatar system used in Battle (getChallengerAvatar), not a placeholder icon —
+    // so the challenger you meet here is the same character you actually fight.
+    const challengerAvatar = getChallengerAvatar(challenger);
+    const challengerInitial = getInitials(challenger.name);
+
+    // A bounded, centered card over a dimmed/blurred backdrop — a cinematic dialogue
+    // panel over the world, not a dense full page — so it reads as a brief interruption
+    // rather than a navigation away from the game.
     return (
-      <div className="page-wrap">
-        <div className="page-toolbar">
-          <div>
-            <div className="eyebrow">📡 SIGNAL INVESTIGATED // QUEST DISCOVERED</div>
-            <h1 className="page-title">{challenger.questTitle}</h1>
-            <p className="muted text-sm mt-3">{challenger.area}</p>
+      <div className="holo-briefing-backdrop">
+        <div className="holo-briefing-panel" style={{ position: 'relative' }}>
+          <button className="btn-secondary holo-briefing-close" onClick={onLeave} aria-label="Close"><X size={14} /></button>
+          <div className="eyebrow">📡 SIGNAL INVESTIGATED // QUEST DISCOVERED</div>
+          <h1 className="page-title" style={{ fontSize: 'clamp(22px, 5vw, 30px)' }}>{challenger.questTitle}</h1>
+
+          {/* Topic/Subtopic: which district, and — via the player's own strand — which
+              subjects it actually tests. Both come straight from real challenger/district
+              data, never free-text flavor. */}
+          <div className="quest-briefing-topic">
+            <span><MapPin size={12} /> {challenger.area}</span>
+            <span><BookOpen size={12} /> {focus}</span>
           </div>
-          <button className="btn-secondary" onClick={onLeave}><X size={14} /> Leave</button>
-        </div>
-        <div className="panel battle-arena">
-          <div className="combatants" style={{ gridTemplateColumns: '.6fr 1.4fr' }}>
-            <div className="combatant">
-              <div className="combatant-avatar enemy"><UserRound size={30} /></div>
-              <div className="combatant-name">{challenger.name}</div>
+
+          {/* Quest description: the challenger's own hook, one line. */}
+          <div className="panel quest-briefing-intro">
+            <div className="quest-briefing-npc">
+              <AvatarFigure avatar={challengerAvatar} initials={challengerInitial} size="small" />
+              <span className="quest-briefing-name">{challenger.name}</span>
             </div>
-            <div style={{ textAlign: 'left' }}>
-              <div className="feedback" style={{ fontStyle: 'italic' }}>
-                "{challenger.statement}"
-              </div>
-              <p className="muted text-sm mt-3">{challenger.lore}</p>
+            <p className="quest-briefing-statement">"{challenger.statement}"</p>
+          </div>
+
+          {/* Question count / difficulty — the level tag folds the "you're under-leveled"
+              callout straight into itself instead of a separate paragraph below. */}
+          <div className="panel quest-briefing-meta">
+            <div className="quest-tags">
+              <span className="tag"><Check size={10} className="inline mr-1" />{questionCount} question{questionCount === 1 ? '' : 's'}</span>
+              <span className="tag" style={underleveled ? { color: 'var(--coral)' } : undefined}>
+                <Zap size={10} className="inline mr-1" />Lv {challenger.recommendedLevel} recommended{underleveled ? ` · you're ${challenger.recommendedLevel - playerLevel} below` : ''}
+              </span>
+              <span className="tag quest-briefing-reward"><Gem size={10} className="inline mr-1" />+{challenger.rewardXp} XP</span>
+              <span className="tag quest-briefing-reward"><Coins size={10} className="inline mr-1" />+{challenger.rewardCoins} credits</span>
             </div>
           </div>
-        </div>
-        <div className="panel mt-3" style={{ padding: '16px 20px' }}>
-          <div className="quest-tags">
-            <span className="tag"><BookOpen size={10} className="inline mr-1" />{focus}</span>
-            <span className="tag"><Check size={10} className="inline mr-1" />{questionCount} question{questionCount === 1 ? '' : 's'}</span>
-            <span className="tag" style={underleveled ? { color: 'var(--coral)' } : undefined}>
-              <Zap size={10} className="inline mr-1" />Recommended level: {challenger.recommendedLevel}{underleveled ? ` (you're ${challenger.recommendedLevel - playerLevel} below)` : ''}
-            </span>
-            <span className="tag"><Gem size={10} className="inline mr-1" />+{challenger.rewardXp} XP</span>
-            <span className="tag"><Coins size={10} className="inline mr-1" />+{challenger.rewardCoins} credits</span>
+
+          {/* Skip, then Accept quest. */}
+          <div className="quest-briefing-actions">
+            <button className="btn-primary" onClick={onAccept}><Swords size={15} /> Accept quest</button>
+            <button className="btn-secondary" onClick={onLeave}>Skip</button>
           </div>
-          {underleveled && <p className="muted text-sm mt-3">This one's tuned above your current level — still winnable, just expect it to be tougher.</p>}
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 14 }}>
-          <button className="btn-primary" onClick={onAccept}><Swords size={15} /> Accept quest</button>
-          <button className="btn-secondary" onClick={onLeave}>Leave</button>
         </div>
       </div>
     );
@@ -5117,14 +5843,44 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     );
   }
 
+  // Battle attack animations: each answer plays a short lunge from whoever "won" the
+  // exchange toward the other fighter, a brief reaction on whoever got hit, then both
+  // return to their resting positions. Nothing here touches layout — only `transform`/
+  // `filter` on the fighter elements — so the arena grid never shifts or reflows.
+  const BATTLE_IMPACT_DELAY_MS = 260; // when the hit actually "lands", mid-lunge
+  const BATTLE_ATTACK_DURATION_MS = 760; // total time before both fighters are idle again
+  const BATTLE_IMPACT_EFFECT_MS = 320; // how long the shake/flash/spark stay on screen
+
   function Battle({ profile, opponent, onExit, onComplete }: { profile: Profile; opponent: CampusChallenger | null; onExit: () => void; onComplete: (results: { subject: string; correct: boolean }[]) => void }) {
     const [question, setQuestion] = useState(0);
     const [selected, setSelected] = useState<number | null>(null);
-    const [enemyHealth, setEnemyHealth] = useState(100);
-    const [playerHealth, setPlayerHealth] = useState(100);
+    // HP is never tracked as its own free-floating number — it's derived below from
+    // these hit counts against the total question count, so health, damage, and quiz
+    // progress can never drift out of sync with each other (see enemyHealth/playerHealth).
+    const [enemyHitsTaken, setEnemyHitsTaken] = useState(0);
+    const [playerHitsTaken, setPlayerHitsTaken] = useState(0);
     const [score, setScore] = useState(0);
     const [resolved, setResolved] = useState(false);
     const [complete, setComplete] = useState(false);
+    // 'idle' between questions; set the instant an answer is picked and cleared again
+    // once the whole lunge/react/return sequence has finished playing.
+    const [attackPhase, setAttackPhase] = useState<'idle' | 'player-attack' | 'enemy-attack'>('idle');
+    // Fires only for the brief window the hit actually "lands" (screen shake, hit flash,
+    // impact spark) — separate from attackPhase, which covers the whole longer lunge/
+    // return animation. `impactSide` says who just took the hit, so the flash/spark can
+    // be tinted and placed on the correct side.
+    const [impactActive, setImpactActive] = useState(false);
+    const [impactSide, setImpactSide] = useState<'enemy' | 'player' | null>(null);
+    const impactTimeoutRef = useRef<number | null>(null);
+    const resetTimeoutRef = useRef<number | null>(null);
+    const impactPulseTimeoutRef = useRef<number | null>(null);
+    useEffect(() => {
+      return () => {
+        if (impactTimeoutRef.current) window.clearTimeout(impactTimeoutRef.current);
+        if (resetTimeoutRef.current) window.clearTimeout(resetTimeoutRef.current);
+        if (impactPulseTimeoutRef.current) window.clearTimeout(impactPulseTimeoutRef.current);
+      };
+    }, []);
     // One entry per answered question — feeds subject-level mastery tracking on the
     // dashboard once the encounter finishes (see onComplete below).
     const resultsRef = useRef<{ subject: string; correct: boolean }[]>([]);
@@ -5135,18 +5891,50 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // result of retreating and re-entering the exact same fight.
     const questions = getEncounterQuestions(opponent, profile.strand);
     const current = questions[question];
+    // Every point of damage is sized off the real length of this encounter, so a short
+    // 2-question skirmish and a long Citadel run both use up the full health bar over
+    // the whole fight — never emptying out after just a few hits while many questions
+    // remain, and never sitting untouched because the fixed damage was too small.
+    const questionCount = Math.max(questions.length, 1);
+    const enemyHealth = Math.max(0, Math.round(100 * (1 - enemyHitsTaken / questionCount)));
+    const playerHealth = Math.max(0, Math.round(100 * (1 - playerHitsTaken / questionCount)));
     const opponentName = opponent?.name ?? 'the challenger';
-    const opponentInitial = opponentName.trim().charAt(0).toUpperCase() || 'C';
+    const opponentInitial = getInitials(opponentName);
+    // Every real challenger gets the same stable look every time (see
+    // getChallengerAvatar); a null opponent shouldn't normally reach Battle, but falls
+    // back to a generic id so the arena never renders with a missing/blank fighter.
+    const opponentAvatar = getChallengerAvatar(opponent ?? { id: 'unknown-challenger', name: opponentName });
     const answer = (index: number) => {
       if (resolved || complete) return;
       setSelected(index); setResolved(true);
       const isCorrect = index === current.answer;
       resultsRef.current.push({ subject: current.subject, correct: isCorrect });
-      // No toast here on purpose — the answer buttons, health bars, and hit animation
+      // No toast here on purpose — the answer buttons, health bars, and attack animation
       // already give immediate feedback per question. A toast per answer would just be
       // the same information twice, several times a battle.
-      if (isCorrect) { setEnemyHealth((value) => Math.max(0, value - 33)); setScore((value) => value + 100); }
-      else { setPlayerHealth((value) => Math.max(0, value - 25)); }
+      if (isCorrect) setScore((value) => value + 100);
+
+      setAttackPhase(isCorrect ? 'player-attack' : 'enemy-attack');
+      // Health drops right as the attack "lands" mid-animation, not the instant the
+      // button is clicked — makes the hit feel connected to the swing instead of the bar
+      // just snapping down while the character is still mid-air.
+      impactTimeoutRef.current = window.setTimeout(() => {
+        const nextEnemyHitsTaken = isCorrect ? enemyHitsTaken + 1 : enemyHitsTaken;
+        const nextPlayerHitsTaken = isCorrect ? playerHitsTaken : playerHitsTaken + 1;
+        if (isCorrect) setEnemyHitsTaken(nextEnemyHitsTaken);
+        else setPlayerHitsTaken(nextPlayerHitsTaken);
+        // Shake/flash/spark fire in this same tick, so they read as caused by the hit
+        // landing rather than as a separate, disconnected effect.
+        setImpactSide(isCorrect ? 'enemy' : 'player');
+        setImpactActive(true);
+        impactPulseTimeoutRef.current = window.setTimeout(() => setImpactActive(false), BATTLE_IMPACT_EFFECT_MS);
+        // End the fight the instant either bar would actually hit zero — a clean KO,
+        // not something the player has to click "Next" through. Whichever side's counter
+        // just reached the total question count is the one that ran out of HP.
+        if (nextEnemyHitsTaken >= questionCount) { setComplete(true); onComplete(resultsRef.current); }
+        else if (nextPlayerHitsTaken >= questionCount) { setComplete(true); onComplete(resultsRef.current); }
+      }, BATTLE_IMPACT_DELAY_MS);
+      resetTimeoutRef.current = window.setTimeout(() => setAttackPhase('idle'), BATTLE_ATTACK_DURATION_MS);
     };
     const next = () => {
       if (question < questions.length - 1) { setQuestion((value) => value + 1); setSelected(null); setResolved(false); return; }
@@ -5155,7 +5943,102 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // toast here.
       setComplete(true); onComplete(resultsRef.current);
     };
-    return <div className="page-wrap battle-layout"><div className="page-toolbar"><div><div className="eyebrow">{opponent?.questTitle ? opponent.questTitle.toUpperCase() : 'LIVE ENCOUNTER'}</div><h1 className="page-title"><em>{opponentName}</em> is waiting.</h1></div><button className="btn-secondary" onClick={onExit}><X size={14} /> Retreat</button></div><div className="panel battle-arena"><div className="battle-top"><span className="battle-label">QUIZ BATTLE // {complete ? questions.length : question + 1} / {questions.length}</span><span className="battle-score">SCORE {String(score).padStart(4, '0')}</span></div><div className="combatants"><div className="combatant"><div className={`combatant-avatar hero ${resolved && selected !== current.answer ? 'animate-hit' : ''}`}>{getInitials(profile.name)}</div><div className="combatant-name">{profile.name}</div><div className="health-track"><div className="health-fill" style={{ width: `${playerHealth}%` }} /></div></div><div className="versus">VS</div><div className="combatant"><div className={`combatant-avatar enemy ${resolved && selected === current.answer ? 'animate-hit' : ''}`}>{opponentInitial}</div><div className="combatant-name">{opponentName}</div><div className="health-track"><div className="health-fill enemy-health" style={{ width: `${enemyHealth}%` }} /></div></div></div></div>{complete ? <div className="panel question-panel battle-complete"><Trophy size={34} className="text-amber-300 mx-auto" /><div className="question-index mt-4">ENCOUNTER CLEARED</div><h2 className="question-text">You stayed with the hard part.</h2><p className="muted text-sm">The result is logged to your player file. Take the momentum with you.</p><button className="btn-primary mt-5" onClick={onExit}>Return to mission control <ChevronRight size={14} /></button></div> : <div className="panel question-panel"><div className="question-index">QUESTION 0{question + 1} / KNOWLEDGE CHECK</div><h2 className="question-text">{current.question}</h2><div className="answers">{current.options.map((option, index) => <button className={`answer-btn ${resolved && index === current.answer ? 'correct' : ''} ${resolved && selected === index && index !== current.answer ? 'wrong' : ''}`} key={option} disabled={resolved} onClick={() => answer(index)}>{String.fromCharCode(65 + index)} <span className="ml-2">{option}</span></button>)}</div>{resolved && <><div className="feedback">{selected === current.answer ? 'DIRECT HIT // The concept is locked in.' : `MISS // The correct answer was ${current.options[current.answer]}.`}</div><button className="btn-primary mt-4" onClick={next}>{question === questions.length - 1 ? 'Finish encounter' : 'Next question'} <ChevronRight size={14} /></button></>}</div>}</div>;
+    return (
+      <div className="page-wrap battle-layout">
+        <div className="page-toolbar">
+          <div>
+            <div className="eyebrow">{opponent?.questTitle ? opponent.questTitle.toUpperCase() : 'LIVE ENCOUNTER'}</div>
+            <h1 className="page-title"><em>{opponentName}</em> is waiting.</h1>
+          </div>
+          <button className="btn-secondary" onClick={onExit}><X size={14} /> Retreat</button>
+        </div>
+        <div className={`panel battle-arena ${impactActive ? 'screen-shake' : ''}`}>
+          {/* Hit flash: brief tinted wash at the instant of impact, tinted to whoever
+              just took the hit. Absolutely positioned, pointer-events: none — decoration
+              only, never intercepts clicks or shifts anything beneath it. */}
+          {impactActive && impactSide && <div className={`arena-hit-flash flash-${impactSide}`} aria-hidden="true" />}
+          {/* Upper wall: nameplate + health for each fighter, mounted above the floor
+              they're standing on — plus the round/score readout on its own plate,
+              centered between them. Nothing here floats free over the scene. */}
+          <div className="arena-wall">
+            <div className="arena-plate player-plate">
+              <div className="plate-name">{profile.name}</div>
+              <div className="health-track"><div className="health-fill" style={{ width: `${playerHealth}%` }} /></div>
+            </div>
+            <div className="arena-plate center-plate">
+              <span className="battle-label">QUIZ BATTLE // {complete ? questions.length : question + 1} / {questions.length}</span>
+              <span className="battle-score">SCORE {String(score).padStart(4, '0')}</span>
+            </div>
+            <div className="arena-plate enemy-plate">
+              <div className="plate-name">{opponentName}</div>
+              <div className="health-track"><div className="health-fill enemy-health" style={{ width: `${enemyHealth}%` }} /></div>
+            </div>
+          </div>
+          {/* Floor: the fighters themselves, each directly under their own nameplate
+              above, on opposite sides of the arena, facing inward toward each other. */}
+          <div className="arena-floor">
+            <div className="combatant">
+              <div className={`combatant-fighter hero-fighter ${attackPhase === 'player-attack' ? 'lunge-toward-enemy' : ''} ${attackPhase === 'enemy-attack' ? 'hit-react' : ''}`}>
+                <AvatarFigure avatar={profile.avatar} initials={getInitials(profile.name)} size="small" />
+              </div>
+            </div>
+            <div className="versus">VS</div>
+            <div className="combatant">
+              <div className={`combatant-fighter enemy-fighter ${attackPhase === 'enemy-attack' ? 'lunge-toward-player' : ''} ${attackPhase === 'player-attack' ? 'hit-react' : ''}`}>
+                {/* Mirrored on its own inner wrapper (not the animated outer one) so the
+                    constant "facing left, toward the player" flip never fights with the
+                    lunge/hit-react transform animations applied above it. */}
+                <div className="enemy-fighter-flip">
+                  <AvatarFigure avatar={opponentAvatar} initials={opponentInitial} size="small" />
+                </div>
+              </div>
+            </div>
+            {/* Impact burst: a small spark that pops where the hit lands, then fades.
+                Absolutely positioned within the floor's own grid track, so it never
+                pushes or resizes either fighter's column. */}
+            {impactActive && impactSide && (
+              <div className={`impact-burst impact-burst-${impactSide}`} aria-hidden="true">
+                <Zap size={20} strokeWidth={2.25} />
+              </div>
+            )}
+          </div>
+        </div>
+        {complete ? (
+          <div className="panel question-panel battle-complete">
+            <Trophy size={34} className="text-amber-300 mx-auto" />
+            <div className="question-index mt-4">ENCOUNTER CLEARED</div>
+            <h2 className="question-text">You stayed with the hard part.</h2>
+            <p className="muted text-sm">The result is logged to your player file. Take the momentum with you.</p>
+            <button className="btn-primary mt-5" onClick={onExit}>Return to mission control <ChevronRight size={14} /></button>
+          </div>
+        ) : (
+          <div className="panel question-panel">
+            <div className="question-index">QUESTION 0{question + 1} / KNOWLEDGE CHECK</div>
+            <h2 className="question-text">{current.question}</h2>
+            <div className="answers">
+              {current.options.map((option, index) => (
+                <button
+                  className={`answer-btn ${resolved && index === current.answer ? 'correct' : ''} ${resolved && selected === index && index !== current.answer ? 'wrong' : ''}`}
+                  key={option}
+                  disabled={resolved}
+                  onClick={() => answer(index)}
+                >
+                  {String.fromCharCode(65 + index)} <span className="ml-2">{option}</span>
+                </button>
+              ))}
+            </div>
+            {resolved && (
+              <>
+                <div className="feedback">{selected === current.answer ? 'DIRECT HIT // The concept is locked in.' : `MISS // The correct answer was ${current.options[current.answer]}.`}</div>
+                {/* Disabled until the attack sequence finishes so the fighters are always
+                    back at rest before the next question's UI appears underneath them. */}
+                <button className="btn-primary mt-4" onClick={next} disabled={attackPhase !== 'idle'}>{question === questions.length - 1 ? 'Finish encounter' : 'Next question'} <ChevronRight size={14} /></button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    );
   }
 
   function Shop({ coins, owned, equipped, buyItem, equipItem, quests }: { coins: number; owned: string[]; equipped: string | null; buyItem: (id: string, price: number, name: string) => void; equipItem: (id: string, name: string) => void; quests: Quest[] }) {
