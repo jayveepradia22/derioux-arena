@@ -2116,6 +2116,17 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     overflow-wrap: break-word;
   }
 
+  .feedback-explanation {
+    display: block;
+    margin-top: 5px;
+    color: rgba(248, 184, 78, .78);
+    font-weight: 400;
+  }
+
+  .battle-layout .feedback-explanation {
+    margin-top: 3px;
+  }
+
   /* Shop */
   .shop-grid {
     display: grid;
@@ -3756,7 +3767,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       display: flex;
       flex-direction: column;
       padding: 10px 12px;
-      overflow: hidden;
+      overflow-y: auto;
     }
     .battle-layout .question-text {
       flex: 0 0 auto;
@@ -3960,7 +3971,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     margin: 0;
     padding: clamp(9px, 1.3vh, 18px) clamp(10px, 1.8vw, 22px);
     box-sizing: border-box;
-    overflow: hidden;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
   }
@@ -4420,7 +4431,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   type Profile = { name: string; email: string; strand: string; avatar: AvatarConfig };
   type Quest = { id: string; title: string; meta: string; rewardXp: number; rewardCoins: number; done: boolean };
   type ShopItem = { id: string; name: string; copy: string; price: number; icon: typeof Crosshair; category: 'Gear' | 'Consumables' | 'Cosmetics'; requiredQuestId?: string };
-  type GameState = { coins: number; xp: number; quests: Quest[]; owned: string[]; equipped: string | null; studyMinutes: number; activityDates: string[]; subjectMastery: Record<string, { correct: number; total: number }> };
+  type GameState = { coins: number; xp: number; quests: Quest[]; owned: string[]; equipped: string | null; studyMinutes: number; activityDates: string[]; subjectMastery: Record<string, { correct: number; total: number }>; defeatedChallengerIds: string[] };
   // No `password` field anymore — Firebase Auth owns credentials entirely; this is now
   // purely the Firestore document shape for `players/{uid}`.
   type StoredAccount = { profile: Profile; game: GameState };
@@ -4469,7 +4480,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     if (achievement.requiredCategory) return owned.some((id) => shopItems.find((item) => item.id === id)?.category === achievement.requiredCategory);
     return false;
   };
-  type Question = { subject: string; question: string; options: string[]; answer: number };
+  type Question = { subject: string; question: string; options: string[]; answer: number; explanation: string };
 
   // One question bank per strand (the same four values chosen at signup: STEM / ABM /
   // HUMSS / GENERAL KNOWLEDGE). Every question a player ever sees comes from their own
@@ -4478,44 +4489,44 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // set (see buildChallengerQuestionSet below) without repeating content across strands.
   const QUESTION_BANK: Record<string, Question[]> = {
     STEM: [
-      { subject: 'Biology', question: 'Which organelle is known as the powerhouse of the cell?', options: ['Nucleus', 'Mitochondria', 'Ribosome', 'Golgi apparatus'], answer: 1 },
-      { subject: 'Calculus', question: 'What is the derivative of x²?', options: ['x', '2', '2x', 'x²'], answer: 2 },
-      { subject: 'Physics', question: 'Which force keeps planets in orbit around the sun?', options: ['Friction', 'Gravity', 'Magnetism', 'Tension'], answer: 1 },
-      { subject: 'Chemistry', question: 'What is the chemical symbol for sodium?', options: ['So', 'Sd', 'Na', 'S'], answer: 2 },
-      { subject: 'Biology', question: 'What is the basic unit of heredity called?', options: ['Cell', 'Gene', 'Atom', 'Protein'], answer: 1 },
-      { subject: 'Physics', question: 'What is the SI unit of force?', options: ['Joule', 'Watt', 'Newton', 'Pascal'], answer: 2 },
-      { subject: 'Calculus', question: 'What is the integral of 2x dx?', options: ['x² + C', '2x² + C', 'x + C', '2 + C'], answer: 0 },
-      { subject: 'Computer Science', question: "What does 'CPU' stand for?", options: ['Central Process Unit', 'Central Processing Unit', 'Computer Personal Unit', 'Core Processing Utility'], answer: 1 },
+      { subject: 'Biology', question: 'Which organelle is known as the powerhouse of the cell?', options: ['Nucleus', 'Mitochondria', 'Ribosome', 'Golgi apparatus'], answer: 1, explanation: 'Mitochondria generate the cell\'s ATP energy through cellular respiration, which is why they\'re called its powerhouse.' },
+      { subject: 'Calculus', question: 'What is the derivative of x²?', options: ['x', '2', '2x', 'x²'], answer: 2, explanation: 'Using the power rule, the derivative of x^n is n·x^(n-1), so the derivative of x² is 2x.' },
+      { subject: 'Physics', question: 'Which force keeps planets in orbit around the sun?', options: ['Friction', 'Gravity', 'Magnetism', 'Tension'], answer: 1, explanation: 'Gravity is the attractive pull between masses, and it\'s what continuously bends each planet\'s path into an orbit around the sun.' },
+      { subject: 'Chemistry', question: 'What is the chemical symbol for sodium?', options: ['So', 'Sd', 'Na', 'S'], answer: 2, explanation: 'Sodium\'s symbol, Na, comes from its Latin name \'natrium.\'' },
+      { subject: 'Biology', question: 'What is the basic unit of heredity called?', options: ['Cell', 'Gene', 'Atom', 'Protein'], answer: 1, explanation: 'A gene is a segment of DNA carrying the instructions for a specific trait, making it the basic unit of heredity.' },
+      { subject: 'Physics', question: 'What is the SI unit of force?', options: ['Joule', 'Watt', 'Newton', 'Pascal'], answer: 2, explanation: 'The newton is defined as the force needed to accelerate a 1 kg mass by 1 m/s², named after Isaac Newton.' },
+      { subject: 'Calculus', question: 'What is the integral of 2x dx?', options: ['x² + C', '2x² + C', 'x + C', '2 + C'], answer: 0, explanation: 'Integration reverses differentiation, so the antiderivative of 2x is x², plus a constant of integration.' },
+      { subject: 'Computer Science', question: "What does 'CPU' stand for?", options: ['Central Process Unit', 'Central Processing Unit', 'Computer Personal Unit', 'Core Processing Utility'], answer: 1, explanation: 'The CPU fetches and executes instructions, which is why it\'s called the Central Processing Unit.' },
     ],
     ABM: [
-      { subject: 'Accounting', question: "In the accounting equation, Assets = Liabilities + ___?", options: ['Revenue', 'Equity', 'Expenses', 'Cash'], answer: 1 },
-      { subject: 'Economics', question: 'What term describes the total value of goods and services produced in a country in a year?', options: ['Inflation rate', 'GDP', 'Interest rate', 'Trade balance'], answer: 1 },
-      { subject: 'Business', question: "What does 'ROI' stand for?", options: ['Rate of Interest', 'Return on Investment', 'Revenue over Income', 'Ratio of Investment'], answer: 1 },
-      { subject: 'Accounting', question: "Which financial statement shows a company's profit over a period?", options: ['Balance sheet', 'Income statement', 'Cash flow statement', 'Trial balance'], answer: 1 },
-      { subject: 'Economics', question: 'All else equal, what happens to demand when the price of a good rises?', options: ['Demand rises', 'Demand falls', 'Demand stays the same', 'Supply falls'], answer: 1 },
-      { subject: 'Management', question: 'In a SWOT analysis, what does the T stand for?', options: ['Trends', 'Targets', 'Threats', 'Tactics'], answer: 2 },
-      { subject: 'Business', question: 'A business owned and run by a single person is called a ___?', options: ['Corporation', 'Partnership', 'Cooperative', 'Sole proprietorship'], answer: 3 },
-      { subject: 'Economics', question: 'What is the study of how individual households and firms make decisions called?', options: ['Macroeconomics', 'Microeconomics', 'Econometrics', 'Behavioral economics'], answer: 1 },
+      { subject: 'Accounting', question: "In the accounting equation, Assets = Liabilities + ___?", options: ['Revenue', 'Equity', 'Expenses', 'Cash'], answer: 1, explanation: 'The accounting equation balances what a business owns (assets) against what it owes (liabilities) and the owners\' stake (equity).' },
+      { subject: 'Economics', question: 'What term describes the total value of goods and services produced in a country in a year?', options: ['Inflation rate', 'GDP', 'Interest rate', 'Trade balance'], answer: 1, explanation: 'GDP, or Gross Domestic Product, measures the total value of everything a country produces in a year.' },
+      { subject: 'Business', question: "What does 'ROI' stand for?", options: ['Rate of Interest', 'Return on Investment', 'Revenue over Income', 'Ratio of Investment'], answer: 1, explanation: 'ROI measures how much profit an investment generates relative to what it cost.' },
+      { subject: 'Accounting', question: "Which financial statement shows a company's profit over a period?", options: ['Balance sheet', 'Income statement', 'Cash flow statement', 'Trial balance'], answer: 1, explanation: 'The income statement reports revenues and expenses over a period of time, showing whether the company turned a profit.' },
+      { subject: 'Economics', question: 'All else equal, what happens to demand when the price of a good rises?', options: ['Demand rises', 'Demand falls', 'Demand stays the same', 'Supply falls'], answer: 1, explanation: 'This is the law of demand: as price rises, quantity demanded typically falls, all else being equal.' },
+      { subject: 'Management', question: 'In a SWOT analysis, what does the T stand for?', options: ['Trends', 'Targets', 'Threats', 'Tactics'], answer: 2, explanation: 'SWOT stands for Strengths, Weaknesses, Opportunities, and Threats — Threats being external risks that could hurt the business.' },
+      { subject: 'Business', question: 'A business owned and run by a single person is called a ___?', options: ['Corporation', 'Partnership', 'Cooperative', 'Sole proprietorship'], answer: 3, explanation: 'A sole proprietorship is a business owned and run by one person, with no legal separation between owner and business.' },
+      { subject: 'Economics', question: 'What is the study of how individual households and firms make decisions called?', options: ['Macroeconomics', 'Microeconomics', 'Econometrics', 'Behavioral economics'], answer: 1, explanation: 'Microeconomics focuses on the decisions of individual households and firms, unlike macroeconomics, which looks at the whole economy.' },
     ],
     HUMSS: [
-      { subject: 'Literature', question: "Who wrote the novel 'Noli Me Tangere'?", options: ['Andrés Bonifacio', 'José Rizal', 'Apolinario Mabini', 'Marcelo del Pilar'], answer: 1 },
-      { subject: 'History', question: 'In what year did the Philippine Revolution against Spain begin?', options: ['1896', '1898', '1901', '1872'], answer: 0 },
-      { subject: 'Social Science', question: 'Which social science primarily studies human societies and social relationships?', options: ['Psychology', 'Sociology', 'Anthropology', 'Political science'], answer: 1 },
-      { subject: 'Literature', question: "Which figure of speech compares two unlike things using 'like' or 'as'?", options: ['Metaphor', 'Simile', 'Hyperbole', 'Personification'], answer: 1 },
-      { subject: 'History', question: "Who is known as the 'Father of the Philippine Revolution'?", options: ['José Rizal', 'Emilio Aguinaldo', 'Andrés Bonifacio', 'Antonio Luna'], answer: 2 },
-      { subject: 'Language', question: 'What part of speech primarily describes an action or state of being?', options: ['Noun', 'Adjective', 'Verb', 'Adverb'], answer: 2 },
-      { subject: 'Social Science', question: 'The study of past human activity through excavation of artifacts is called?', options: ['Archaeology', 'Geology', 'Paleontology', 'Ethnography'], answer: 0 },
-      { subject: 'Literature', question: "What term describes a story's central message or insight?", options: ['Plot', 'Setting', 'Theme', 'Tone'], answer: 2 },
+      { subject: 'Literature', question: "Who wrote the novel 'Noli Me Tangere'?", options: ['Andrés Bonifacio', 'José Rizal', 'Apolinario Mabini', 'Marcelo del Pilar'], answer: 1, explanation: 'José Rizal wrote Noli Me Tangere in 1887 to expose social injustices under Spanish colonial rule.' },
+      { subject: 'History', question: 'In what year did the Philippine Revolution against Spain begin?', options: ['1896', '1898', '1901', '1872'], answer: 0, explanation: 'The revolution against Spain broke out in August 1896, led by the Katipunan.' },
+      { subject: 'Social Science', question: 'Which social science primarily studies human societies and social relationships?', options: ['Psychology', 'Sociology', 'Anthropology', 'Political science'], answer: 1, explanation: 'Sociology examines human social relationships, institutions, and society as a whole.' },
+      { subject: 'Literature', question: "Which figure of speech compares two unlike things using 'like' or 'as'?", options: ['Metaphor', 'Simile', 'Hyperbole', 'Personification'], answer: 1, explanation: 'A simile explicitly compares two different things using \'like\' or \'as,\' unlike a metaphor, which states one thing is another.' },
+      { subject: 'History', question: "Who is known as the 'Father of the Philippine Revolution'?", options: ['José Rizal', 'Emilio Aguinaldo', 'Andrés Bonifacio', 'Antonio Luna'], answer: 2, explanation: 'Andrés Bonifacio founded the Katipunan and is honored as the Father of the Philippine Revolution.' },
+      { subject: 'Language', question: 'What part of speech primarily describes an action or state of being?', options: ['Noun', 'Adjective', 'Verb', 'Adverb'], answer: 2, explanation: 'Verbs express actions, occurrences, or states of being, forming the core of a sentence\'s predicate.' },
+      { subject: 'Social Science', question: 'The study of past human activity through excavation of artifacts is called?', options: ['Archaeology', 'Geology', 'Paleontology', 'Ethnography'], answer: 0, explanation: 'Archaeology studies past human life by excavating and analyzing physical artifacts and remains.' },
+      { subject: 'Literature', question: "What term describes a story's central message or insight?", options: ['Plot', 'Setting', 'Theme', 'Tone'], answer: 2, explanation: 'A theme is the underlying message or insight a piece of literature conveys about life or the human condition.' },
     ],
     'GENERAL KNOWLEDGE': [
-      { subject: 'Science', question: 'What is the largest planet in our solar system?', options: ['Saturn', 'Jupiter', 'Neptune', 'Earth'], answer: 1 },
-      { subject: 'Arts', question: 'Who painted the Mona Lisa?', options: ['Michelangelo', 'Raphael', 'Leonardo da Vinci', 'Donatello'], answer: 2 },
-      { subject: 'Geography', question: 'What is the capital of the Philippines?', options: ['Cebu City', 'Davao City', 'Manila', 'Quezon City'], answer: 2 },
-      { subject: 'Geography', question: 'How many continents are there on Earth?', options: ['5', '6', '7', '8'], answer: 2 },
-      { subject: 'Science', question: 'What gas do plants primarily absorb from the atmosphere for photosynthesis?', options: ['Oxygen', 'Nitrogen', 'Carbon dioxide', 'Hydrogen'], answer: 2 },
-      { subject: 'Geography', question: 'Which ocean is the largest by surface area?', options: ['Atlantic Ocean', 'Indian Ocean', 'Arctic Ocean', 'Pacific Ocean'], answer: 3 },
-      { subject: 'Science', question: 'What is the freezing point of water in Celsius?', options: ['0°C', '32°C', '100°C', '-1°C'], answer: 0 },
-      { subject: 'History', question: 'Who is credited with inventing the telephone?', options: ['Thomas Edison', 'Alexander Graham Bell', 'Nikola Tesla', 'Guglielmo Marconi'], answer: 1 },
+      { subject: 'Science', question: 'What is the largest planet in our solar system?', options: ['Saturn', 'Jupiter', 'Neptune', 'Earth'], answer: 1, explanation: 'Jupiter is the largest planet in our solar system by both mass and volume.' },
+      { subject: 'Arts', question: 'Who painted the Mona Lisa?', options: ['Michelangelo', 'Raphael', 'Leonardo da Vinci', 'Donatello'], answer: 2, explanation: 'Leonardo da Vinci painted the Mona Lisa in the early 1500s; it now hangs in the Louvre.' },
+      { subject: 'Geography', question: 'What is the capital of the Philippines?', options: ['Cebu City', 'Davao City', 'Manila', 'Quezon City'], answer: 2, explanation: 'Manila is the capital city of the Philippines, located on the island of Luzon.' },
+      { subject: 'Geography', question: 'How many continents are there on Earth?', options: ['5', '6', '7', '8'], answer: 2, explanation: 'Earth is divided into seven continents: Asia, Africa, North America, South America, Antarctica, Europe, and Australia.' },
+      { subject: 'Science', question: 'What gas do plants primarily absorb from the atmosphere for photosynthesis?', options: ['Oxygen', 'Nitrogen', 'Carbon dioxide', 'Hydrogen'], answer: 2, explanation: 'Plants absorb carbon dioxide and use sunlight to convert it into glucose and oxygen during photosynthesis.' },
+      { subject: 'Geography', question: 'Which ocean is the largest by surface area?', options: ['Atlantic Ocean', 'Indian Ocean', 'Arctic Ocean', 'Pacific Ocean'], answer: 3, explanation: 'The Pacific Ocean covers about a third of Earth\'s surface, making it the largest and deepest ocean.' },
+      { subject: 'Science', question: 'What is the freezing point of water in Celsius?', options: ['0°C', '32°C', '100°C', '-1°C'], answer: 0, explanation: 'Water freezes at 0°C (32°F) at standard atmospheric pressure.' },
+      { subject: 'History', question: 'Who is credited with inventing the telephone?', options: ['Thomas Edison', 'Alexander Graham Bell', 'Nikola Tesla', 'Guglielmo Marconi'], answer: 1, explanation: 'Alexander Graham Bell patented the telephone in 1876, though the invention\'s true origins are still debated.' },
     ],
   };
 
@@ -4607,7 +4618,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     const derivedName = authUser?.displayName?.trim() || authUser?.email?.split('@')[0] || 'Player';
     return { name: derivedName, email: authUser?.email ?? '', strand: 'STEM', avatar: makeDefaultAvatar() };
   };
-  const makeFreshGameState = (): GameState => ({ coins: 0, xp: 0, quests: initialQuests.map((quest) => ({ ...quest })), owned: [], equipped: null, studyMinutes: 0, activityDates: [], subjectMastery: {} });
+  const makeFreshGameState = (): GameState => ({ coins: 0, xp: 0, quests: initialQuests.map((quest) => ({ ...quest })), owned: [], equipped: null, studyMinutes: 0, activityDates: [], subjectMastery: {}, defeatedChallengerIds: [] });
   const getInitials = (name: string) => name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'PL';
 
   const toISODate = (date: Date) => {
@@ -4639,9 +4650,17 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     const snap = await getDoc(doc(db, 'players', uid));
     if (!snap.exists()) return null;
     const data = snap.data() as StoredAccount;
-    // Older accounts predate the subjectMastery field — backfill it rather than letting
-    // downstream code (e.g. the Academic Mastery panel) deal with `undefined`.
-    return { ...data, game: { ...data.game, subjectMastery: data.game.subjectMastery ?? {} } };
+    // Older accounts predate the subjectMastery/defeatedChallengerIds fields — backfill
+    // them rather than letting downstream code (e.g. the Academic Mastery panel, or the
+    // campus quest-giver checkmarks) deal with `undefined`.
+    return {
+      ...data,
+      game: {
+        ...data.game,
+        subjectMastery: data.game.subjectMastery ?? {},
+        defeatedChallengerIds: data.game.defeatedChallengerIds ?? [],
+      },
+    };
   };
   const savePlayerDoc = (uid: string, data: StoredAccount) => setDoc(doc(db, 'players', uid), data);
 
@@ -5604,7 +5623,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       : bank; // citadel: comprehensive — the entire strand bank
     return shuffleArray(slice).map((q) => {
       const shuffledOptions = shuffleArray(q.options.map((option, index) => ({ option, isCorrect: index === q.answer })));
-      return { subject: q.subject, question: q.question, options: shuffledOptions.map((o) => o.option), answer: shuffledOptions.findIndex((o) => o.isCorrect) };
+      return { subject: q.subject, question: q.question, options: shuffledOptions.map((o) => o.option), answer: shuffledOptions.findIndex((o) => o.isCorrect), explanation: q.explanation };
     });
   };
 
@@ -5775,6 +5794,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const mapWidth = map[0].length;
       const mapHeight = map.length;
       const challengers = CAMPUS_CHALLENGERS.map((c) => ({ ...c, active: true }));
+      // Same deterministic per-challenger AvatarConfig used everywhere else a challenger's
+      // likeness is shown (Battle, the quest briefing card) — computed once here rather
+      // than every animation frame, since the world sprite below now renders a full
+      // proportioned body instead of a flat colored placeholder.
+      const challengerAvatars = new Map(challengers.map((c) => [c.id, getChallengerAvatar(c)]));
       const notes = CAMPUS_NOTES.map((n) => ({ ...n }));
       const guides = CAMPUS_GUIDES.map((g) => ({ ...g }));
       const props = CAMPUS_PROPS.map((p) => ({ ...p }));
@@ -5897,6 +5921,21 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         tapStart.style.display = 'none';
       }
 
+      // The floating "in range" UI (the top prompt bar, the mobile CTA button, and the
+      // on-screen badge above the NPC) is only ever updated from inside render(), which
+      // itself only runs while roamingActive is true. Pausing roaming to open the
+      // discovery card (or jump straight to the quest) stops render() from running — so
+      // without this, those three elements simply freeze on-screen in whatever state
+      // they were last drawn in, stacking underneath the discovery card that opens next.
+      // That's the exact overlap/redundant-prompt mess being reported: hide them the
+      // instant roaming pauses, instead of relying on a render loop that's no longer
+      // ticking to clean itself up.
+      const hideFieldUi = () => {
+        prompt.style.display = 'none';
+        interactCta.style.display = 'none';
+        badge.style.display = 'none';
+      };
+
       const interact = (target: (typeof challengers)[number]) => {
         if (!target.active) return;
         if (defeatedIdsRef.current.includes(target.id)) {
@@ -5910,6 +5949,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         if (!signaledIds.has(target.id)) {
           signaledIds.add(target.id);
           roamingActive = false;
+          hideFieldUi();
           if (document.pointerLockElement === canvas) document.exitPointerLock();
           pushDiscovery({
             title: '✦ QUEST FOUND',
@@ -5921,6 +5961,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         }
 
         roamingActive = false;
+        hideFieldUi();
         if (document.pointerLockElement === canvas) document.exitPointerLock();
         onFoundRef.current(target, { x: playerX, y: playerY, angle: playerAngle });
       };
@@ -6224,6 +6265,121 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           return { screenX, size, drawY, dist: transformX, fogAlpha };
         }
 
+        // Same outfit/shoe palette as the DOM AvatarFigure's --outfit-*/--shoes CSS, kept
+        // in sync here so a challenger's world sprite and its Battle/briefing portrait are
+        // recognizably the same character, not just the same silhouette.
+        const OUTFIT_HEX: Record<AvatarConfig['topColor'], string> = { indigo: '#4b4fbb', coral: '#c6565d', cyan: '#267b8d', gold: '#af752e' };
+        const SHOE_HEX: Record<AvatarConfig['shoes'], string> = { dark: '#181b2d', white: '#c9d3dd', amber: '#f8b84e' };
+
+        // Full-body pixel-art character, drawn with the exact same part layout and
+        // proportions as the player's own AvatarFigure (head+hair, body+arms, legs or
+        // skirt, shoes) — just as canvas rects/paths instead of DOM/CSS boxes, so a
+        // quest-giver standing in the world reads as an actual person built from the same
+        // visual language as the player, never a flat colored placeholder block.
+        // `centerX`/`feetY` anchor the character at ground contact; it's laid out upward
+        // from there using `totalHeight` scaled against the same 96×152 reference box the
+        // CSS version uses, so proportions match at any distance/size.
+        function drawVoxelFigure(centerX: number, feetY: number, totalHeight: number, avatar: AvatarConfig) {
+          const k = totalHeight / 152;
+          const outfitColor = OUTFIT_HEX[avatar.topColor];
+          const shoeColor = SHOE_HEX[avatar.shoes];
+          ctx!.lineWidth = Math.max(1, 2 * k);
+          ctx!.strokeStyle = 'rgba(20, 22, 38, 0.9)';
+
+          const shoeH = 11 * k, shoeW = 29 * k, shoeOverlap = 5 * k;
+          const legH = (avatar.bottomType === 'shorts' ? 19 : 35) * k, legW = 23 * k, legGap = 5 * k;
+          const legsTop = feetY - (shoeH - shoeOverlap) - legH;
+          const bodyH = 54 * k, bodyW = (avatar.gender === 'feminine' ? 53 : 59) * k;
+          const bodyTop = legsTop - 2 * k - bodyH;
+          const headH = 42 * k, headW = 48 * k;
+          const headTop = bodyTop - 3 * k - headH;
+          // `armOffset` is the gap between the arm's inner edge and the body — matching
+          // the DOM AvatarFigure's CSS (`.pixel-arm { left: -15px }` on a 12px-wide arm
+          // against the body's own edge, i.e. a 15 - 12 = 3px gap). This used to be set
+          // to 15*k directly and then had armW subtracted again below, which pushed the
+          // arms a full armW further out than the CSS version — the "floating arm" /
+          // disassembled look on quest-giver NPCs in the world. 3*k reproduces the same
+          // snug gap the character's own avatar card renders everywhere else.
+          const armW = 12 * k, armH = 42 * k, armOffset = 3 * k;
+
+          // Grounding shadow, same treatment the player's own pixel-shadow gets.
+          ctx!.fillStyle = 'rgba(0, 0, 0, 0.32)';
+          ctx!.beginPath();
+          ctx!.ellipse(centerX, feetY + 1 * k, 38 * k, 5 * k, 0, 0, Math.PI * 2);
+          ctx!.fill();
+
+          // Shoes
+          ctx!.fillStyle = shoeColor;
+          ctx!.fillRect(centerX - legGap / 2 - shoeW, feetY - shoeH, shoeW, shoeH);
+          ctx!.strokeRect(centerX - legGap / 2 - shoeW, feetY - shoeH, shoeW, shoeH);
+          ctx!.fillRect(centerX + legGap / 2, feetY - shoeH, shoeW, shoeH);
+          ctx!.strokeRect(centerX + legGap / 2, feetY - shoeH, shoeW, shoeH);
+
+          // Legs, or a skirt in place of separate legs — same trapezoid the CSS clip-path draws.
+          if (avatar.bottomType === 'skirt') {
+            const skirtW = 62 * k, skirtH = 30 * k;
+            ctx!.fillStyle = outfitColor;
+            ctx!.beginPath();
+            ctx!.moveTo(centerX - skirtW / 2 + skirtW * 0.18, legsTop);
+            ctx!.lineTo(centerX - skirtW / 2 + skirtW * 0.82, legsTop);
+            ctx!.lineTo(centerX + skirtW / 2, legsTop + skirtH);
+            ctx!.lineTo(centerX - skirtW / 2, legsTop + skirtH);
+            ctx!.closePath();
+            ctx!.fill();
+            ctx!.stroke();
+          } else {
+            ctx!.fillStyle = '#272c49';
+            ctx!.fillRect(centerX - legGap / 2 - legW, legsTop, legW, legH);
+            ctx!.strokeRect(centerX - legGap / 2 - legW, legsTop, legW, legH);
+            ctx!.fillRect(centerX + legGap / 2, legsTop, legW, legH);
+            ctx!.strokeRect(centerX + legGap / 2, legsTop, legW, legH);
+          }
+
+          // Arms, flanking the body
+          ctx!.fillStyle = avatar.skin;
+          ctx!.fillRect(centerX - bodyW / 2 - armOffset - armW, bodyTop + 4 * k, armW, armH);
+          ctx!.strokeRect(centerX - bodyW / 2 - armOffset - armW, bodyTop + 4 * k, armW, armH);
+          ctx!.fillRect(centerX + bodyW / 2 + armOffset, bodyTop + 4 * k, armW, armH);
+          ctx!.strokeRect(centerX + bodyW / 2 + armOffset, bodyTop + 4 * k, armW, armH);
+
+          // Body/outfit
+          ctx!.fillStyle = outfitColor;
+          ctx!.fillRect(centerX - bodyW / 2, bodyTop, bodyW, bodyH);
+          ctx!.strokeRect(centerX - bodyW / 2, bodyTop, bodyW, bodyH);
+
+          // Head
+          ctx!.fillStyle = avatar.skin;
+          ctx!.fillRect(centerX - headW / 2, headTop, headW, headH);
+          ctx!.strokeRect(centerX - headW / 2, headTop, headW, headH);
+
+          // Hair
+          if (avatar.hair !== 'bald') {
+            const hairH = (avatar.hair === 'long' ? 31 : avatar.hair === 'curly' ? 20 : 17) * k;
+            ctx!.fillStyle = avatar.hairColor;
+            ctx!.fillRect(centerX - headW / 2 - 4 * k, headTop - 7 * k, headW + 8 * k, hairH);
+            ctx!.strokeRect(centerX - headW / 2 - 4 * k, headTop - 7 * k, headW + 8 * k, hairH);
+          }
+
+          // Eyes
+          ctx!.fillStyle = '#182038';
+          ctx!.fillRect(centerX - 15 * k, headTop + 22 * k, 5 * k, 5 * k);
+          ctx!.fillRect(centerX + 10 * k, headTop + 22 * k, 5 * k, 5 * k);
+
+          return { headTop }; // so callers can anchor a status icon just above the head
+        }
+
+        // Every billboard sprite category (quest-givers, lost notes, guides, props, signs)
+        // used to be drawn in its own separate forEach, back to back, regardless of actual
+        // distance from the player. That meant a nearer challenger could get drawn *before*
+        // a farther note, and — since canvas drawing is just "last thing painted wins" —
+        // the farther note would paint right over the top of the nearer NPC, making the
+        // note visible in front of things that should have been in front of it. This queue
+        // collects every sprite's draw call along with its real distance first, then
+        // executes them back-to-front (farthest first) afterward, so items always occlude
+        // each other in the correct order no matter which category they belong to —
+        // exactly like the wall z-buffer already does for the environment.
+        const spriteDrawQueue: { dist: number; draw: () => void }[] = [];
+
         challengers.forEach((term) => {
           // Quest-giver locations are intentionally fixed — term.x/term.y are never mutated.
           // IMPORTANT: quest discovery is NOT triggered by proximity. The player should first
@@ -6242,72 +6398,81 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           const proj = projectSprite(term.x, term.y + idleBob, beaconRange);
           if (!proj) return;
           const { screenX: spriteScreenX, size: spriteSize, drawY, dist: spriteDist } = proj;
-          const inBodyRange = spriteDist <= fogDistance;
-          const bodyAlpha = Math.max(0, Math.min(1, 1 - spriteDist / fogDistance));
-          if (inBodyRange) {
-            const drawX = spriteScreenX - spriteSize * 0.25;
-            const bWidth = spriteSize * 0.5, bHeight = spriteSize * 0.8;
-            ctx!.globalAlpha = bodyAlpha;
-            ctx!.fillStyle = isFinished ? '#059669' : term.active ? '#1e293b' : '#334155';
-            ctx!.fillRect(drawX + bWidth * 0.2, drawY + bHeight * 0.4, bWidth * 0.6, bHeight * 0.6);
-            ctx!.fillStyle = isFinished ? '#34d399' : term.active ? '#38bdf8' : '#64748b';
-            ctx!.fillRect(drawX + bWidth * 0.3, drawY + bHeight * 0.45, bWidth * 0.4, bHeight * 0.3);
-            if (term.active && !isFinished) {
-              ctx!.fillStyle = '#ffffff';
-              ctx!.font = CHALLENGER_FONT;
-              ctx!.fillText('⚔', spriteScreenX - 8, drawY - 10);
-            }
-            ctx!.globalAlpha = 1;
-          }
+          spriteDrawQueue.push({
+            dist: spriteDist,
+            draw: () => {
+              const inBodyRange = spriteDist <= fogDistance;
+              const bodyAlpha = Math.max(0, Math.min(1, 1 - spriteDist / fogDistance));
+              if (inBodyRange) {
+                // Anchor at the floor plane for this projected distance/size (same convention
+                // walls and the floor grid already use), so the figure's feet actually meet the
+                // ground instead of floating at an arbitrary fraction of the sprite square.
+                const groundY = drawY + spriteSize;
+                const figureHeight = spriteSize * 0.82;
+                ctx!.globalAlpha = bodyAlpha;
+                const avatar = challengerAvatars.get(term.id);
+                if (avatar) {
+                  const { headTop } = drawVoxelFigure(spriteScreenX, groundY, figureHeight, avatar);
+                  // Status icon above the head: a sword for an available challenge, a checkmark
+                  // once defeated — the character itself always renders in its own true likeness,
+                  // so this is the only thing that needs to change to signal state.
+                  ctx!.fillStyle = isFinished ? '#34d399' : '#f8b84e';
+                  ctx!.font = CHALLENGER_FONT;
+                  ctx!.fillText(isFinished ? '✓' : '⚔', spriteScreenX - 8, headTop - 10);
+                }
+                ctx!.globalAlpha = 1;
+              }
 
-          if (term.active && !isFinished) {
-            // Name tag: same pill treatment as the room/building signs, anchored a fixed
-            // offset above the sword icon so the two never collide. Only drawn within a
-            // "readable" band (comfortably inside normal fog range, not full range) — past
-            // that, the beacon below is the only signal, exactly like squinting at a distant
-            // light without being able to make out a name yet.
-            const readableRange = fogDistance * 0.7;
-            if (spriteDist <= readableRange) {
-              const nameAlpha = Math.max(0, Math.min(1, 1 - spriteDist / readableRange));
-              const fontSize = Math.max(9, Math.min(15, Math.floor(spriteSize * 0.1)));
-              ctx!.font = `bold ${fontSize}px sans-serif`;
-              const labelText = term.name;
-              const textWidth = ctx!.measureText(labelText).width;
-              const padX = 7, padY = 4;
-              const boxW = textWidth + padX * 2, boxH = fontSize + padY * 2;
-              const labelY = drawY - 34 - spriteSize * 0.05 - 26; // fixed gap above the beacon center
-              ctx!.globalAlpha = nameAlpha;
-              ctx!.fillStyle = 'rgba(15, 20, 36, 0.72)';
-              ctx!.fillRect(spriteScreenX - boxW / 2, labelY - boxH / 2, boxW, boxH);
-              ctx!.strokeStyle = 'rgba(248, 184, 78, 0.5)';
-              ctx!.lineWidth = 1;
-              ctx!.strokeRect(spriteScreenX - boxW / 2, labelY - boxH / 2, boxW, boxH);
-              ctx!.fillStyle = '#f1f5f9';
-              ctx!.textAlign = 'center';
-              ctx!.textBaseline = 'middle';
-              ctx!.fillText(labelText, spriteScreenX, labelY + 1);
-              ctx!.textAlign = 'left';
-              ctx!.textBaseline = 'alphabetic';
-              ctx!.globalAlpha = 1;
-            }
+              if (term.active && !isFinished) {
+                // Name tag: same pill treatment as the room/building signs, anchored a fixed
+                // offset above the sword icon so the two never collide. Only drawn within a
+                // "readable" band (comfortably inside normal fog range, not full range) — past
+                // that, the beacon below is the only signal, exactly like squinting at a distant
+                // light without being able to make out a name yet.
+                const readableRange = fogDistance * 0.7;
+                if (spriteDist <= readableRange) {
+                  const nameAlpha = Math.max(0, Math.min(1, 1 - spriteDist / readableRange));
+                  const fontSize = Math.max(9, Math.min(15, Math.floor(spriteSize * 0.1)));
+                  ctx!.font = `bold ${fontSize}px sans-serif`;
+                  const labelText = term.name;
+                  const textWidth = ctx!.measureText(labelText).width;
+                  const padX = 7, padY = 4;
+                  const boxW = textWidth + padX * 2, boxH = fontSize + padY * 2;
+                  const labelY = drawY - 34 - spriteSize * 0.05 - 26; // fixed gap above the beacon center
+                  ctx!.globalAlpha = nameAlpha;
+                  ctx!.fillStyle = 'rgba(15, 20, 36, 0.72)';
+                  ctx!.fillRect(spriteScreenX - boxW / 2, labelY - boxH / 2, boxW, boxH);
+                  ctx!.strokeStyle = 'rgba(248, 184, 78, 0.5)';
+                  ctx!.lineWidth = 1;
+                  ctx!.strokeRect(spriteScreenX - boxW / 2, labelY - boxH / 2, boxW, boxH);
+                  ctx!.fillStyle = '#f1f5f9';
+                  ctx!.textAlign = 'center';
+                  ctx!.textBaseline = 'middle';
+                  ctx!.fillText(labelText, spriteScreenX, labelY + 1);
+                  ctx!.textAlign = 'left';
+                  ctx!.textBaseline = 'alphabetic';
+                  ctx!.globalAlpha = 1;
+                }
 
-            // Signal: a soft pulsing beacon above every un-defeated challenger, visible from
-            // far across the map (not just up close) so players get a sense of "something's
-            // over there" long before they can make out the NPC itself. Fades out smoothly
-            // over its own extended range rather than cutting off hard at beaconRange.
-            const beaconAlpha = Math.max(0, Math.min(1, 1 - spriteDist / beaconRange));
-            const pulse = 0.5 + 0.5 * Math.sin(now / 420 + term.x);
-            const beaconY = drawY - 34 - spriteSize * 0.05;
-            const grad = ctx!.createRadialGradient(spriteScreenX, beaconY, 0, spriteScreenX, beaconY, 14 * pulse + 8);
-            grad.addColorStop(0, `rgba(248, 184, 78, ${0.55 * pulse + 0.15})`);
-            grad.addColorStop(1, 'rgba(248, 184, 78, 0)');
-            ctx!.globalAlpha = beaconAlpha;
-            ctx!.fillStyle = grad;
-            ctx!.beginPath();
-            ctx!.arc(spriteScreenX, beaconY, 14 * pulse + 8, 0, Math.PI * 2);
-            ctx!.fill();
-            ctx!.globalAlpha = 1;
-          }
+                // Signal: a soft pulsing beacon above every un-defeated challenger, visible from
+                // far across the map (not just up close) so players get a sense of "something's
+                // over there" long before they can make out the NPC itself. Fades out smoothly
+                // over its own extended range rather than cutting off hard at beaconRange.
+                const beaconAlpha = Math.max(0, Math.min(1, 1 - spriteDist / beaconRange));
+                const pulse = 0.5 + 0.5 * Math.sin(now / 420 + term.x);
+                const beaconY = drawY - 34 - spriteSize * 0.05;
+                const grad = ctx!.createRadialGradient(spriteScreenX, beaconY, 0, spriteScreenX, beaconY, 14 * pulse + 8);
+                grad.addColorStop(0, `rgba(248, 184, 78, ${0.55 * pulse + 0.15})`);
+                grad.addColorStop(1, 'rgba(248, 184, 78, 0)');
+                ctx!.globalAlpha = beaconAlpha;
+                ctx!.fillStyle = grad;
+                ctx!.beginPath();
+                ctx!.arc(spriteScreenX, beaconY, 14 * pulse + 8, 0, Math.PI * 2);
+                ctx!.fill();
+                ctx!.globalAlpha = 1;
+              }
+            },
+          });
         });
 
         // Lost Notes: small glowing pickups that bob gently in place. Walking close enough
@@ -6317,21 +6482,26 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           const bob = Math.sin(now / 500 + note.x * 3) * 0.06;
           const proj = projectSprite(note.x, note.y + bob);
           if (!proj) return;
-          const { screenX, size, drawY, fogAlpha } = proj;
-          ctx!.globalAlpha = fogAlpha;
-          const glow = 0.4 + 0.3 * Math.sin(now / 300 + note.x);
-          const grad = ctx!.createRadialGradient(screenX, drawY + size * 0.72, 0, screenX, drawY + size * 0.72, size * 0.22);
-          grad.addColorStop(0, `rgba(244, 240, 231, ${glow})`);
-          grad.addColorStop(1, 'rgba(244, 240, 231, 0)');
-          ctx!.fillStyle = grad;
-          ctx!.beginPath();
-          ctx!.arc(screenX, drawY + size * 0.72, size * 0.22, 0, Math.PI * 2);
-          ctx!.fill();
-          ctx!.font = `${Math.max(10, Math.floor(size * 0.18))}px sans-serif`;
-          ctx!.textAlign = 'center';
-          ctx!.fillText('📝', screenX, drawY + size * 0.78);
-          ctx!.textAlign = 'left';
-          ctx!.globalAlpha = 1;
+          const { screenX, size, drawY, fogAlpha, dist } = proj;
+          spriteDrawQueue.push({
+            dist,
+            draw: () => {
+              ctx!.globalAlpha = fogAlpha;
+              const glow = 0.4 + 0.3 * Math.sin(now / 300 + note.x);
+              const grad = ctx!.createRadialGradient(screenX, drawY + size * 0.72, 0, screenX, drawY + size * 0.72, size * 0.22);
+              grad.addColorStop(0, `rgba(244, 240, 231, ${glow})`);
+              grad.addColorStop(1, 'rgba(244, 240, 231, 0)');
+              ctx!.fillStyle = grad;
+              ctx!.beginPath();
+              ctx!.arc(screenX, drawY + size * 0.72, size * 0.22, 0, Math.PI * 2);
+              ctx!.fill();
+              ctx!.font = `${Math.max(10, Math.floor(size * 0.18))}px sans-serif`;
+              ctx!.textAlign = 'center';
+              ctx!.fillText('📝', screenX, drawY + size * 0.78);
+              ctx!.textAlign = 'left';
+              ctx!.globalAlpha = 1;
+            },
+          });
         });
 
         // Friendly guide NPCs: same billboard treatment as challengers but teal-coded and
@@ -6339,18 +6509,23 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         guides.forEach((guide) => {
           const proj = projectSprite(guide.x, guide.y);
           if (!proj) return;
-          const { screenX: spriteScreenX, size: spriteSize, drawY, fogAlpha } = proj;
-          ctx!.globalAlpha = fogAlpha;
-          const drawX = spriteScreenX - spriteSize * 0.25;
-          const gWidth = spriteSize * 0.5, gHeight = spriteSize * 0.8;
-          ctx!.fillStyle = '#0f2e2c';
-          ctx!.fillRect(drawX + gWidth * 0.2, drawY + gHeight * 0.4, gWidth * 0.6, gHeight * 0.6);
-          ctx!.fillStyle = '#67cdd1';
-          ctx!.fillRect(drawX + gWidth * 0.3, drawY + gHeight * 0.45, gWidth * 0.4, gHeight * 0.3);
-          ctx!.fillStyle = '#ffffff';
-          ctx!.font = GUIDE_FONT;
-          ctx!.fillText('💬', spriteScreenX - 8, drawY - 8);
-          ctx!.globalAlpha = 1;
+          const { screenX: spriteScreenX, size: spriteSize, drawY, fogAlpha, dist } = proj;
+          spriteDrawQueue.push({
+            dist,
+            draw: () => {
+              ctx!.globalAlpha = fogAlpha;
+              const drawX = spriteScreenX - spriteSize * 0.25;
+              const gWidth = spriteSize * 0.5, gHeight = spriteSize * 0.8;
+              ctx!.fillStyle = '#0f2e2c';
+              ctx!.fillRect(drawX + gWidth * 0.2, drawY + gHeight * 0.4, gWidth * 0.6, gHeight * 0.6);
+              ctx!.fillStyle = '#67cdd1';
+              ctx!.fillRect(drawX + gWidth * 0.3, drawY + gHeight * 0.45, gWidth * 0.4, gHeight * 0.3);
+              ctx!.fillStyle = '#ffffff';
+              ctx!.font = GUIDE_FONT;
+              ctx!.fillText('💬', spriteScreenX - 8, drawY - 8);
+              ctx!.globalAlpha = 1;
+            },
+          });
         });
 
         // Environmental props: trees/planters/benches/lamps. One glyph draw each, no state,
@@ -6361,13 +6536,18 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           const bob = prop.sway ? Math.sin(now / 900 + prop.x * 2) * 0.03 : 0;
           const proj = projectSprite(prop.x, prop.y + bob);
           if (!proj) return;
-          const { screenX, size, drawY, fogAlpha } = proj;
-          ctx!.globalAlpha = fogAlpha;
-          ctx!.font = `${Math.max(10, Math.floor(size * 0.22))}px sans-serif`;
-          ctx!.textAlign = 'center';
-          ctx!.fillText(prop.glyph, screenX, drawY + size * 0.82);
-          ctx!.textAlign = 'left';
-          ctx!.globalAlpha = 1;
+          const { screenX, size, drawY, fogAlpha, dist } = proj;
+          spriteDrawQueue.push({
+            dist,
+            draw: () => {
+              ctx!.globalAlpha = fogAlpha;
+              ctx!.font = `${Math.max(10, Math.floor(size * 0.22))}px sans-serif`;
+              ctx!.textAlign = 'center';
+              ctx!.fillText(prop.glyph, screenX, drawY + size * 0.82);
+              ctx!.textAlign = 'left';
+              ctx!.globalAlpha = 1;
+            },
+          });
         });
 
         // Landmark signs: a small placard (rounded rect + label) at a handful of notable
@@ -6385,63 +6565,55 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         signs.forEach((sign) => {
           const proj = projectSprite(sign.x, sign.y);
           if (!proj) return;
-          const { screenX, size, drawY, fogAlpha } = proj;
+          const { screenX, size, drawY, fogAlpha, dist } = proj;
           const [nx, ny] = SIGN_NORMALS[sign.side];
           const toPlayerX = playerX - sign.x, toPlayerY = playerY - sign.y;
           const toPlayerLen = Math.hypot(toPlayerX, toPlayerY) || 1;
           const facing = (nx * toPlayerX + ny * toPlayerY) / toPlayerLen;
           if (facing <= 0.05) return; // player is on the blank side of the wall — nothing to read
           const foreshorten = Math.max(0.45, facing); // floor keeps it from collapsing to a sliver
-          ctx!.globalAlpha = fogAlpha;
-          const fontSize = Math.max(9, Math.min(20, Math.floor(size * 0.11)));
-          ctx!.font = `bold ${fontSize}px sans-serif`;
-          const textWidth = ctx!.measureText(sign.label).width;
-          const padX = 8, padY = 5;
-          const boxW = textWidth + padX * 2, boxH = fontSize + padY * 2;
-          // Mounted high on the wall, like real signage above head height, instead of
-          // hovering at torso height out in front of it.
-          const boxCenterY = drawY - size * 0.3 + boxH / 2;
-          ctx!.save();
-          ctx!.translate(screenX, boxCenterY);
-          ctx!.scale(foreshorten, 1);
-          ctx!.fillStyle = 'rgba(15, 20, 36, 0.78)';
-          ctx!.fillRect(-boxW / 2, -boxH / 2, boxW, boxH);
-          ctx!.strokeStyle = 'rgba(248, 184, 78, 0.5)';
-          ctx!.lineWidth = 1 / foreshorten;
-          ctx!.strokeRect(-boxW / 2, -boxH / 2, boxW, boxH);
-          ctx!.fillStyle = '#f1f5f9';
-          ctx!.textAlign = 'center';
-          ctx!.textBaseline = 'middle';
-          ctx!.fillText(sign.label, 0, 1);
-          ctx!.restore();
-          ctx!.textAlign = 'left';
-          ctx!.textBaseline = 'alphabetic';
-          ctx!.globalAlpha = 1;
+          spriteDrawQueue.push({
+            dist,
+            draw: () => {
+              ctx!.globalAlpha = fogAlpha;
+              const fontSize = Math.max(9, Math.min(20, Math.floor(size * 0.11)));
+              ctx!.font = `bold ${fontSize}px sans-serif`;
+              const textWidth = ctx!.measureText(sign.label).width;
+              const padX = 8, padY = 5;
+              const boxW = textWidth + padX * 2, boxH = fontSize + padY * 2;
+              // Mounted high on the wall, like real signage above head height, instead of
+              // hovering at torso height out in front of it.
+              const boxCenterY = drawY - size * 0.3 + boxH / 2;
+              ctx!.save();
+              ctx!.translate(screenX, boxCenterY);
+              ctx!.scale(foreshorten, 1);
+              ctx!.fillStyle = 'rgba(15, 20, 36, 0.78)';
+              ctx!.fillRect(-boxW / 2, -boxH / 2, boxW, boxH);
+              ctx!.strokeStyle = 'rgba(248, 184, 78, 0.5)';
+              ctx!.lineWidth = 1 / foreshorten;
+              ctx!.strokeRect(-boxW / 2, -boxH / 2, boxW, boxH);
+              ctx!.fillStyle = '#f1f5f9';
+              ctx!.textAlign = 'center';
+              ctx!.textBaseline = 'middle';
+              ctx!.fillText(sign.label, 0, 1);
+              ctx!.restore();
+              ctx!.textAlign = 'left';
+              ctx!.textBaseline = 'alphabetic';
+              ctx!.globalAlpha = 1;
+            },
+          });
         });
 
-        activeTerminalTarget = null;
-        let badgeTarget: { x: number; y: number } | null = null;
-        let activeTerminalDone = false;
-        for (const term of challengers) {
-          const distToTerm = Math.hypot(playerX - term.x, playerY - term.y);
-          if (distToTerm < 1.5 && term.active) {
-            activeTerminalTarget = term;
-            const alreadyDone = defeatedIdsRef.current.includes(term.id);
-            activeTerminalDone = alreadyDone;
-            prompt.innerText = alreadyDone ? `[${term.area}] ${term.name} — QUEST ALREADY COMPLETED` : `[${term.area}] PRESS 'E' OR TAP TO CHALLENGE: ${term.name}`;
-            prompt.style.display = 'block';
-            if (!alreadyDone) {
-              // Reproject this NPC to screen space so the floating badge can sit right
-              // above its sprite. Only shown when it's actually in front of the player and
-              // not hidden behind a wall — matches how the sprite itself is drawn/occluded.
-              const bProj = projectSprite(term.x, term.y);
-              if (bProj) badgeTarget = { x: bProj.screenX, y: bProj.drawY };
-            }
-            break;
-          }
-        }
+        // Paint back-to-front (farthest first) so nearer sprites always end up drawn on
+        // top of farther ones, regardless of which category either belongs to — the fix
+        // for notes/props/signs/NPCs incorrectly overlapping each other in the wrong order.
+        spriteDrawQueue.sort((a, b) => b.dist - a.dist);
+        spriteDrawQueue.forEach((entry) => entry.draw());
 
-        // Lost Note pickups: no button/press needed, just walk close enough.
+        // Lost Note pickups: no button/press needed, just walk close enough. This always
+        // runs, regardless of whether a discovery card is already showing — pushDiscovery
+        // just adds it to the queue (see above), so a pickup made mid-card still gets
+        // shown, just one at a time in order rather than stacking on screen.
         for (const note of notes) {
           if (collectedNotes.has(note.id)) continue;
           if (Math.hypot(playerX - note.x, playerY - note.y) < 0.6) {
@@ -6467,7 +6639,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           }
         }
 
-
         // Visible progression: a plain "X / Y discovered" readout so a run always has a
         // sense of how much ground has actually been covered. Only touches the DOM when the
         // count changes, same as the district chip above.
@@ -6477,36 +6648,74 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           if (progressChipRef.current) progressChipRef.current.textContent = `🧭 ${discoveredCount}/${totalDiscoverable} DISCOVERED`;
         }
 
-        // Locked gate: shows a status line in the prompt bar (no badge, nothing to press —
-        // it opens itself once the mastery condition is met) whenever the player is nearby
-        // and no challenger prompt is already claiming the bar.
+        // Gate-unlock is a real state change (opens the map tile, fires a toast), so it
+        // always runs — only the prompt-bar line it can post below is gated on the card.
         checkGateUnlock();
-        let gateNearby = false;
-        if (!activeTerminalTarget && !gate.open) {
-          const gateDist = Math.hypot(playerX - (gate.x + 0.5), playerY - (gate.y + 0.5));
-          if (gateDist < 1.6) {
-            gateNearby = true;
-            const doneCount = gate.requiredIds.filter((id) => defeatedIdsRef.current.includes(id)).length;
-            prompt.innerText = `🔒 ${gate.label} — SEALED. Defeat all three Districts first. (${doneCount}/${gate.requiredIds.length} mastered)`;
-            prompt.style.display = 'block';
+
+        // The ambient "nearby object" UI — prompt bar, floating badge above an NPC, mobile
+        // CTA — only ever shows one thing at a time, and never while a discovery/hint card
+        // is already up. A note or guide can trigger its card at the exact moment the
+        // player also happens to be standing next to a challenger or the locked gate; without
+        // this guard the prompt bar goes on updating and showing itself underneath/behind
+        // that card every frame, which is exactly the overlapping-popups bug this fixes.
+        // `activeTerminalTarget` is cleared too, so E/tap can't fire a second interaction
+        // while the card is still up.
+        if (discoveryActive) {
+          activeTerminalTarget = null;
+          hideFieldUi();
+        } else {
+          activeTerminalTarget = null;
+          let badgeTarget: { x: number; y: number } | null = null;
+          let activeTerminalDone = false;
+          for (const term of challengers) {
+            const distToTerm = Math.hypot(playerX - term.x, playerY - term.y);
+            if (distToTerm < 1.5 && term.active) {
+              activeTerminalTarget = term;
+              const alreadyDone = defeatedIdsRef.current.includes(term.id);
+              activeTerminalDone = alreadyDone;
+              prompt.innerText = alreadyDone ? `[${term.area}] ${term.name} — QUEST ALREADY COMPLETED` : `[${term.area}] PRESS 'E' OR TAP TO CHALLENGE: ${term.name}`;
+              prompt.style.display = 'block';
+              if (!alreadyDone) {
+                // Reproject this NPC to screen space so the floating badge can sit right
+                // above its sprite. Only shown when it's actually in front of the player and
+                // not hidden behind a wall — matches how the sprite itself is drawn/occluded.
+                const bProj = projectSprite(term.x, term.y);
+                if (bProj) badgeTarget = { x: bProj.screenX, y: bProj.drawY };
+              }
+              break;
+            }
           }
-        }
-        if (!activeTerminalTarget && !gateNearby && prompt.style.display === 'block') prompt.style.display = 'none';
 
-        if (badgeTarget) {
-          badge.style.display = 'flex';
-          badge.style.transform = `translate(${badgeTarget.x - 17}px, ${badgeTarget.y - 42}px)`;
-        } else {
-          badge.style.display = 'none';
-        }
+          // Locked gate: shows a status line in the prompt bar (no badge, nothing to press —
+          // it opens itself once the mastery condition is met) whenever the player is nearby
+          // and no challenger prompt is already claiming the bar.
+          let gateNearby = false;
+          if (!activeTerminalTarget && !gate.open) {
+            const gateDist = Math.hypot(playerX - (gate.x + 0.5), playerY - (gate.y + 0.5));
+            if (gateDist < 1.6) {
+              gateNearby = true;
+              const doneCount = gate.requiredIds.filter((id) => defeatedIdsRef.current.includes(id)).length;
+              prompt.innerText = `🔒 ${gate.label} — SEALED. Defeat all three Districts first. (${doneCount}/${gate.requiredIds.length} mastered)`;
+              prompt.style.display = 'block';
+            }
+          }
+          if (!activeTerminalTarget && !gateNearby && prompt.style.display === 'block') prompt.style.display = 'none';
 
-        // Large fixed-position mobile CTA: shown any time an unfinished challenger is in
-        // interact range, regardless of where its sprite/badge happens to be on screen.
-        if (isMobile && activeTerminalTarget && !activeTerminalDone) {
-          interactCta.style.display = 'flex';
-          interactCta.textContent = '⚔ QUEST AVAILABLE — TAP TO INTERACT';
-        } else {
-          interactCta.style.display = 'none';
+          if (badgeTarget) {
+            badge.style.display = 'flex';
+            badge.style.transform = `translate(${badgeTarget.x - 17}px, ${badgeTarget.y - 42}px)`;
+          } else {
+            badge.style.display = 'none';
+          }
+
+          // Large fixed-position mobile CTA: shown any time an unfinished challenger is in
+          // interact range, regardless of where its sprite/badge happens to be on screen.
+          if (isMobile && activeTerminalTarget && !activeTerminalDone) {
+            interactCta.style.display = 'flex';
+            interactCta.textContent = '⚔ QUEST AVAILABLE — TAP TO INTERACT';
+          } else {
+            interactCta.style.display = 'none';
+          }
         }
       }
 
@@ -6940,7 +7149,16 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             </div>
             {resolved && (
               <>
-                <div className="feedback">{selected === current.answer ? 'DIRECT HIT // The concept is locked in.' : `MISS // The correct answer was ${current.options[current.answer]}.`}</div>
+                <div className="feedback">
+                  {selected === current.answer
+                    ? 'DIRECT HIT // The concept is locked in.'
+                    : (
+                      <>
+                        MISS // The correct answer was {current.options[current.answer]}.
+                        {current.explanation && <span className="feedback-explanation"> {current.explanation}</span>}
+                      </>
+                    )}
+                </div>
                 {/* Disabled until the attack sequence finishes so the fighters are always
                     back at rest before the next question's UI appears underneath them. */}
                 <button className="btn-primary mt-4" onClick={next} disabled={attackPhase !== 'idle'}>{question === questions.length - 1 ? 'Finish encounter' : 'Next question'} <ChevronRight size={14} /></button>
@@ -7394,7 +7612,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     }, [screen, questStage]);
     const [foundChallenger, setFoundChallenger] = useState<CampusChallenger | null>(null);
     const [questReturnPosition, setQuestReturnPosition] = useState<CampusReturnPosition | null>(null);
-    const [defeatedChallengerIds, setDefeatedChallengerIds] = useState<string[]>([]);
+    // Defeated-challenger state itself now lives in `accountData.game.defeatedChallengerIds`
+    // (see the `defeatedChallengerIds` const derived below, right after `game` comes into
+    // scope) so it's saved to Firestore the same way coins/xp/subjectMastery are, instead
+    // of resetting to empty every time the app reloads or the player logs back in.
     const [toasts, setToasts] = useState<ToastItem[]>([]);
     // Persistent history of the same events shown as toasts, feeding the notification
     // bell's dropdown panel — unlike toasts these don't auto-expire, so the player can
@@ -7656,6 +7877,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
     const { profile, game } = accountData;
     const streak = computeStreak(game.activityDates);
+    // Source of truth for which quest-givers are actually beaten — persisted in
+    // Firestore via `game.defeatedChallengerIds`, so a finished quest stays finished
+    // the next time this player signs back in.
+    const defeatedChallengerIds = game.defeatedChallengerIds;
 
     const claimQuest = (id: string) => {
       const quest = game.quests.find((q) => q.id === id);
@@ -7693,14 +7918,33 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         if (prevTier === null || MASTERY_TIER_RANK[tier] > MASTERY_TIER_RANK[prevTier]) improvedSubjects.push({ subject, tier, pct });
       }
 
-      updateAccountData((acc) => ({ ...acc, game: { ...acc.game, xp: acc.game.xp + xpReward, coins: acc.game.coins + coinReward, subjectMastery } }));
+      // This is the moment a quest actually finishes — the battle has run its full
+      // course (see Battle's onComplete calls) and either fighter's HP hit zero, or the
+      // player clicked through the last question. Folding defeatedChallengerIds into
+      // this same updateAccountData call (rather than a separate setState) means the
+      // "quest complete" checkmark and its persistence to Firestore happen together,
+      // atomically — never one without the other.
+      updateAccountData((acc) => {
+        const alreadyDefeated = foundChallenger ? acc.game.defeatedChallengerIds.includes(foundChallenger.id) : true;
+        return {
+          ...acc,
+          game: {
+            ...acc.game,
+            xp: acc.game.xp + xpReward,
+            coins: acc.game.coins + coinReward,
+            subjectMastery,
+            defeatedChallengerIds: foundChallenger && !alreadyDefeated
+              ? [...acc.game.defeatedChallengerIds, foundChallenger.id]
+              : acc.game.defeatedChallengerIds,
+          },
+        };
+      });
       notify('Quest cleared', `Received +${xpReward} XP and +${coinReward} credits.`);
       // Academic improvement: only fires when a subject actually crosses into a better
       // mastery tier, not on every battle — keeps it meaningful instead of routine.
       for (const improvement of improvedSubjects) {
         notify(`📈 ${improvement.subject} improving`, `Now ${improvement.tier} — ${improvement.pct}% accuracy.`);
       }
-      if (foundChallenger) setDefeatedChallengerIds((ids) => (ids.includes(foundChallenger.id) ? ids : [...ids, foundChallenger.id]));
       setFoundChallenger(null);
       // CampusExplorer remounts with questReturnPosition, placing the player exactly where
       // this quest was accepted instead of resetting them to the campus spawn point.
