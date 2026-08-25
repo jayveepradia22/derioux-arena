@@ -3779,7 +3779,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       flex: 1 1 0;
       min-height: 0;
       display: grid;
-      grid-template-rows: repeat(4, minmax(0, 1fr));
       gap: 5px;
     }
     .battle-layout .answer-btn {
@@ -3966,8 +3965,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
   .battle-layout .question-panel {
     width: 100%;
-    max-height: min(36dvh, 330px);
-    min-height: 0;
+    min-height: min(36dvh, 330px);
     margin: 0;
     padding: clamp(9px, 1.3vh, 18px) clamp(10px, 1.8vw, 22px);
     box-sizing: border-box;
@@ -4038,7 +4036,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
      footprint remains large enough to read as a full character. */
   @media (max-height: 700px) {
     .battle-layout {
-      grid-template-rows: auto minmax(170px, 1fr) minmax(190px, 37dvh);
+      grid-template-rows: auto minmax(170px, 1fr) minmax(190px, auto);
       gap: 5px;
     }
     .battle-layout .page-toolbar { min-height: 38px; }
@@ -4057,7 +4055,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   @media (max-height: 540px) {
     .battle-layout {
       padding: 5px 8px;
-      grid-template-rows: 34px minmax(128px, 1fr) minmax(180px, 39dvh);
+      grid-template-rows: 34px minmax(128px, 1fr) minmax(180px, auto);
       gap: 4px;
     }
     .battle-layout .eyebrow { display: none; }
@@ -4086,7 +4084,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     .battle-layout {
       padding-left: 7px;
       padding-right: 7px;
-      grid-template-rows: auto minmax(185px, 1fr) minmax(245px, 39dvh);
+      grid-template-rows: auto minmax(185px, 1fr) minmax(245px, auto);
     }
     .battle-layout .page-title { font-size: clamp(17px, 5.2vw, 22px); }
     .battle-layout .battle-arena { border-radius: 12px; }
@@ -4191,7 +4189,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   @media (max-height: 700px) {
     .battle-layout {
       gap: 6px;
-      grid-template-rows: 38px minmax(145px, 1fr) minmax(158px, 31dvh);
+      grid-template-rows: 38px minmax(145px, 1fr) minmax(158px, auto);
     }
 
     .battle-layout .battle-arena {
@@ -4272,7 +4270,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       height: 100dvh;
       padding: 4px 7px 5px;
       gap: 5px;
-      grid-template-rows: 30px minmax(145px, 1fr) 115px;
+      grid-template-rows: 30px minmax(145px, 1fr) minmax(115px, auto);
     }
 
     .battle-layout .page-toolbar {
@@ -4341,7 +4339,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     }
 
     .battle-layout .question-panel {
-      height: 115px;
       min-height: 115px;
       padding: 5px 7px;
       border-radius: 10px;
@@ -4370,9 +4367,18 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       border-radius: 7px;
     }
 
-    .battle-layout .feedback,
+    .battle-layout .feedback {
+      margin-top: 3px;
+      padding: 4px 6px;
+      font-size: 8px;
+      line-height: 1.2;
+    }
+
     .battle-layout .question-panel .btn-primary {
-      display: none;
+      min-height: 30px;
+      margin-top: 4px !important;
+      padding: 4px 8px;
+      font-size: 9px;
     }
   }
 
@@ -4381,7 +4387,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   @media (max-width: 430px) and (max-height: 700px) and (orientation: portrait) {
     .battle-layout {
       gap: 7px;
-      grid-template-rows: 38px minmax(190px, 1fr) minmax(220px, 36dvh);
+      grid-template-rows: 38px minmax(190px, 1fr) minmax(220px, auto);
     }
 
     .battle-layout .battle-arena {
