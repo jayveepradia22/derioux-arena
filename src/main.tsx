@@ -1700,6 +1700,134 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     position: relative;
   }
 
+  /* School interior battle scene: the quiz takes place inside the academy rather than in a
+     generic empty arena. The scene is deliberately CSS-rendered so it remains crisp, fast,
+     responsive, and usable on phones without loading another image or video. */
+  .battle-school-scene {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 50% 18%, rgba(255, 213, 133, .12), transparent 28%),
+      linear-gradient(180deg, #0b1220 0%, #101b2b 48%, #0a111d 100%);
+  }
+  .battle-school-ceiling {
+    position: absolute;
+    inset: 0 0 auto;
+    height: 34%;
+    background: linear-gradient(180deg, #111827 0%, #172235 58%, #0d1524 100%);
+    clip-path: polygon(0 0, 100% 0, 78% 100%, 22% 100%);
+    opacity: .96;
+  }
+  .battle-school-floor {
+    position: absolute;
+    left: -12%;
+    right: -12%;
+    bottom: -12%;
+    height: 64%;
+    background:
+      linear-gradient(90deg, transparent 49.6%, rgba(255,255,255,.045) 50%, transparent 50.4%),
+      linear-gradient(180deg, rgba(255,255,255,.025), rgba(0,0,0,.24)),
+      repeating-linear-gradient(90deg, rgba(103,205,209,.035) 0 2px, transparent 2px 92px),
+      repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 2px, transparent 2px 58px),
+      #182236;
+    transform: perspective(420px) rotateX(56deg);
+    transform-origin: bottom center;
+    border-top: 1px solid rgba(103,205,209,.12);
+  }
+  .battle-school-wall {
+    position: absolute;
+    top: 25%;
+    bottom: 28%;
+    width: 24%;
+    background: linear-gradient(180deg, #172337, #101a2a);
+    border: 1px solid rgba(255,255,255,.06);
+    box-shadow: inset 0 0 30px rgba(0,0,0,.25);
+  }
+  .battle-school-wall.left { left: -7%; transform: skewY(9deg); }
+  .battle-school-wall.right { right: -7%; transform: skewY(-9deg); }
+  .battle-school-window {
+    position: absolute;
+    top: 18%;
+    width: 14%;
+    height: 22%;
+    border: 5px solid #2d3a4c;
+    background:
+      linear-gradient(90deg, transparent 48%, rgba(255,255,255,.12) 49% 51%, transparent 52%),
+      linear-gradient(180deg, #193247, #0d1b2b);
+    box-shadow: 0 0 22px rgba(103,205,209,.08);
+  }
+  .battle-school-window.left { left: 8%; }
+  .battle-school-window.right { right: 8%; }
+  .battle-school-lockers {
+    position: absolute;
+    bottom: 31%;
+    width: 19%;
+    height: 17%;
+    border: 1px solid rgba(255,255,255,.08);
+    background: repeating-linear-gradient(90deg, #253247 0 16%, #182338 16% 20%);
+    opacity: .92;
+  }
+  .battle-school-lockers.left { left: 4%; }
+  .battle-school-lockers.right { right: 4%; }
+  .battle-school-board {
+    position: absolute;
+    top: 25%;
+    left: 50%;
+    width: 25%;
+    height: 17%;
+    transform: translateX(-50%);
+    border: 5px solid #3a2e2a;
+    background: #132d2c;
+    box-shadow: 0 10px 30px rgba(0,0,0,.3);
+  }
+  .battle-school-board::before {
+    content: "ACADEMY // KNOWLEDGE LAB";
+    position: absolute;
+    left: 10%;
+    top: 14%;
+    color: rgba(224,242,241,.62);
+    font: 7px var(--app-font-mono);
+    letter-spacing: .12em;
+  }
+  .battle-school-board::after {
+    content: "▰  ∑  ◇  π";
+    position: absolute;
+    left: 10%;
+    bottom: 18%;
+    color: rgba(103,205,209,.52);
+    font: 11px var(--app-font-mono);
+  }
+  .battle-school-lamp {
+    position: absolute;
+    top: 9%;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #ffd98b;
+    box-shadow: 0 0 24px 8px rgba(255,217,139,.16);
+  }
+  .battle-school-lamp.one { left: 28%; }
+  .battle-school-lamp.two { left: 50%; transform: translateX(-50%); }
+  .battle-school-lamp.three { right: 28%; }
+  .battle-school-sign {
+    position: absolute;
+    top: 9%;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255,255,255,.44);
+    font: 7px var(--app-font-mono);
+    letter-spacing: .22em;
+    white-space: nowrap;
+  }
+  .battle-school-scene > * { user-select: none; }
+
+  /* Keep all functional arena content above the school backdrop. */
+  .battle-arena > .arena-wall,
+  .battle-arena > .arena-floor { position: relative; z-index: 2; }
+
   /* Upper wall of the arena: nameplates + health tracks read like banners mounted above
      the fighters, not labels drifting loose over the scene. The quiz progress/score sits
      on its own center plate between them, same band, same wall. */
@@ -3206,6 +3334,60 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     width: 100%;
     height: 100%;
   }
+  /* Quest-giver avatars use the exact same AvatarFigure + challenger variant as Battle.
+     The wrapper is positioned in screen space by the raycaster, while the avatar itself
+     keeps the full head-to-shoe silhouette. This replaces the old simplified canvas NPC
+     rectangle, so the character the player meets is literally the character they fight. */
+  .campus-challenger-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 5;
+  }
+  .campus-challenger-avatar {
+    position: absolute;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    pointer-events: none;
+    transform-origin: center bottom;
+    will-change: transform, left, top, width, height, opacity;
+  }
+  .campus-challenger-avatar .pixel-avatar {
+    width: 96px;
+    height: 152px;
+    transform: none;
+    margin: 0;
+    flex: 0 0 96px;
+  }
+  .campus-challenger-avatar .avatar-initials {
+    display: none;
+  }
+  /* Guides use the exact same full-body avatar system as challengers and the player —
+     no more simplified rectangle billboard. Kept as a separate class only so the guide's
+     cyan/teal palette reads as "safe to approach" at a glance, the same visual language
+     the old billboard used, just carried by the real character now instead of two flat
+     rectangles. */
+  .campus-guide-avatar {
+    position: absolute;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    pointer-events: none;
+    transform-origin: center bottom;
+    will-change: transform, left, top, width, height, opacity;
+  }
+  .campus-guide-avatar .pixel-avatar {
+    width: 96px;
+    height: 152px;
+    transform: none;
+    margin: 0;
+    flex: 0 0 96px;
+  }
+  .campus-guide-avatar .avatar-initials {
+    display: none;
+  }
   .campus-hud-bar {
     position: absolute;
     top: 14px;
@@ -4382,11 +4564,333 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     }
   }
 
+  /* Short screens keep the school architecture visible without allowing it to crowd out
+     the fighters. Decorative perspective elements become lighter rather than disappearing. */
+  @media (max-height: 620px) {
+    .battle-school-ceiling { height: 28%; }
+    .battle-school-window { top: 15%; height: 18%; }
+    .battle-school-board { top: 22%; height: 15%; }
+    .battle-school-lockers { bottom: 29%; height: 14%; }
+    .battle-school-sign { top: 6%; font-size: 6px; }
+  }
+
+  @media (max-width: 600px) {
+    .battle-school-board::before { font-size: 5px; }
+    .battle-school-board::after { font-size: 8px; }
+    .battle-school-lockers { width: 16%; }
+    .battle-school-window { width: 11%; border-width: 3px; }
+    .battle-school-sign { display: none; }
+  }
+
   /* The immersive battle has no reason to scroll. If the OS/browser reports a slightly
      different visual viewport because of a dynamic address bar, 100dvh tracks that change. */
   @supports not (height: 100dvh) {
     .battle-layout,
     .main-area.main-area--immersive { height: 100vh; }
+  }
+
+  /* ===================================================================================
+     MOBILE BATTLE QUESTION FLOW — FINAL VISIBILITY/TOUCH PATCH
+
+     Goal:
+       • Once an answer is selected, feedback AND the next/finish action stay visible.
+       • Never hide the action button just because the viewport is short.
+       • Keep every answer at least 44px tall for touch accessibility.
+       • Use a compact 2x2 answer deck on phones so four answers do not create a tall
+         scrolling column.
+       • Desktop/tablet battle composition is intentionally left unchanged.
+  =================================================================================== */
+  @media (max-width: 600px) {
+    .battle-layout {
+      height: 100dvh;
+      min-height: 100dvh;
+      max-height: 100dvh;
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      gap: 6px;
+      box-sizing: border-box;
+    }
+
+    .battle-layout .battle-arena {
+      min-height: 0;
+      height: auto;
+      flex: none;
+      margin-bottom: 0;
+      overflow: hidden;
+    }
+
+    .battle-layout .question-panel {
+      width: 100%;
+      min-height: 0;
+      height: auto;
+      max-height: none;
+      overflow: hidden;
+      box-sizing: border-box;
+      padding: 9px 10px;
+      display: grid;
+      grid-template-rows: auto auto minmax(88px, auto) auto 44px;
+      gap: 5px;
+      align-content: start;
+    }
+
+    .battle-layout .question-index {
+      min-width: 0;
+      line-height: 1.1;
+      font-size: 8px;
+    }
+
+    .battle-layout .question-text {
+      min-width: 0;
+      margin: 0;
+      font-size: clamp(13px, 3.8vw, 16px);
+      line-height: 1.18;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+    }
+
+    .battle-layout .answers {
+      width: 100%;
+      min-height: 92px;
+      height: 92px;
+      flex: none;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-rows: repeat(2, 44px);
+      grid-auto-rows: 44px;
+      gap: 4px;
+      overflow: hidden;
+    }
+
+    .battle-layout .answer-btn {
+      width: 100%;
+      min-width: 0;
+      min-height: 44px;
+      height: 44px;
+      padding: 7px 8px;
+      font-size: clamp(10px, 2.9vw, 12px);
+      line-height: 1.15;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      overflow: hidden;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .battle-layout .answer-btn span {
+      min-width: 0;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+    }
+
+    /* Feedback is deliberately compact so it does not push the action below the fold. */
+    .battle-layout .feedback {
+      display: flex;
+      width: 100%;
+      min-width: 0;
+      min-height: 28px;
+      max-height: 32px;
+      margin: 0;
+      padding: 6px 8px;
+      box-sizing: border-box;
+      overflow: hidden;
+      font-size: 9px;
+      line-height: 1.15;
+      display: flex;
+      align-items: center;
+    }
+
+    .battle-layout .question-panel .btn-primary {
+      display: inline-flex;
+      width: 100%;
+      min-width: 0;
+      min-height: 44px;
+      height: 44px;
+      margin: 0 !important;
+      padding: 7px 10px;
+      box-sizing: border-box;
+      justify-content: center;
+      font-size: clamp(10px, 2.9vw, 12px);
+      line-height: 1;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* While the player is answering, reserve the same footer lane. This prevents the
+       question panel from visibly jumping when feedback + NEXT QUESTION appear. */
+    .battle-layout .question-panel:not(:has(.feedback)) {
+      grid-template-rows: auto auto minmax(88px, auto) 0 44px;
+    }
+
+    .battle-layout .question-panel:not(:has(.feedback)) .feedback,
+    .battle-layout .question-panel:not(:has(.feedback)) .btn-primary {
+      visibility: hidden;
+    }
+  }
+
+  /* Portrait phones: give the battle scene enough room to show both fighters while the
+     question deck remains a compact, fixed-height interaction area. */
+  @media (max-width: 600px) and (orientation: portrait) {
+    .battle-layout {
+      grid-template-rows: auto minmax(170px, 1fr) 235px;
+    }
+
+    .battle-layout .battle-arena {
+      min-height: 170px;
+    }
+
+    .battle-layout .combatant-fighter .pixel-avatar {
+      transform: scale(.78);
+      transform-origin: center bottom;
+    }
+  }
+
+  /* Short-height landscape phones: hide only the decorative page toolbar so the actual
+     battle controls never have to be scrolled. The arena remains visible and the full
+     question/feedback/action flow stays on-screen. */
+  @media (max-width: 900px) and (max-height: 540px) and (orientation: landscape) {
+    .battle-layout {
+      grid-template-rows: 28px 70px 225px;
+      gap: 4px;
+      padding: 4px 7px 5px;
+    }
+
+    .battle-layout .page-toolbar {
+      min-height: 28px;
+      height: 28px;
+      margin: 0;
+    }
+
+    .battle-layout .eyebrow { display: none; }
+    .battle-layout .page-title {
+      font-size: 15px;
+      line-height: 1;
+      margin: 0;
+    }
+
+    .battle-layout .page-toolbar .btn-secondary {
+      min-height: 28px;
+      height: 28px;
+      padding: 4px 8px;
+      font-size: 9px;
+    }
+
+    .battle-layout .battle-arena {
+      min-height: 70px;
+      height: 70px;
+    }
+
+    .battle-layout .arena-wall {
+      min-height: 23px;
+      padding: 2px 7px;
+    }
+
+    .battle-layout .plate-name,
+    .battle-layout .battle-score,
+    .battle-layout .battle-label {
+      font-size: 7px;
+      line-height: 1;
+    }
+
+    .battle-layout .health-track {
+      height: 3px;
+      margin-top: 1px;
+    }
+
+    .battle-layout .arena-floor {
+      min-height: 47px;
+      height: 47px;
+      padding: 0 5px 2px;
+      grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr);
+      gap: 2px;
+    }
+
+    .battle-layout .combatant,
+    .battle-layout .combatant-fighter {
+      min-height: 46px;
+      height: 46px;
+    }
+
+    .battle-layout .combatant-fighter .pixel-avatar {
+      width: 96px;
+      height: 152px;
+      flex-basis: 96px;
+      transform: scale(.42);
+      transform-origin: center bottom;
+    }
+
+    .battle-layout .question-panel {
+      min-height: 225px;
+      height: 225px;
+      padding: 8px 9px;
+      grid-template-rows: auto auto 92px 28px 44px;
+      gap: 4px;
+    }
+
+    .battle-layout .question-text {
+      font-size: 11px;
+      line-height: 1.12;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+    }
+
+    .battle-layout .answer-btn {
+      min-height: 44px;
+      height: 44px;
+      padding: 5px 7px;
+      font-size: 9px;
+    }
+
+    .battle-layout .feedback {
+      min-height: 28px;
+      max-height: 28px;
+      height: 28px;
+      padding: 5px 7px;
+      font-size: 8px;
+    }
+
+    .battle-layout .question-panel .btn-primary {
+      min-height: 44px;
+      height: 44px;
+      font-size: 9px;
+    }
+  }
+
+  /* Extremely short landscape phones (for example ~320px tall): reclaim the toolbar's
+     vertical space rather than hiding the NEXT/FINISH control. */
+  @media (max-width: 900px) and (max-height: 420px) and (orientation: landscape) {
+    .battle-layout {
+      grid-template-rows: 68px 225px;
+      gap: 4px;
+      padding: 4px 6px;
+    }
+
+    .battle-layout .page-toolbar {
+      display: none;
+    }
+
+    .battle-layout .battle-arena {
+      height: 68px;
+      min-height: 68px;
+    }
+
+    .battle-layout .arena-floor {
+      min-height: 45px;
+      height: 45px;
+    }
+
+    .battle-layout .question-panel {
+      height: 225px;
+      min-height: 225px;
+    }
   }
   `;
 
@@ -5589,6 +6093,33 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     return 'dean-enemy';
   };
 
+  // Guides get the exact same AvatarFigure treatment as challengers and the player — a
+  // full head-to-shoe character, never a placeholder. Cyan is used uniformly so the
+  // "friendly campus staff" read the old teal billboard gave still carries over, just on
+  // a real character instead of two flat rectangles. Hair/skin/silhouette still vary per
+  // guide (seeded off id+name, same technique as getChallengerAvatar) so the three don't
+  // look like clones of each other.
+  const getGuideAvatar = (guide: Pick<CampusGuide, 'id' | 'name'>): AvatarConfig => {
+    const seed = hashSeed(`${guide.id}:${guide.name}`);
+    const skins = ['#f1c6a8', '#d59a78', '#8d5a42', '#6d4437'] as const;
+    const hairColors = ['#242033', '#3a2028', '#5b3a29', '#1c1c1c'] as const;
+    const hairs = ['short', 'long', 'curly'] as const;
+    const skin = skins[seed % skins.length];
+    const hairColor = hairColors[Math.floor(seed / 7) % hairColors.length];
+    const hair = hairs[Math.floor(seed / 13) % hairs.length];
+    const gender = seed % 2 === 0 ? 'neutral' : 'feminine';
+    return {
+      gender,
+      skin,
+      hair,
+      hairColor,
+      topType: 'tshirt',
+      topColor: 'cyan',
+      bottomType: gender === 'feminine' ? 'skirt' : 'pants',
+      shoes: 'white',
+    };
+  };
+
   // Builds the exact shuffled question set one challenger presents, from the player's own
   // strand bank. Districts partition their strand's 8-question bank so every NPC gets a
   // genuinely different set: Foundation takes the first pair (quick basics check), Peaks
@@ -5747,6 +6278,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     const discoveryTitleRef = useRef<HTMLDivElement | null>(null);
     const discoveryBodyRef = useRef<HTMLDivElement | null>(null);
     const discoveryBtnRef = useRef<HTMLButtonElement | null>(null);
+    const challengerAvatarRefs = useRef<Record<string, HTMLDivElement | null>>({});
+    const guideAvatarRefs = useRef<Record<string, HTMLDivElement | null>>({});
     const defeatedIdsRef = useRef(defeatedIds);
     defeatedIdsRef.current = defeatedIds;
     const onFoundRef = useRef(onChallengerFound);
@@ -5834,6 +6367,16 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         advanceDiscoveryQueue();
       };
       const pushDiscovery = (card: DiscoveryCard) => { discoveryQueue.push(card); advanceDiscoveryQueue(); };
+      // Any explicit NPC interaction (talking to a guide, challenging a quest-giver) takes
+      // priority over passive discovery. Whatever hint/note toast happens to be showing —
+      // or waiting in the queue — is cleared immediately so the NPC's own dialogue is the
+      // only thing on screen, instead of competing with or queuing behind it.
+      const clearDiscoveryQueue = () => {
+        discoveryQueue.length = 0;
+        if (discoveryTimer) { window.clearTimeout(discoveryTimer); discoveryTimer = null; }
+        discoveryActive = null;
+        renderDiscoveryCard();
+      };
       const handleDiscoveryTap = (e: Event) => {
         e.preventDefault(); e.stopPropagation();
         const tap = discoveryActive?.onTap;
@@ -5850,6 +6393,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       let roamingActive = true;
       let raf = 0;
       let activeTerminalTarget: (typeof challengers)[number] | null = null;
+      // Guides now follow the exact same "approach → highlight/prompt → explicit interact"
+      // pattern as challengers, instead of firing their hint card the instant the player
+      // wanders into range. See the guide proximity pass and interactWithGuide() below.
+      let activeGuideTarget: (typeof guides)[number] | null = null;
 
       const keys: Record<string, boolean> = {};
       let mouseDX = 0;
@@ -5904,6 +6451,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           return;
         }
 
+        // Pressing interact always wins over whatever ambient hint/note toast happened
+        // to be showing — the player asked for this NPC's dialogue, so it shouldn't have
+        // to queue behind (or fight for attention with) something else.
+        clearDiscoveryQueue();
+
         // Quest discovery is an intentional player action, not a proximity event.
         // Let the player freely see and explore the campus first. The discovery card
         // appears only after the player actually interacts with the quest-giver.
@@ -5925,12 +6477,33 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         onFoundRef.current(target, { x: playerX, y: playerY, angle: playerAngle });
       };
 
+      // Guides only speak up when the player presses interact — never just from walking
+      // near. A guide already met can still be re-talked-to for the same line, but the
+      // one-time credit/XP reward is only ever handed over the first time.
+      const interactWithGuide = (guide: (typeof guides)[number]) => {
+        clearDiscoveryQueue();
+        const alreadyMet = triggeredGuides.has(guide.id);
+        const line = guide.lines[Math.floor(Math.random() * guide.lines.length)];
+        if (!alreadyMet) {
+          triggeredGuides.add(guide.id);
+          if (guide.reward) {
+            onRewardRef.current(guide.reward.coins, guide.reward.xp);
+            pushDiscovery({ title: `✦ ${guide.name}`, body: `${line} (+${guide.reward.coins} credits, +${guide.reward.xp} XP)`, duration: 5000 });
+            return;
+          }
+        }
+        pushDiscovery({ title: `✦ ${guide.name}`, body: line, duration: 4500 });
+      };
+
       const handleKeyDown = (e: KeyboardEvent) => {
         if (!roamingActive) return;
         const key = e.key.toLowerCase();
         if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'e'].includes(key)) {
           keys[key] = true;
-          if (key === 'e' && activeTerminalTarget) interact(activeTerminalTarget);
+          if (key === 'e') {
+            if (activeTerminalTarget) interact(activeTerminalTarget);
+            else if (activeGuideTarget) interactWithGuide(activeGuideTarget);
+          }
         }
       };
       const handleKeyUp = (e: KeyboardEvent) => { keys[e.key.toLowerCase()] = false; };
@@ -5941,26 +6514,32 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         if (pointerLocked) tapStart.style.display = 'none';
         else if (!isMobile && roamingActive) tapStart.style.display = 'block';
       };
-      const handlePromptTap = (e: Event) => { e.preventDefault(); e.stopPropagation(); if (activeTerminalTarget) interact(activeTerminalTarget); };
-      // Floating badge above the NPC: tapping/touching it opens the quest modal directly,
-      // same as pressing 'E' or tapping the bottom prompt bar. touchstart (with
+      const handlePromptTap = (e: Event) => {
+        e.preventDefault(); e.stopPropagation();
+        if (activeTerminalTarget) interact(activeTerminalTarget);
+        else if (activeGuideTarget) interactWithGuide(activeGuideTarget);
+      };
+      // Floating badge above the NPC: tapping/touching it opens the quest/dialogue card
+      // directly, same as pressing 'E' or tapping the bottom prompt bar. touchstart (with
       // preventDefault) makes mobile taps feel instant instead of waiting on the
       // synthetic click; the click listener covers mouse/desktop taps.
       const handleBadgeActivate = (e: Event) => {
         e.preventDefault();
         e.stopPropagation();
         if (activeTerminalTarget) interact(activeTerminalTarget);
+        else if (activeGuideTarget) interactWithGuide(activeGuideTarget);
       };
       // The large, fixed-position mobile "TAP TO INTERACT" button. Unlike the small floating
       // badge (which tracks the NPC's projected screen position and can be fiddly to hit),
-      // this always sits in the same spot at the bottom of the screen whenever a quest-giver
-      // is in range — so the player never has to aim precisely or tap the canvas itself.
+      // this always sits in the same spot at the bottom of the screen whenever an NPC is in
+      // range — so the player never has to aim precisely or tap the canvas itself.
       // stopPropagation keeps the touch from also reaching the look-layer underneath, so
       // tapping it can never be misread as a look-drag or cause camera drift.
       const handleCtaActivate = (e: Event) => {
         e.preventDefault();
         e.stopPropagation();
         if (activeTerminalTarget) interact(activeTerminalTarget);
+        else if (activeGuideTarget) interactWithGuide(activeGuideTarget);
       };
 
       document.addEventListener('keydown', handleKeyDown);
@@ -6229,43 +6808,95 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           // IMPORTANT: quest discovery is NOT triggered by proximity. The player should first
           // be able to freely see and explore the campus. The discovery card is created only
           // when the player intentionally interacts with this quest-giver (see interact()).
-          // A tiny idle bob is applied only to the sprite's projected render position below;
-          // purely cosmetic — it never touches term.x/term.y.
           const isFinished = defeatedIdsRef.current.includes(term.id);
-          const idleBob = Math.sin(now / 650 + term.x * 4) * 0.035;
           // The beacon is documented/intended to read from far across the map, well past
           // where the NPC's own body would normally fog out — so it gets its own longer
           // projection range. The body, sword icon, and name tag all still respect the
           // standard fogDistance below (checked via proj.dist), keeping their fade in sync
           // with the walls around them; only the beacon uses the extended range directly.
           const beaconRange = fogDistance * 1.8;
-          const proj = projectSprite(term.x, term.y + idleBob, beaconRange);
-          if (!proj) return;
+          // Bug fix: this used to project (term.x, term.y + idleBob) — feeding the idle-sway
+          // animation into the same world Y that drives the perspective distance calculation
+          // below (spriteDist / transformX). That made `spriteSize = h / transformX`, and
+          // therefore avatarWidth/avatarHeight, pulse in sync with the sway, especially at
+          // close range where a small change in a small denominator swings the result a lot
+          // — the actual cause of the reported grow/shrink glitch. Projecting from the NPC's
+          // real, unperturbed position instead means size is driven by camera distance alone
+          // (correct, intended perspective — same as every other sprite here), not by this
+          // animation. The sway itself is re-applied purely as a screen-space pixel offset
+          // further down, after size is already fixed, so it's still visible but can no
+          // longer affect scale.
+          const proj = projectSprite(term.x, term.y, beaconRange);
+          const avatarEl = challengerAvatarRefs.current[term.id];
+          if (!proj) {
+            if (avatarEl) avatarEl.style.display = 'none';
+            return;
+          }
           const { screenX: spriteScreenX, size: spriteSize, drawY, dist: spriteDist } = proj;
           const inBodyRange = spriteDist <= fogDistance;
           const bodyAlpha = Math.max(0, Math.min(1, 1 - spriteDist / fogDistance));
-          if (inBodyRange) {
-            const drawX = spriteScreenX - spriteSize * 0.25;
-            const bWidth = spriteSize * 0.5, bHeight = spriteSize * 0.8;
+          // The floor line for this sprite's distance/column — matches where the wall
+          // column behind it goes from wall to floor. Everything anchored "at the NPC's
+          // feet" (the avatar div, the ground highlight) should sit here, not at `drawY`
+          // (which is the *top* of the projected billboard box, not the floor).
+          const floorY = drawY + spriteSize;
+
+          // Subtle highlight: only while this is the challenger the player is actually in
+          // range to interact with right now — a soft ground glow, distinct from the
+          // always-on beacon above (which just signals "a quest is somewhere over there").
+          if (!isFinished && activeTerminalTarget?.id === term.id) {
+            const glowY = floorY - spriteSize * 0.04;
+            const glow = ctx!.createRadialGradient(spriteScreenX, glowY, 0, spriteScreenX, glowY, spriteSize * 0.55);
+            glow.addColorStop(0, 'rgba(248, 184, 78, 0.35)');
+            glow.addColorStop(1, 'rgba(248, 184, 78, 0)');
             ctx!.globalAlpha = bodyAlpha;
-            ctx!.fillStyle = isFinished ? '#059669' : term.active ? '#1e293b' : '#334155';
-            ctx!.fillRect(drawX + bWidth * 0.2, drawY + bHeight * 0.4, bWidth * 0.6, bHeight * 0.6);
-            ctx!.fillStyle = isFinished ? '#34d399' : term.active ? '#38bdf8' : '#64748b';
-            ctx!.fillRect(drawX + bWidth * 0.3, drawY + bHeight * 0.45, bWidth * 0.4, bHeight * 0.3);
-            if (term.active && !isFinished) {
-              ctx!.fillStyle = '#ffffff';
-              ctx!.font = CHALLENGER_FONT;
-              ctx!.fillText('⚔', spriteScreenX - 8, drawY - 10);
-            }
+            ctx!.fillStyle = glow;
+            ctx!.beginPath();
+            ctx!.ellipse(spriteScreenX, glowY, spriteSize * 0.55, spriteSize * 0.18, 0, 0, Math.PI * 2);
+            ctx!.fill();
             ctx!.globalAlpha = 1;
+          }
+
+          // The NPC is rendered as the same React AvatarFigure used by the quest briefing
+          // and Battle. The canvas used to draw a tiny generic rectangle here, which meant
+          // the player could meet one-looking character and fight another-looking character.
+          // Keep the canvas pass free of the old body art and position the real avatar overlay
+          // in exactly the same projected screen coordinates.
+          // projectSprite's `size` is the projected height of the old billboard. AvatarFigure
+          // has a 96:152 base ratio, so matching ~80% of that billboard height preserves the
+          // same perceived world scale while keeping the complete head/arms/legs/shoes visible.
+          const avatarHeight = Math.max(44, spriteSize * 0.80);
+          const avatarWidth = avatarHeight * (96 / 152);
+          // Anchor the character at `floorY` (its feet), not `drawY` (the top of the old
+          // billboard box) — using drawY here is what made the NPC render as if standing
+          // on a platform roughly its own height above the actual floor.
+          const avatarTop = floorY - avatarHeight;
+          if (avatarEl) {
+            if (inBodyRange) {
+              // Purely cosmetic vertical sway, fixed pixel amplitude — decoupled from
+              // projection/distance entirely (see note above), so it can never influence
+              // avatarWidth/avatarHeight, only where the already-sized element sits.
+              const idleBobPx = Math.sin(now / 650 + term.x * 4) * 3;
+              avatarEl.style.display = 'flex';
+              avatarEl.style.width = `${avatarWidth}px`;
+              avatarEl.style.height = `${avatarHeight}px`;
+              avatarEl.style.left = `${spriteScreenX - avatarWidth / 2}px`;
+              avatarEl.style.top = `${avatarTop + idleBobPx}px`;
+              avatarEl.style.opacity = String(bodyAlpha);
+              avatarEl.style.zIndex = String(Math.max(1, Math.round(1000 - spriteDist * 10)));
+            } else {
+              avatarEl.style.display = 'none';
+            }
           }
 
           if (term.active && !isFinished) {
             // Name tag: same pill treatment as the room/building signs, anchored a fixed
-            // offset above the sword icon so the two never collide. Only drawn within a
-            // "readable" band (comfortably inside normal fog range, not full range) — past
-            // that, the beacon below is the only signal, exactly like squinting at a distant
-            // light without being able to make out a name yet.
+            // offset above the character's actual head position now (avatarTop), not the
+            // old drawY-based guess — so it never collides with or floats away from the
+            // NPC it's labeling. Only drawn within a "readable" band (comfortably inside
+            // normal fog range, not full range) — past that, the beacon below is the only
+            // signal, exactly like squinting at a distant light without being able to make
+            // out a name yet.
             const readableRange = fogDistance * 0.7;
             if (spriteDist <= readableRange) {
               const nameAlpha = Math.max(0, Math.min(1, 1 - spriteDist / readableRange));
@@ -6275,7 +6906,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
               const textWidth = ctx!.measureText(labelText).width;
               const padX = 7, padY = 4;
               const boxW = textWidth + padX * 2, boxH = fontSize + padY * 2;
-              const labelY = drawY - 34 - spriteSize * 0.05 - 26; // fixed gap above the beacon center
+              const labelY = avatarTop - 36; // fixed gap above the beacon, above the head
               ctx!.globalAlpha = nameAlpha;
               ctx!.fillStyle = 'rgba(15, 20, 36, 0.72)';
               ctx!.fillRect(spriteScreenX - boxW / 2, labelY - boxH / 2, boxW, boxH);
@@ -6297,7 +6928,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             // over its own extended range rather than cutting off hard at beaconRange.
             const beaconAlpha = Math.max(0, Math.min(1, 1 - spriteDist / beaconRange));
             const pulse = 0.5 + 0.5 * Math.sin(now / 420 + term.x);
-            const beaconY = drawY - 34 - spriteSize * 0.05;
+            const beaconY = avatarTop - 10;
             const grad = ctx!.createRadialGradient(spriteScreenX, beaconY, 0, spriteScreenX, beaconY, 14 * pulse + 8);
             grad.addColorStop(0, `rgba(248, 184, 78, ${0.55 * pulse + 0.15})`);
             grad.addColorStop(1, 'rgba(248, 184, 78, 0)');
@@ -6334,22 +6965,63 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           ctx!.globalAlpha = 1;
         });
 
-        // Friendly guide NPCs: same billboard treatment as challengers but teal-coded and
-        // marked with a speech bubble instead of crossed swords, so they read as safe.
+        // Friendly guide NPCs: rendered with the exact same full-body AvatarFigure system
+        // as challengers and the player — never a flat rectangle billboard. The teal/cyan
+        // outfit (see getGuideAvatar) plus a small speech-bubble marker above their head
+        // are what still read as "safe campus staff, not a quest fight," same signal the
+        // old rectangle billboard gave, just carried by a real character now.
         guides.forEach((guide) => {
           const proj = projectSprite(guide.x, guide.y);
-          if (!proj) return;
-          const { screenX: spriteScreenX, size: spriteSize, drawY, fogAlpha } = proj;
+          const avatarEl = guideAvatarRefs.current[guide.id];
+          if (!proj) {
+            if (avatarEl) avatarEl.style.display = 'none';
+            return;
+          }
+          const { screenX: spriteScreenX, size: spriteSize, drawY, dist: spriteDist, fogAlpha } = proj;
+          const floorY = drawY + spriteSize;
+          const inBodyRange = spriteDist <= fogDistance;
           ctx!.globalAlpha = fogAlpha;
-          const drawX = spriteScreenX - spriteSize * 0.25;
-          const gWidth = spriteSize * 0.5, gHeight = spriteSize * 0.8;
-          ctx!.fillStyle = '#0f2e2c';
-          ctx!.fillRect(drawX + gWidth * 0.2, drawY + gHeight * 0.4, gWidth * 0.6, gHeight * 0.6);
-          ctx!.fillStyle = '#67cdd1';
-          ctx!.fillRect(drawX + gWidth * 0.3, drawY + gHeight * 0.45, gWidth * 0.4, gHeight * 0.3);
+          // Subtle highlight: only while this guide is the one the player is actually in
+          // range to talk to. A soft glow, not a hard outline — it should read as "this one
+          // is interactive right now," not compete with the speech-bubble icon above it.
+          if (activeGuideTarget?.id === guide.id) {
+            const glowY = floorY - spriteSize * 0.04;
+            const glow = ctx!.createRadialGradient(spriteScreenX, glowY, 0, spriteScreenX, glowY, spriteSize * 0.55);
+            glow.addColorStop(0, 'rgba(103, 205, 209, 0.35)');
+            glow.addColorStop(1, 'rgba(103, 205, 209, 0)');
+            ctx!.fillStyle = glow;
+            ctx!.beginPath();
+            ctx!.ellipse(spriteScreenX, glowY, spriteSize * 0.55, spriteSize * 0.18, 0, 0, Math.PI * 2);
+            ctx!.fill();
+          }
+          ctx!.globalAlpha = 1;
+
+          const avatarHeight = Math.max(44, spriteSize * 0.80);
+          const avatarWidth = avatarHeight * (96 / 152);
+          const avatarTop = floorY - avatarHeight;
+          if (avatarEl) {
+            if (inBodyRange) {
+              avatarEl.style.display = 'flex';
+              avatarEl.style.width = `${avatarWidth}px`;
+              avatarEl.style.height = `${avatarHeight}px`;
+              avatarEl.style.left = `${spriteScreenX - avatarWidth / 2}px`;
+              avatarEl.style.top = `${avatarTop}px`;
+              avatarEl.style.opacity = String(fogAlpha);
+              avatarEl.style.zIndex = String(Math.max(1, Math.round(1000 - spriteDist * 10)));
+            } else {
+              avatarEl.style.display = 'none';
+            }
+          }
+
+          // Speech-bubble marker above the head — the one leftover piece of the old
+          // billboard's visual language, now positioned relative to the real character's
+          // actual head instead of a guessed offset.
+          ctx!.globalAlpha = fogAlpha;
           ctx!.fillStyle = '#ffffff';
           ctx!.font = GUIDE_FONT;
-          ctx!.fillText('💬', spriteScreenX - 8, drawY - 8);
+          ctx!.textAlign = 'center';
+          ctx!.fillText('💬', spriteScreenX, avatarTop - 6);
+          ctx!.textAlign = 'left';
           ctx!.globalAlpha = 1;
         });
 
@@ -6419,7 +7091,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           ctx!.globalAlpha = 1;
         });
 
+        // Single interaction state: at most one NPC (challenger or guide) is "in range"
+        // at a time, and it only ever gets a highlight + a small "Talk to X" / "Challenge
+        // X" prompt here. Nothing about proximity opens a card — that only happens once
+        // the player actually presses interact (see interact()/interactWithGuide()).
+        // Challengers take priority over guides when both happen to be in range at once.
         activeTerminalTarget = null;
+        activeGuideTarget = null;
         let badgeTarget: { x: number; y: number } | null = null;
         let activeTerminalDone = false;
         for (const term of challengers) {
@@ -6441,7 +7119,28 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           }
         }
 
-        // Lost Note pickups: no button/press needed, just walk close enough.
+        // Guide NPCs: same "approach → highlight + prompt" treatment as challengers now.
+        // Walking near a guide no longer opens their dialogue by itself — it just surfaces
+        // a "Talk to X" prompt and badge; the dialogue card only appears once the player
+        // actually presses interact (interactWithGuide()), same as everything else.
+        if (!activeTerminalTarget) {
+          for (const guide of guides) {
+            if (Math.hypot(playerX - guide.x, playerY - guide.y) < 1.3) {
+              activeGuideTarget = guide;
+              const alreadyMet = triggeredGuides.has(guide.id);
+              prompt.innerText = alreadyMet ? `TALK TO ${guide.name.toUpperCase()} AGAIN` : `PRESS 'E' OR TAP TO TALK: ${guide.name}`;
+              prompt.style.display = 'block';
+              const bProj = projectSprite(guide.x, guide.y);
+              if (bProj) badgeTarget = { x: bProj.screenX, y: bProj.drawY };
+              break;
+            }
+          }
+        }
+
+        // Lost Note pickups: no button/press needed, just walk close enough. Still a
+        // passive ambient toast (not an NPC), so it keeps its own auto-collect behavior —
+        // but it's immediately cleared the moment the player interacts with an NPC (see
+        // clearDiscoveryQueue() in interact()/interactWithGuide()).
         for (const note of notes) {
           if (collectedNotes.has(note.id)) continue;
           if (Math.hypot(playerX - note.x, playerY - note.y) < 0.6) {
@@ -6449,24 +7148,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             pushDiscovery({ title: `✦ HINT — ${note.title}`, body: note.hint, duration: 4500 });
           }
         }
-
-        // Guide NPCs: ambient one-shot hint, triggered by proximity rather than an interact key.
-        // A guide with a `reward` also hands over real credits/XP the moment they're found —
-        // this is what makes them worth seeking out, not just background lore.
-        for (const guide of guides) {
-          if (triggeredGuides.has(guide.id)) continue;
-          if (Math.hypot(playerX - guide.x, playerY - guide.y) < 1.3) {
-            triggeredGuides.add(guide.id);
-            const line = guide.lines[Math.floor(Math.random() * guide.lines.length)];
-            if (guide.reward) {
-              onRewardRef.current(guide.reward.coins, guide.reward.xp);
-              pushDiscovery({ title: `✦ ${guide.name}`, body: `${line} (+${guide.reward.coins} credits, +${guide.reward.xp} XP)`, duration: 5000 });
-            } else {
-              pushDiscovery({ title: `✦ ${guide.name}`, body: line, duration: 4500 });
-            }
-          }
-        }
-
 
         // Visible progression: a plain "X / Y discovered" readout so a run always has a
         // sense of how much ground has actually been covered. Only touches the DOM when the
@@ -6479,10 +7160,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
         // Locked gate: shows a status line in the prompt bar (no badge, nothing to press —
         // it opens itself once the mastery condition is met) whenever the player is nearby
-        // and no challenger prompt is already claiming the bar.
+        // and no challenger/guide prompt is already claiming the bar.
         checkGateUnlock();
         let gateNearby = false;
-        if (!activeTerminalTarget && !gate.open) {
+        if (!activeTerminalTarget && !activeGuideTarget && !gate.open) {
           const gateDist = Math.hypot(playerX - (gate.x + 0.5), playerY - (gate.y + 0.5));
           if (gateDist < 1.6) {
             gateNearby = true;
@@ -6491,7 +7172,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             prompt.style.display = 'block';
           }
         }
-        if (!activeTerminalTarget && !gateNearby && prompt.style.display === 'block') prompt.style.display = 'none';
+        if (!activeTerminalTarget && !activeGuideTarget && !gateNearby && prompt.style.display === 'block') prompt.style.display = 'none';
 
         if (badgeTarget) {
           badge.style.display = 'flex';
@@ -6500,11 +7181,15 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           badge.style.display = 'none';
         }
 
-        // Large fixed-position mobile CTA: shown any time an unfinished challenger is in
-        // interact range, regardless of where its sprite/badge happens to be on screen.
+        // Large fixed-position mobile CTA: shown any time an unfinished challenger, or a
+        // guide, is in interact range, regardless of where its sprite/badge happens to be
+        // on screen.
         if (isMobile && activeTerminalTarget && !activeTerminalDone) {
           interactCta.style.display = 'flex';
           interactCta.textContent = '⚔ QUEST AVAILABLE — TAP TO INTERACT';
+        } else if (isMobile && activeGuideTarget) {
+          interactCta.style.display = 'flex';
+          interactCta.textContent = '💬 TAP TO TALK';
         } else {
           interactCta.style.display = 'none';
         }
@@ -6585,6 +7270,37 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       <div className="campus-frame">
         <div ref={worldRef} className="campus-world">
           <canvas ref={canvasRef} className="campus-canvas" />
+          <div className="campus-challenger-layer" aria-hidden="true">
+            {CAMPUS_CHALLENGERS.map((challenger) => (
+              <div
+                key={challenger.id}
+                ref={(el) => { challengerAvatarRefs.current[challenger.id] = el; }}
+                className="campus-challenger-avatar"
+                style={{ display: 'none' }}
+              >
+                <AvatarFigure
+                  avatar={getChallengerAvatar(challenger)}
+                  initials={getInitials(challenger.name)}
+                  size="large"
+                  variant={getChallengerVariant(challenger)}
+                />
+              </div>
+            ))}
+            {CAMPUS_GUIDES.map((guide) => (
+              <div
+                key={guide.id}
+                ref={(el) => { guideAvatarRefs.current[guide.id] = el; }}
+                className="campus-guide-avatar"
+                style={{ display: 'none' }}
+              >
+                <AvatarFigure
+                  avatar={getGuideAvatar(guide)}
+                  initials={getInitials(guide.name)}
+                  size="large"
+                />
+              </div>
+            ))}
+          </div>
           <div className="campus-hud-bar">
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <div className="campus-chip">LVL {level} · {strand}</div>
@@ -6810,6 +7526,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     const opponentData = opponent ?? { id: 'unknown-challenger', name: opponentName, style: 'professor' as ChallengerStyle };
     const opponentAvatar = getChallengerAvatar(opponentData);
     const opponentVariant = getChallengerVariant(opponentData);
+
+    const battleRoom = opponentData.style === 'researcher'
+      ? 'SCIENCE LAB'
+      : opponentData.style === 'professor'
+        ? 'CALCULUS CLASSROOM'
+        : opponentData.style === 'coach'
+          ? 'PRACTICE HALL'
+          : 'ACADEMIC HALL';
     const answer = (index: number) => {
       if (resolved || complete) return;
       setSelected(index); setResolved(true);
@@ -6859,6 +7583,21 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           <button className="btn-secondary" onClick={onExit}><X size={14} /> Retreat</button>
         </div>
         <div className={`panel battle-arena ${impactActive ? 'screen-shake' : ''}`}>
+          <div className="battle-school-scene" aria-hidden="true">
+            <div className="battle-school-ceiling" />
+            <div className="battle-school-wall left" />
+            <div className="battle-school-wall right" />
+            <div className="battle-school-window left" />
+            <div className="battle-school-window right" />
+            <div className="battle-school-lockers left" />
+            <div className="battle-school-lockers right" />
+            <div className="battle-school-board" />
+            <div className="battle-school-floor" />
+            <div className="battle-school-lamp one" />
+            <div className="battle-school-lamp two" />
+            <div className="battle-school-lamp three" />
+            <div className="battle-school-sign">{battleRoom} // LIVE ENCOUNTER</div>
+          </div>
           {/* Hit flash: brief tinted wash at the instant of impact, tinted to whoever
               just took the hit. Absolutely positioned, pointer-events: none — decoration
               only, never intercepts clicks or shifts anything beneath it. */}
@@ -6899,7 +7638,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                     avatar={opponentAvatar}
                     initials={opponentInitial}
                     size="large"
-                    variant="teacher-enemy"
+                    variant={opponentVariant}
                   />
                 </div>
               </div>
