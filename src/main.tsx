@@ -11,7 +11,7 @@ import {
   updateProfile as updateAuthProfile, updatePassword as updateAuthPassword,
   reauthenticateWithCredential, EmailAuthProvider, fetchSignInMethodsForEmail, type User,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, getDocFromCache, setDoc } from 'firebase/firestore';
 
 // Preconnect to the Google Fonts domains as early as JS execution allows — the actual
 // font request only fires later, via @import inside the injected <style> tag below, but
@@ -777,7 +777,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     font: 10px var(--app-font-mono);
     letter-spacing: .08em;
     text-transform: uppercase;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
 
   /* Buttons */
@@ -2219,6 +2219,17 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     align-items: start;
   }
 
+  /* Account settings section (Credentials & Security / Preferences): two equal panels
+   * side by side on desktop/tablet. This is deliberately a separate class from
+   * .profile-grid above (which is the fixed-sidebar avatar layout) so its own
+   * breakpoint below can stack it independently without disturbing that layout. */
+  .settings-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    align-items: start;
+  }
+
   .profile-card {
     padding: 24px;
     text-align: center;
@@ -3329,37 +3340,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     0%, 100% { box-shadow: 0 0 0 4px rgba(248, 184, 78, .12), 0 2px 10px rgba(0, 0, 0, .4); }
     50% { box-shadow: 0 0 0 8px rgba(248, 184, 78, .05), 0 2px 10px rgba(0, 0, 0, .4); }
   }
-  .campus-interact-cta {
-    position: absolute;
-    left: 16px;
-    right: 16px;
-    bottom: 148px;
-    max-width: 360px;
-    margin: 0 auto;
-    min-height: 56px;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 12px 18px;
-    border-radius: 14px;
-    background: rgba(15, 20, 36, .92);
-    border: 2px solid var(--amber);
-    color: var(--amber);
-    font: 13px var(--app-font-mono);
-    font-weight: 700;
-    letter-spacing: .04em;
-    text-align: center;
-    box-shadow: 0 0 0 5px rgba(248, 184, 78, .12), 0 10px 26px rgba(0, 0, 0, .45);
-    pointer-events: auto;
-    z-index: 9;
-    touch-action: manipulation;
-    animation: campus-cta-pulse 1.6s ease-in-out infinite;
-  }
-  @keyframes campus-cta-pulse {
-    0%, 100% { box-shadow: 0 0 0 5px rgba(248, 184, 78, .12), 0 10px 26px rgba(0, 0, 0, .45); }
-    50% { box-shadow: 0 0 0 10px rgba(248, 184, 78, .04), 0 10px 26px rgba(0, 0, 0, .45); }
-  }
   .campus-look-layer {
     position: absolute;
     inset: 0;
@@ -3534,6 +3514,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     .activity-grid,
     .profile-grid {
       grid-template-columns: 1fr;
+    }
+    .settings-grid {
+      grid-template-columns: 1fr;
+      gap: 16px;
     }
     .hero-content {
       max-width: 100%;
@@ -4437,7 +4421,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   type Profile = { name: string; email: string; strand: string; avatar: AvatarConfig };
   type Quest = { id: string; title: string; meta: string; rewardXp: number; rewardCoins: number; done: boolean };
   type ShopItem = { id: string; name: string; copy: string; price: number; icon: typeof Crosshair; category: 'Gear' | 'Consumables' | 'Cosmetics'; requiredQuestId?: string };
-  type GameState = { coins: number; xp: number; quests: Quest[]; owned: string[]; equipped: string | null; studyMinutes: number; activityDates: string[]; subjectMastery: Record<string, { correct: number; total: number }>; defeatedChallengerIds: string[] };
+  type PlayerPreferences = { sound: boolean; encounterFeedback: boolean };
+  type GameState = { coins: number; xp: number; quests: Quest[]; owned: string[]; equipped: string | null; studyMinutes: number; activityDates: string[]; subjectMastery: Record<string, { correct: number; total: number }>; defeatedChallengerIds: string[]; preferences: PlayerPreferences };
   // No `password` field anymore — Firebase Auth owns credentials entirely; this is now
   // purely the Firestore document shape for `players/{uid}`.
   type StoredAccount = { profile: Profile; game: GameState };
@@ -4624,7 +4609,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     const derivedName = authUser?.displayName?.trim() || authUser?.email?.split('@')[0] || 'Player';
     return { name: derivedName, email: authUser?.email ?? '', strand: 'STEM', avatar: makeDefaultAvatar() };
   };
-  const makeFreshGameState = (): GameState => ({ coins: 0, xp: 0, quests: initialQuests.map((quest) => ({ ...quest })), owned: [], equipped: null, studyMinutes: 0, activityDates: [], subjectMastery: {}, defeatedChallengerIds: [] });
+  const makeFreshGameState = (): GameState => ({ coins: 0, xp: 0, quests: initialQuests.map((quest) => ({ ...quest })), owned: [], equipped: null, studyMinutes: 0, activityDates: [], subjectMastery: {}, defeatedChallengerIds: [], preferences: { sound: true, encounterFeedback: true } });
   const getInitials = (name: string) => name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'PL';
 
   const toISODate = (date: Date) => {
@@ -4652,23 +4637,48 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // Firestore helpers for the `players/{uid}` document. Kept thin and separate from the
   // React state layer below so the App component can stay focused on optimistic local
   // updates + background syncing rather than raw Firestore calls everywhere.
+  //
+  // Older accounts predate fields added later (subjectMastery, defeatedChallengerIds,
+  // preferences) — backfill them rather than letting downstream code (the Academic
+  // Mastery panel, campus quest-giver checkmarks, the Preferences toggles) deal with
+  // `undefined`. Centralized here so every read path (cache or server) normalizes the
+  // same way.
+  const normalizeStoredAccount = (data: StoredAccount): StoredAccount => ({
+    ...data,
+    game: {
+      ...data.game,
+      subjectMastery: data.game.subjectMastery ?? {},
+      defeatedChallengerIds: data.game.defeatedChallengerIds ?? [],
+      preferences: { sound: data.game.preferences?.sound ?? true, encounterFeedback: data.game.preferences?.encounterFeedback ?? true },
+    },
+  });
+  // Cache-only read: resolves near-instantly from the on-device IndexedDB cache that
+  // firebase.ts's persistentLocalCache maintains, with no network round trip. Used to
+  // paint the player's existing progress the moment they open the app or log back in,
+  // rather than showing a blank/default state while the authoritative server read (below)
+  // is still in flight. Rejects (not "throws" a real error) when this device has never
+  // synced this doc before — e.g. a brand-new device — which is expected and handled by
+  // the caller falling through to the server read.
+  const loadPlayerDocFromCache = async (uid: string): Promise<StoredAccount | null> => {
+    try {
+      const snap = await getDocFromCache(doc(db, 'players', uid));
+      if (!snap.exists()) return null;
+      return normalizeStoredAccount(snap.data() as StoredAccount);
+    } catch {
+      return null;
+    }
+  };
   const loadPlayerDoc = async (uid: string): Promise<StoredAccount | null> => {
     const snap = await getDoc(doc(db, 'players', uid));
     if (!snap.exists()) return null;
-    const data = snap.data() as StoredAccount;
-    // Older accounts predate the subjectMastery/defeatedChallengerIds fields — backfill
-    // them rather than letting downstream code (e.g. the Academic Mastery panel, or the
-    // campus quest-giver checkmarks) deal with `undefined`.
-    return {
-      ...data,
-      game: {
-        ...data.game,
-        subjectMastery: data.game.subjectMastery ?? {},
-        defeatedChallengerIds: data.game.defeatedChallengerIds ?? [],
-      },
-    };
+    return normalizeStoredAccount(snap.data() as StoredAccount);
   };
-  const savePlayerDoc = (uid: string, data: StoredAccount) => setDoc(doc(db, 'players', uid), data);
+  // { merge: true } so a save always merges into whatever's already on the server/cache
+  // instead of blowing it away — belt-and-suspenders alongside the app's own optimistic,
+  // full-snapshot local state (every updater below spreads the previous state rather than
+  // constructing a partial object), so a write can never regress a field it didn't intend
+  // to touch even if it races with another write to the same doc.
+  const savePlayerDoc = (uid: string, data: StoredAccount) => setDoc(doc(db, 'players', uid), data, { merge: true });
 
   // Firebase throws structured errors with a `.code` like 'auth/wrong-password'. This
   // maps the ones players are actually likely to hit into copy that matches the app's
@@ -5473,10 +5483,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // visibly changes how the space feels, not just what it's labeled.
   type CampusDistrict = { id: string; name: string; icon: string; theme: string; minX: number; maxX: number; minY: number; maxY: number; ceil: [number, number, number]; floor: [number, number, number] };
   const CAMPUS_DISTRICTS: CampusDistrict[] = [
-    { id: 'citadel', name: 'Mastery Citadel', icon: '🏰', theme: 'Boss assessments', minX: 19, maxX: 25, minY: 0, maxY: 20, ceil: [26, 12, 30], floor: [46, 20, 48] },
-    { id: 'foundation', name: 'Foundation District', icon: '🏘️', theme: 'Basic concepts', minX: 0, maxX: 6, minY: 0, maxY: 6, ceil: [26, 18, 10], floor: [48, 34, 18] },
-    { id: 'peaks', name: 'Challenge Peaks', icon: '🏔️', theme: 'Hard problems', minX: 6, maxX: 19, minY: 0, maxY: 6, ceil: [16, 22, 36], floor: [30, 40, 58] },
-    { id: 'wilds', name: 'Practice Wilds', icon: '🌲', theme: 'Repeated application', minX: 0, maxX: 19, minY: 6, maxY: 20, ceil: [10, 24, 16], floor: [18, 42, 26] },
+    { id: 'citadel', name: 'Mastery Citadel', icon: '🏰', theme: 'Boss assessments', minX: 13, maxX: 17, minY: 0, maxY: 14, ceil: [26, 12, 30], floor: [46, 20, 48] },
+    { id: 'foundation', name: 'Foundation District', icon: '🏘️', theme: 'Basic concepts', minX: 0, maxX: 6, minY: 0, maxY: 4, ceil: [26, 18, 10], floor: [48, 34, 18] },
+    { id: 'peaks', name: 'Challenge Peaks', icon: '🏔️', theme: 'Hard problems', minX: 6, maxX: 13, minY: 0, maxY: 4, ceil: [16, 22, 36], floor: [30, 40, 58] },
+    { id: 'wilds', name: 'Practice Wilds', icon: '🌲', theme: 'Repeated application', minX: 0, maxX: 13, minY: 4, maxY: 14, ceil: [10, 24, 16], floor: [18, 42, 26] },
   ];
   const getDistrictAt = (x: number, y: number) => CAMPUS_DISTRICTS.find((d) => x >= d.minX && x < d.maxX && y >= d.minY && y < d.maxY) ?? CAMPUS_DISTRICTS[3];
 
@@ -5506,27 +5516,25 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     DISTRICT_STRAND_FOCUS[districtId]?.[strand] ?? CAMPUS_DISTRICTS.find((d) => d.id === districtId)?.theme ?? '';
 
 
+  // Compact 17x14 campus (down from the original 25x20): the open plazas around and
+  // between structures have been cut way down and every wall/NPC/prop pulled inward to
+  // match, rather than scaling the old layout — walk speed, camera and every visual are
+  // untouched, there's just far less empty ground to cross between points of interest.
   const CAMPUS_MAP = [
-    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-    [1,0,0,0,0,0,1,4,4,4,4,4,4,1,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,1,7,0,0,0,0,7,1,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,2,6,0,0,0,0,7,2,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,8,2,9,1,1,6,0,0,6,1,1,6,0,0,6,1,2,1,8,9,1,2,1,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
-    [1,9,2,8,1,1,6,0,0,6,1,1,6,0,0,6,1,2,1,9,1,1,2,1,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,7,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,7,0,0,0,0,0,1],
-    [1,6,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,6,0,0,0,0,0,1],
-    [1,7,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,7,0,0,0,0,0,1],
-    [1,1,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1],
-    [1,1,1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,1,1,0,0,0,0,0,1],
-    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,4,4,4,4,4,0,0,0,0,0,0,0,0,0,0,1],
+    [1,7,0,0,0,7,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,8,2,1,0,0,1,2,1,6,0,0,6,1,9,2,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,5,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1],
+    [1,2,1,6,0,0,6,1,2,1,6,0,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,6,0,7,0,0,0,7,0,0,0,0,0,1],
+    [1,0,0,0,7,0,6,0,0,0,6,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
   ];
   // Tile legend: 0 open floor, 1/2/3/4 wall variants (visual only — see canMove, which
   // treats every non-zero tile as solid), 5 = locked gate (blocks movement + sight like a
@@ -5538,25 +5546,24 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // "door" is a texture, not a passage — see the three interior rooms below for how that
   // gets worked around.
   //
-  // Three rooms — Laboratory (rows 1-4, the original building, now walkable), Classroom
-  // and Library (rows 13-18, newly built) — are each real walk-in spaces, not just
-  // decorative facades: three solid walls with door/window texture on one interior face for
-  // character, and the fourth side left completely open as the actual entrance, since a
-  // literal door/gate tile never opens. Furniture lives inside as CAMPUS_PROPS billboards
-  // (see below), with an aisle deliberately kept clear from each entrance to the back wall.
-  // Every other scattered wall/pillar tile that used to sit in the open plaza with no
-  // enclosing structure around it — no room, no function, nothing to justify why it was
-  // there — has been cleared back to floor.
+  // Three rooms — Laboratory (rows 1-2, tucked into the NW corner), Classroom and Library
+  // (rows 10-11, side by side south of the mid-plaza) — are each real walk-in spaces, not
+  // just decorative facades: solid walls with door/window texture on some faces for
+  // character, and one side left completely open as the actual entrance, since a literal
+  // door/gate tile never opens. Furniture lives inside as CAMPUS_PROPS billboards (see
+  // below). The two boundary rows (4 and 8) each carry a couple of gaps so the plazas they
+  // separate always have more than one way through, keeping paths clear even in the
+  // smaller footprint.
   const CAMPUS_CHALLENGERS: (CampusChallenger & { x: number; y: number; dir: number })[] = [
     {
-      id: 'npc_1', x: 9.5, y: 2.0, dir: 1, districtId: 'peaks',
+      id: 'npc_1', x: 9.5, y: 2.5, dir: 1, districtId: 'peaks',
       name: 'Dr. Reyes, Senior Faculty', area: '🏔️ Challenge Peaks: Advanced Research Wing',
       statement: "I don't go easy on advanced material. Show me you've earned the right to be up here.",
       questTitle: 'The Research Defense', lore: "Dr. Reyes doesn't curve grades. Passing here means the upper-division coursework won't blindside you.",
       recommendedLevel: 5, rewardXp: 250, rewardCoins: 120, style: 'researcher',
     },
     {
-      id: 'npc_2', x: 3.5, y: 3.5, dir: -1, districtId: 'foundation',
+      id: 'npc_2', x: 2.5, y: 3.5, dir: -1, districtId: 'foundation',
       name: 'TA Priya Santos', area: '🏘️ Foundation District: Intro Studies Office',
       statement: "Before you go further, let's make sure the basics actually stuck. Pass my review quiz first.",
       questTitle: 'Foundations Check-In', lore: 'Every term starts here — a quick review checkpoint before the real coursework begins.',
@@ -5566,14 +5573,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // Standing in the open corridor between the Classroom and Library — matches
       // "Practice Wilds: repeated application" better than being inside either room, and
       // keeps this spot clear of both buildings' walls.
-      id: 'npc_3', x: 9.5, y: 12.5, dir: 1, districtId: 'wilds',
+      id: 'npc_3', x: 5.5, y: 10.5, dir: 1, districtId: 'wilds',
       name: 'Teaching Fellow Owens', area: '🌲 Practice Wilds: Weekly Problem-Set Review',
       statement: "Out here it's just reps. Answer set after set until it's automatic — starting now.",
       questTitle: 'The Problem-Set Gauntlet', lore: 'No new material out here — just repetition until the concepts stop feeling foreign.',
       recommendedLevel: 3, rewardXp: 150, rewardCoins: 75, style: 'coach',
     },
     {
-      id: 'npc_4', x: 21.5, y: 8.5, dir: -1, districtId: 'citadel',
+      id: 'npc_4', x: 14.5, y: 6.5, dir: -1, districtId: 'citadel',
       name: 'Dean Alvarez', area: '🏰 Mastery Citadel: Comprehensive Examination Hall',
       statement: "You've cleared every district. Now for the exam that actually counts.",
       questTitle: 'Comprehensive Examination', lore: "The exam that decides whether the term's work actually stuck. Every district's material is fair game.",
@@ -5651,11 +5658,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // review tip via a toast — low-commitment content for players who just want to poke around.
   type CampusNote = { id: string; x: number; y: number; title: string; hint: string };
   const CAMPUS_NOTES: CampusNote[] = [
-    { id: 'note_1', x: 4.5, y: 8.5, title: 'Lab Safety Memo', hint: 'Review tip: dimensional analysis catches unit errors before they catch you.' },
-    { id: 'note_2', x: 15.5, y: 9.5, title: 'Faculty Sticky Note', hint: 'Review tip: a thesis statement answers "so what," not just "what."' },
-    { id: 'note_3', x: 3.5, y: 15.5, title: 'Torn Notebook Page', hint: 'Review tip: supply and demand only shift together when a factor moves both sides.' },
-    { id: 'note_4', x: 21.5, y: 15.5, title: 'Old Exam Scrap', hint: 'Review tip: skim a passage\'s last paragraph first — it often states the point.' },
-    { id: 'note_5', x: 9.5, y: 12.5, title: 'Crumpled Flyer', hint: 'Review tip: eliminate the two most extreme answer choices first on multiple choice.' },
+    { id: 'note_1', x: 1.5, y: 3.5, title: 'Lab Safety Memo', hint: 'Review tip: dimensional analysis catches unit errors before they catch you.' },
+    { id: 'note_2', x: 11.5, y: 1.5, title: 'Faculty Sticky Note', hint: 'Review tip: a thesis statement answers "so what," not just "what."' },
+    { id: 'note_3', x: 1.5, y: 10.5, title: 'Torn Notebook Page', hint: 'Review tip: supply and demand only shift together when a factor moves both sides.' },
+    { id: 'note_4', x: 8.5, y: 11.5, title: 'Old Exam Scrap', hint: 'Review tip: skim a passage\'s last paragraph first — it often states the point.' },
+    { id: 'note_5', x: 5.5, y: 9.5, title: 'Crumpled Flyer', hint: 'Review tip: eliminate the two most extreme answer choices first on multiple choice.' },
   ];
 
   // NPC guides: friendly, non-battle campus staff who drop context, rumors, and hints about the
@@ -5664,15 +5671,15 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // so guides feel like real campus resources you'd want to seek out, not just lore triggers.
   type CampusGuide = { id: string; x: number; y: number; dir: number; name: string; lines: string[]; reward?: { coins: number; xp: number } };
   const CAMPUS_GUIDES: CampusGuide[] = [
-    { id: 'guide_1', x: 12.5, y: 9.5, dir: 1, name: 'Campus Custodian Reyes', lines: [
+    { id: 'guide_1', x: 8.5, y: 6.5, dir: 1, name: 'Campus Custodian Reyes', lines: [
       "The Mastery Citadel gate won't budge till all three Districts are cleared.",
       'I sweep these halls every night — still find lost notes tucked under the benches.',
     ] },
-    { id: 'guide_2', x: 6.5, y: 13.5, dir: -1, name: 'Peer Tutor Mira Santos', lines: [
+    { id: 'guide_2', x: 2.5, y: 9.5, dir: -1, name: 'Peer Tutor Mira Santos', lines: [
       'Teaching Fellow Owens runs the review sessions out in the Practice Wilds — south of here.',
       'TA Priya Santos holds office hours in the Foundation District. Fundamentals-first questions, mostly.',
     ] },
-    { id: 'guide_3', x: 17.5, y: 12.5, dir: 1, name: 'Head Librarian Alderman', lines: [
+    { id: 'guide_3', x: 8.5, y: 10.5, dir: 1, name: 'Head Librarian Alderman', lines: [
       "Here — every student who actually stops by gets a little something for it.",
       "Dr. Reyes up in the Peaks has a reputation, but the material is fair if you've studied.",
     ], reward: { coins: 25, xp: 15 } },
@@ -5682,7 +5689,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // It's the sole passage into the Mastery Citadel, so it gates real progress behind mastery
   // rather than just being scenery.
   type CampusGate = { x: number; y: number; requiredIds: string[]; label: string };
-  const CAMPUS_GATE: CampusGate = { x: 18, y: 8, requiredIds: ['npc_1', 'npc_2', 'npc_3'], label: 'Mastery Citadel Gate' };
+  const CAMPUS_GATE: CampusGate = { x: 13, y: 6, requiredIds: ['npc_1', 'npc_2', 'npc_3'], label: 'Mastery Citadel Gate' };
 
   // Environmental props — trees, planters, lamp posts (outdoors) plus themed furniture for
   // the three walk-in rooms below. Purely decorative billboards: no collision, no
@@ -5696,34 +5703,34 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   type CampusProp = { id: string; x: number; y: number; glyph: string; sway?: boolean };
   const CAMPUS_PROPS: CampusProp[] = [
     // Outdoor landscaping — trees, lamps, planters, the plaza's own dressing.
-    { id: 'prop_1', x: 2.5, y: 5.5, glyph: '🌳', sway: true },
-    { id: 'prop_2', x: 22.5, y: 5.5, glyph: '🌳', sway: true },
-    { id: 'prop_3', x: 7.5, y: 5.3, glyph: '💡' },
-    { id: 'prop_4', x: 16.8, y: 5.3, glyph: '💡' },
-    { id: 'prop_5', x: 5.5, y: 12.3, glyph: '🪴', sway: true },
-    { id: 'prop_6', x: 18.5, y: 12.3, glyph: '🌳', sway: true },
-    { id: 'prop_9', x: 16.3, y: 8.3, glyph: '🪴', sway: true },
-    { id: 'prop_11', x: 9.5, y: 18.3, glyph: '🌳', sway: true },
-    // Laboratory interior (rows 2-3) — equipment along the back wall, walking space kept
+    { id: 'prop_1', x: 1.5, y: 6.5, glyph: '🌳', sway: true },
+    { id: 'prop_2', x: 11.5, y: 6.5, glyph: '🌳', sway: true },
+    { id: 'prop_3', x: 3.5, y: 5.3, glyph: '💡' },
+    { id: 'prop_4', x: 9.5, y: 5.3, glyph: '💡' },
+    { id: 'prop_5', x: 3.5, y: 9.3, glyph: '🪴', sway: true },
+    { id: 'prop_6', x: 9.5, y: 9.3, glyph: '🌳', sway: true },
+    { id: 'prop_9', x: 6.5, y: 9.3, glyph: '🪴', sway: true },
+    { id: 'prop_11', x: 6.5, y: 3.5, glyph: '🌳', sway: true },
+    // Laboratory interior (row 2) — equipment along the back wall, walking space kept
     // clear between it and the open south entrance.
-    { id: 'prop_lab_1', x: 8.5, y: 2.4, glyph: '🧪' },
-    { id: 'prop_lab_2', x: 9.5, y: 2.4, glyph: '⚗️' },
-    { id: 'prop_lab_3', x: 10.5, y: 2.4, glyph: '🔬' },
-    // Classroom interior — two rows of desks/chairs flanking a center aisle, board at the
-    // back wall marking the teacher's area.
-    { id: 'prop_class_desk_1', x: 2.5, y: 14.5, glyph: '🪑' },
-    { id: 'prop_class_desk_2', x: 5.5, y: 14.5, glyph: '🪑' },
-    { id: 'prop_class_desk_3', x: 2.5, y: 15.5, glyph: '🪑' },
-    { id: 'prop_class_desk_4', x: 5.5, y: 15.5, glyph: '🪑' },
-    { id: 'prop_class_board', x: 4.5, y: 17.5, glyph: '📋' },
+    { id: 'prop_lab_1', x: 2.5, y: 2.4, glyph: '🧪' },
+    { id: 'prop_lab_2', x: 3.5, y: 2.4, glyph: '⚗️' },
+    { id: 'prop_lab_3', x: 4.5, y: 2.4, glyph: '🔬' },
+    // Classroom interior — desks flanking a center aisle, board near the back wall
+    // marking the teacher's area.
+    { id: 'prop_class_desk_1', x: 1.5, y: 10.3, glyph: '🪑' },
+    { id: 'prop_class_desk_2', x: 3.5, y: 10.3, glyph: '🪑' },
+    { id: 'prop_class_desk_3', x: 1.5, y: 11.3, glyph: '🪑' },
+    { id: 'prop_class_desk_4', x: 3.5, y: 11.3, glyph: '🪑' },
+    { id: 'prop_class_board', x: 2.5, y: 11.7, glyph: '📋' },
     // Library interior — bookshelves lining both side walls, a small reading table near
     // the back, center aisle kept clear from the entrance.
-    { id: 'prop_lib_shelf_1', x: 13.5, y: 14.5, glyph: '📚' },
-    { id: 'prop_lib_shelf_2', x: 13.5, y: 16.5, glyph: '📚' },
-    { id: 'prop_lib_shelf_3', x: 16.5, y: 14.5, glyph: '📚' },
-    { id: 'prop_lib_shelf_4', x: 16.5, y: 16.5, glyph: '📚' },
-    { id: 'prop_lib_table', x: 15.0, y: 17.3, glyph: '📖' },
-    { id: 'prop_lib_chair', x: 15.8, y: 17.3, glyph: '🪑' },
+    { id: 'prop_lib_shelf_1', x: 7.3, y: 10.3, glyph: '📚' },
+    { id: 'prop_lib_shelf_2', x: 7.3, y: 11.3, glyph: '📚' },
+    { id: 'prop_lib_shelf_3', x: 9.3, y: 10.3, glyph: '📚' },
+    { id: 'prop_lib_shelf_4', x: 9.3, y: 11.3, glyph: '📚' },
+    { id: 'prop_lib_table', x: 8.3, y: 10.7, glyph: '📖' },
+    { id: 'prop_lib_chair', x: 8.3, y: 11.7, glyph: '🪑' },
   ];
 
   // Landmark signs — small text placards at a few key structures, so a district or building
@@ -5735,21 +5742,21 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // plaque, the further the player's viewing angle strays from square-on.
   type CampusSign = { id: string; x: number; y: number; label: string; side: 'N' | 'S' | 'E' | 'W' };
   const CAMPUS_SIGNS: CampusSign[] = [
-    // Laboratory's west exterior wall (solid col 6, rows 1-4) — faces the open plaza to
-    // the west, where anyone approaching the building from that side would see it.
-    { id: 'sign_1', x: 5.96, y: 3.0, label: '🔬 SCIENCE LABS', side: 'W' },
-    // Library's west wall (solid col 12, rows 14-17) — faces the shared central corridor
-    // it and the Classroom sit on opposite sides of.
-    { id: 'sign_2', x: 11.96, y: 15.5, label: '📚 LIBRARY', side: 'W' },
-    // Mounted on the wall segment immediately north of the Mastery Citadel gate (col 18,
-    // row 8), facing the main plaza everyone approaches the gate from.
-    { id: 'sign_3', x: 17.96, y: 7.5, label: '🏰 MASTERY CITADEL', side: 'W' },
-    // One of the two door-textured jambs flanking the Foundation District's west gap in
-    // the row-6 boundary wall, facing directly into the passage.
-    { id: 'sign_4', x: 6.96, y: 6.5, label: '🏘️ FOUNDATION DISTRICT', side: 'E' },
-    // Classroom's east wall (solid col 7, rows 14-17) — faces the same corridor as the
+    // Laboratory's east exterior wall (solid col 5, rows 1-2) — faces the open Peaks
+    // plaza to the east, where anyone approaching the building from that side sees it.
+    { id: 'sign_1', x: 5.04, y: 2.0, label: '🔬 SCIENCE LABS', side: 'E' },
+    // Library's west wall (solid col 6, rows 10-11) — faces the shared corridor it and
+    // the Classroom sit on opposite sides of.
+    { id: 'sign_2', x: 5.96, y: 10.5, label: '📚 LIBRARY', side: 'W' },
+    // Mounted on the wall segment immediately north of the Mastery Citadel gate (col 13,
+    // row 5), facing the mid-plaza everyone approaches the gate from.
+    { id: 'sign_3', x: 12.96, y: 5.5, label: '🏰 MASTERY CITADEL', side: 'W' },
+    // On the west jamb of the Foundation District's gap in the row-4 boundary wall,
+    // facing directly into the passage.
+    { id: 'sign_4', x: 3.96, y: 4.5, label: '🏘️ FOUNDATION DISTRICT', side: 'E' },
+    // Classroom's east wall (solid col 4, rows 10-11) — faces the same corridor as the
     // Library sign opposite it.
-    { id: 'sign_5', x: 7.04, y: 15.5, label: '🏫 CLASSROOM', side: 'E' },
+    { id: 'sign_5', x: 4.04, y: 10.5, label: '🏫 CLASSROOM', side: 'E' },
   ];
   // Outward-facing normal vector for each wall face a sign can be mounted on — used to
   // tell whether the player is standing on the readable side of the sign, and to
@@ -5761,7 +5768,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     const worldRef = useRef<HTMLDivElement | null>(null);
     const promptRef = useRef<HTMLDivElement | null>(null);
     const badgeRef = useRef<HTMLButtonElement | null>(null);
-    const interactCtaRef = useRef<HTMLButtonElement | null>(null);
     const districtChipRef = useRef<HTMLDivElement | null>(null);
     const progressChipRef = useRef<HTMLDivElement | null>(null);
     const tapStartRef = useRef<HTMLDivElement | null>(null);
@@ -5786,13 +5792,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const world = worldRef.current;
       const prompt = promptRef.current;
       const badge = badgeRef.current;
-      const interactCta = interactCtaRef.current;
       const tapStart = tapStartRef.current;
       const discoveryCard = discoveryCardRef.current;
       const discoveryTitle = discoveryTitleRef.current;
       const discoveryBody = discoveryBodyRef.current;
       const discoveryBtn = discoveryBtnRef.current;
-      if (!canvas || !world || !prompt || !badge || !interactCta || !tapStart || !discoveryCard || !discoveryTitle || !discoveryBody || !discoveryBtn) return;
+      if (!canvas || !world || !prompt || !badge || !tapStart || !discoveryCard || !discoveryTitle || !discoveryBody || !discoveryBtn) return;
       const ctx = canvas.getContext('2d', { alpha: false });
       if (!ctx) return;
 
@@ -5873,8 +5878,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       discoveryBtn.addEventListener('click', handleDiscoveryTap);
       discoveryBtn.addEventListener('touchstart', handleDiscoveryTap, { passive: false });
 
-      let playerX = initialPosition?.x ?? 9.0;
-      let playerY = initialPosition?.y ?? 10.0;
+      let playerX = initialPosition?.x ?? 4.5;
+      let playerY = initialPosition?.y ?? 6.5;
       let playerAngle = initialPosition?.angle ?? 0;
       let pointerLocked = false;
       let roamingActive = true;
@@ -5927,18 +5932,17 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         tapStart.style.display = 'none';
       }
 
-      // The floating "in range" UI (the top prompt bar, the mobile CTA button, and the
-      // on-screen badge above the NPC) is only ever updated from inside render(), which
-      // itself only runs while roamingActive is true. Pausing roaming to open the
-      // discovery card (or jump straight to the quest) stops render() from running — so
-      // without this, those three elements simply freeze on-screen in whatever state
-      // they were last drawn in, stacking underneath the discovery card that opens next.
-      // That's the exact overlap/redundant-prompt mess being reported: hide them the
-      // instant roaming pauses, instead of relying on a render loop that's no longer
-      // ticking to clean itself up.
+      // The floating "in range" UI (the top prompt bar and the on-screen badge above the
+      // NPC) is only ever updated from inside render(), which itself only runs while
+      // roamingActive is true. Pausing roaming to open the discovery card (or jump
+      // straight to the quest) stops render() from running — so without this, those
+      // elements simply freeze on-screen in whatever state they were last drawn in,
+      // stacking underneath the discovery card that opens next. That's the exact
+      // overlap/redundant-prompt mess being reported: hide them the instant roaming
+      // pauses, instead of relying on a render loop that's no longer ticking to clean
+      // itself up.
       const hideFieldUi = () => {
         prompt.style.display = 'none';
-        interactCta.style.display = 'none';
         badge.style.display = 'none';
       };
 
@@ -5998,18 +6002,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         e.stopPropagation();
         if (activeTerminalTarget) interact(activeTerminalTarget);
       };
-      // The large, fixed-position mobile "TAP TO INTERACT" button. Unlike the small floating
-      // badge (which tracks the NPC's projected screen position and can be fiddly to hit),
-      // this always sits in the same spot at the bottom of the screen whenever a quest-giver
-      // is in range — so the player never has to aim precisely or tap the canvas itself.
-      // stopPropagation keeps the touch from also reaching the look-layer underneath, so
-      // tapping it can never be misread as a look-drag or cause camera drift.
-      const handleCtaActivate = (e: Event) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (activeTerminalTarget) interact(activeTerminalTarget);
-      };
-
       document.addEventListener('keydown', handleKeyDown);
       document.addEventListener('keyup', handleKeyUp);
       document.addEventListener('mousemove', handleMouseMove);
@@ -6019,8 +6011,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       prompt.addEventListener('touchstart', handlePromptTap, { passive: false });
       badge.addEventListener('click', handleBadgeActivate);
       badge.addEventListener('touchstart', handleBadgeActivate, { passive: false });
-      interactCta.addEventListener('click', handleCtaActivate);
-      interactCta.addEventListener('touchstart', handleCtaActivate, { passive: false });
 
       const joyCleanups: Array<() => void> = [];
       if (isMobile) {
@@ -6672,13 +6662,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         } else {
           activeTerminalTarget = null;
           let badgeTarget: { x: number; y: number } | null = null;
-          let activeTerminalDone = false;
           for (const term of challengers) {
             const distToTerm = Math.hypot(playerX - term.x, playerY - term.y);
             if (distToTerm < 1.5 && term.active) {
               activeTerminalTarget = term;
               const alreadyDone = defeatedIdsRef.current.includes(term.id);
-              activeTerminalDone = alreadyDone;
               prompt.innerText = alreadyDone ? `[${term.area}] ${term.name} — QUEST ALREADY COMPLETED` : `[${term.area}] PRESS 'E' OR TAP TO CHALLENGE: ${term.name}`;
               prompt.style.display = 'block';
               if (!alreadyDone) {
@@ -6712,15 +6700,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             badge.style.transform = `translate(${badgeTarget.x - 17}px, ${badgeTarget.y - 42}px)`;
           } else {
             badge.style.display = 'none';
-          }
-
-          // Large fixed-position mobile CTA: shown any time an unfinished challenger is in
-          // interact range, regardless of where its sprite/badge happens to be on screen.
-          if (isMobile && activeTerminalTarget && !activeTerminalDone) {
-            interactCta.style.display = 'flex';
-            interactCta.textContent = '⚔ QUEST AVAILABLE — TAP TO INTERACT';
-          } else {
-            interactCta.style.display = 'none';
           }
         }
       }
@@ -6786,8 +6765,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         prompt.removeEventListener('touchstart', handlePromptTap);
         badge.removeEventListener('click', handleBadgeActivate);
         badge.removeEventListener('touchstart', handleBadgeActivate);
-        interactCta.removeEventListener('click', handleCtaActivate);
-        interactCta.removeEventListener('touchstart', handleCtaActivate);
         discoveryBtn.removeEventListener('click', handleDiscoveryTap);
         discoveryBtn.removeEventListener('touchstart', handleDiscoveryTap);
         if (discoveryTimer) window.clearTimeout(discoveryTimer);
@@ -6817,7 +6794,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           <button type="button" className="campus-interact-badge" ref={badgeRef} aria-label="Interact with quest giver">
             <Swords size={15} />
           </button>
-          <button type="button" className="campus-interact-cta" ref={interactCtaRef} aria-label="Quest available — tap to interact" />
           <div className="campus-look-layer" ref={lookLayerRef} />
           <div className="campus-joystick-zone" ref={leftZoneRef}>
             <div className="campus-joystick-ring" />
@@ -7235,15 +7211,17 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
   function Profile({
     profile, xp, setAvatar, owned, equipped, quests, studyMinutes, defeatedChallengerIds, subjectMastery, setScreen, onExploreCampus,
-    updateProfileName, updateProfilePassword, notify, onLogout,
+    updateProfileName, updateProfilePassword, notify, onLogout, preferences, updatePreferences,
   }: {
     profile: Profile; xp: number; setAvatar: (value: AvatarConfig) => void; owned: string[]; equipped: string | null;
     quests: Quest[]; studyMinutes: number; defeatedChallengerIds: string[]; subjectMastery: Record<string, { correct: number; total: number }>;
     setScreen: (screen: Screen) => void; onExploreCampus: () => void;
-    updateProfileName: (newName: string) => Promise<{ ok: boolean; message?: string }>; updateProfilePassword: (currentPassword: string, newPass: string) => Promise<{ ok: boolean; message?: string }>; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void; onLogout: () => void
+    updateProfileName: (newName: string) => Promise<{ ok: boolean; message?: string }>; updateProfilePassword: (currentPassword: string, newPass: string) => Promise<{ ok: boolean; message?: string }>; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void; onLogout: () => void;
+    // Persisted in Firestore (players/{uid}.game.preferences) rather than local component
+    // state, so a toggle here survives a refresh, a logout/login, or a different device —
+    // same durability as coins/xp/quests.
+    preferences: PlayerPreferences; updatePreferences: (patch: Partial<PlayerPreferences>) => void;
   }) {
-    const [sound, setSound] = useState(true);
-    const [feedback, setFeedback] = useState(false);
     const [editingAvatar, setEditingAvatar] = useState(false);
 
     // Username Edit State — email is intentionally read-only here (Firebase Auth is
@@ -7436,7 +7414,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           <div className="eyebrow">ACCOUNT</div>
           <h2 style={{ fontSize: '16px', fontWeight: 600, marginTop: '4px' }}>Personal & account settings</h2>
         </div>
-        <div className="profile-grid mt-5" style={{ gridTemplateColumns: '1fr 1fr' }}>
+        <div className="settings-grid mt-5">
           <div className="panel profile-panel">
             <div className="panel-head !p-0 !pb-4">
               <div>
@@ -7500,8 +7478,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
               <div><div className="panel-title">Preferences</div><div className="panel-kicker mt-1">Audio and app notification triggers</div></div>
               <Bell size={18} className="text-amber-300" />
             </div>
-            <div className="setting-row"><div><strong>Sound effects</strong><span>Play audio cues on focus completion</span></div><button type="button" aria-label="Toggle sound effects" className={`toggle ${sound ? 'on' : ''}`} onClick={() => setSound(!sound)}><i /></button></div>
-            <div className="setting-row"><div><strong>Encounter feedback</strong><span>Show detailed prompts during quiz battles</span></div><button type="button" aria-label="Toggle encounter feedback" className={`toggle ${feedback ? 'on' : ''}`} onClick={() => setFeedback(!feedback)}><i /></button></div>
+            <div className="setting-row"><div><strong>Sound effects</strong><span>Play audio cues on focus completion</span></div><button type="button" aria-label="Toggle sound effects" className={`toggle ${preferences.sound ? 'on' : ''}`} onClick={() => updatePreferences({ sound: !preferences.sound })}><i /></button></div>
+            <div className="setting-row"><div><strong>Encounter feedback</strong><span>Show detailed prompts during quiz battles</span></div><button type="button" aria-label="Toggle encounter feedback" className={`toggle ${preferences.encounterFeedback ? 'on' : ''}`} onClick={() => updatePreferences({ encounterFeedback: !preferences.encounterFeedback })}><i /></button></div>
           </div>
         </div>
 
@@ -7571,15 +7549,28 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       }
       let cancelled = false;
       setAccountLoading(true);
+      // Phase 1 (instant paint): try the on-device cache first so a returning player sees
+      // their real progress immediately — no network wait, no flash of empty/default state
+      // — while Phase 2 below confirms against the server in the background. Skipped (a
+      // no-op) the very first time this device ever sees this player, since nothing is
+      // cached yet; Phase 2 alone covers that case.
+      loadPlayerDocFromCache(authUser.uid).then((cached) => {
+        if (cancelled || !cached || accountDataRef.current) return;
+        setAccountData(cached);
+        setAccountLoading(false);
+      });
+      // Phase 2 (authoritative): the real network read. Reconciles with whatever Phase 1
+      // painted (or the temporary-profile fallback below) using the same rule either way —
+      // see localProgressStartedRef.
       loadPlayerDoc(authUser.uid).then(async (existing) => {
         if (cancelled) return;
-        // This fetch can resolve *after* the fallback below already put the player on a
-        // temporary file. If they've since made real progress on it, `existing` (their
-        // old save) is now the stale copy — accepting it here would silently erase that
-        // progress the instant Firebase finally responded, which is exactly the kind of
-        // loss this whole persistence layer exists to prevent. Once local progress has
-        // started, local always wins: push it to Firestore instead of overwriting it.
-        if (usedTemporaryProfileRef.current && localProgressStartedRef.current) {
+        // This can resolve *after* the player has already started interacting with data
+        // Phase 1 (or the loading-fallback timeout) put on screen. If so, `existing` is now
+        // the stale copy — accepting it here would silently erase that progress the instant
+        // this resolved, which is exactly the kind of loss this persistence layer exists to
+        // prevent. Once local progress has started, local always wins: push it to Firestore
+        // (merged, never a blind overwrite — see savePlayerDoc) instead of adopting the read.
+        if (localProgressStartedRef.current) {
           const authoritative = accountDataRef.current ?? { profile: makeDefaultProfile(authUser), game: makeFreshGameState() };
           await savePlayerDoc(authUser.uid, authoritative);
           if (!cancelled) setAccountLoading(false);
@@ -7710,7 +7701,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // playing normally on the local copy and the next successful update will catch Firestore up.
     const updateAccountData = (updater: (acc: StoredAccount) => StoredAccount) => {
       if (!authUser || !accountData) return;
-      if (usedTemporaryProfileRef.current) localProgressStartedRef.current = true;
+      // Marks that the player has touched *this* session's copy of their data, whatever
+      // put it on screen (the real Firestore read, the on-device cache, or the temporary
+      // fresh-profile fallback). The account-load effect above checks this before ever
+      // letting a slower-arriving read overwrite state — see its comments.
+      localProgressStartedRef.current = true;
       setAccountData((prev) => {
         if (!prev) return prev;
         const updated = updater(prev);
@@ -7982,6 +7977,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       notify('Avatar updated', 'Changes saved to player file.');
     };
 
+    // Sound/encounter-feedback toggles — persisted the same way as everything else in
+    // `game` (optimistic local update + background Firestore sync via updateAccountData),
+    // so they survive a refresh, logout/login, or a different device instead of quietly
+    // resetting to the default every session.
+    const updatePreferences = (patch: Partial<PlayerPreferences>) => {
+      updateAccountData((acc) => ({ ...acc, game: { ...acc.game, preferences: { ...acc.game.preferences, ...patch } } }));
+    };
+
     // Password changes only — email is read-only in the Profile UI (Firebase Auth is
     // the source of truth for it), so this no longer touches Firebase Auth's email.
     const updateProfilePassword = async (currentPassword: string, newPass: string) => {
@@ -8087,6 +8090,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                   updateProfilePassword={updateProfilePassword}
                   notify={notify}
                   onLogout={() => setLogoutConfirmOpen(true)}
+                  preferences={game.preferences}
+                  updatePreferences={updatePreferences}
                 />
               )}
             </div>
