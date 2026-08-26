@@ -5892,27 +5892,41 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // render origin (camX/camY, computed fresh each frame near the top of render()) and
       // the fact that the player's own body now gets drawn as a sprite are new.
       //
-      // camPullback is a FIXED distance, not a value that eases toward some per-frame
-      // target. It used to be re-derived every frame from a ray cast backward from the
-      // player (so the camera would pull in when a wall was close behind), then eased
-      // toward that changing target. That's what caused the reported bug: the player's
-      // on-screen size is size = h / distanceToCamera (see projectSprite below), so any
-      // change to this distance directly changes how big the character looks — the
-      // character would shrink as the camera pulled in near walls and grow again as it
-      // eased back out, even though the player hadn't zoomed anything. Keeping this a
-      // true constant means the camera-to-player distance — and therefore the player's
-      // apparent size — never changes while walking around, regardless of walls,
-      // movement, or frame-to-frame smoothing. The trade-off is that the camera can dip
-      // behind/through geometry when the player backs into a tight corner; that's an
-      // intentional acceptance in exchange for a rock-stable apparent size.
-      const THIRD_PERSON_DISTANCE = 7.2; // fixed elevated bird's-eye-style third-person distance
-      const camPullback = THIRD_PERSON_DISTANCE;
+      // THIRD_PERSON_DISTANCE is the NOMINAL follow distance, and it is what the player's
+      // on-screen size is always computed from (the forced-size override at the player's
+      // draw call below) — it is a true constant, never eased, scaled, or otherwise
+      // altered by movement, so the player's apparent size never changes while walking.
+      // Pulled in close and paired with a moderate pitch (see pitchOffsetPx) for a large,
+      // clearly-visible character rather than the small-and-distant bird's-eye read.
+      //
+      // The camera's actual render position (camX/camY, computed fresh each frame in
+      // render()) CAN still be nudged closer than this nominal distance — see
+      // CAMERA_WALL_CLEARANCE below — but only far enough to keep the camera from ever
+      // rendering from inside solid geometry (which would otherwise let you see "through"
+      // a wall the camera has clipped into). That nudge only affects how much of the
+      // environment is visible around the player; it never touches the player's own
+      // projected size, so it isn't a zoom effect.
+      const THIRD_PERSON_DISTANCE = 2.8; // close third-person follow distance — player reads large on screen
+      const CAMERA_WALL_CLEARANCE = 0.12; // tight clearance; do not push the camera into/through a wall
+      const RENDER_WALL_HEIGHT = 1.55; // taller world wall so elevated view cannot look over it into the void
+      // This used to be 0.6 — a floor big enough that whenever a wall sat closer than
+      // ~0.95 tiles behind the player (i.e. almost any time the player backed up to a
+      // wall or stood in a corner), `Math.max(CAMERA_MIN_DISTANCE, backProbe.dist -
+      // CAMERA_WALL_CLEARANCE)` picked the 0.6 floor instead of the clearance-based
+      // value — pushing the camera's render origin PAST the wall (sometimes fully
+      // inside/behind it). castRayDDA never tests whether its own origin cell is solid
+      // (it only starts stepping outward from it), so a camera embedded in a wall would
+      // cast rays that completely miss that wall and sail on to whatever is beyond it —
+      // exactly the "wall disappears, reveals empty space" glitch. This only needs to be
+      // a small degenerate-math guard (projectSprite divides by transformX), so it's now
+      // well under the smallest clearance the wall-clearance term can produce, meaning
+      // clearance always wins and the camera can never render from inside geometry.
+      const CAMERA_MIN_DISTANCE = 0.08;
       let pointerLocked = false;
       let roamingActive = true;
       let raf = 0;
       let walkPhase = 0;
       let playerWalking = false;
-      let activeTerminalTarget: (typeof challengers)[number] | null = null;
 
       const keys: Record<string, boolean> = {};
       let mouseDX = 0;
@@ -5922,7 +5936,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // and the touch-drag look turned sharp enough, that the (also-too-close) walls made
       // navigation feel frantic rather than immersive. Desktop (keyboard + mouse) was never
       // reported as a problem, so only the mobile-specific values change here.
-      const moveSpeed = isMobile ? 2.1 : 3.0;
+      const moveSpeed = isMobile ? 1.75 : 3.0;
       const sensitivity = 1.0;
       const touchLookSensitivity = 0.0023; // was 0.0035 — same full-width-swipe-turns-you-around feel, just gentler
 
@@ -5932,6 +5946,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // (and garbage-collecting) a fresh array 60x/sec, which was a source of intermittent
       // stutter during movement, especially on mobile GC pauses.
       let zBuffer: Float32Array = new Float32Array(0);
+      // Rebuilt fresh every frame in render() from each NPC's actual projected screen
+      // position, then read by the click/tap handlers below — this is the whole
+      // mechanism behind "interact only on tap/click", since a hit-test against this
+      // array is the only thing that can ever call interact() for a challenger now.
+      let npcHitboxes: { term: (typeof challengers)[number]; screenX: number; screenY: number; radius: number }[] = [];
       // Mobile devices raycast+fill noticeably more columns per frame than desktop needs
       // for the same visual density (phone viewport widths often exceed the old 360 cap in
       // some orientations); trimming the cap there is the single biggest lever for smoother
@@ -5977,7 +5996,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const interact = (target: (typeof challengers)[number]) => {
         if (!target.active) return;
         if (defeatedIdsRef.current.includes(target.id)) {
-          prompt.innerText = `[${target.area}] ${target.name} — QUEST ALREADY COMPLETED`;
+          // Tapping/clicking a finished quest-giver still deserves feedback — it just
+          // comes through the same one-shot discovery popup notes/guides already use,
+          // rather than the old proximity-driven bottom prompt bar.
+          pushDiscovery({ title: `[${target.area}]`, body: `${target.name} — QUEST ALREADY COMPLETED`, duration: 2200 });
           return;
         }
 
@@ -6004,41 +6026,79 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         onFoundRef.current(target, { x: playerX, y: playerY, angle: playerAngle });
       };
 
+      // Hit-tests screen-space coordinates (actual pointer position, or the reticle at
+      // screen center for pointer-locked/keyboard interaction) against this frame's
+      // npcHitboxes. This — not world-space distance — is what "the player taps/clicks
+      // the NPC" means: walking near a challenger no longer surfaces any prompt on its
+      // own; only an actual hit here can ever lead to interact() being called.
+      function hitTestNpcAt(px: number, py: number) {
+        let best: (typeof challengers)[number] | null = null;
+        let bestDistSq = Infinity;
+        for (const hb of npcHitboxes) {
+          const dx = px - hb.screenX, dy = py - hb.screenY;
+          const distSq = dx * dx + dy * dy;
+          if (distSq <= hb.radius * hb.radius && distSq < bestDistSq) { best = hb.term; bestDistSq = distSq; }
+        }
+        return best;
+      }
+      // Used when there's no free cursor to click with (pointer-locked mouselook, or the
+      // 'E' key) — aim by turning until the NPC sits under the screen-center reticle,
+      // same "look at it, then act" convention GTA-style third-person controls use for
+      // context actions. A slightly larger-than-hitbox tolerance keeps this forgiving at
+      // typical NPC screen sizes without needing a literal crosshair drawn on screen.
+      function hitTestNpcAtCenter() {
+        const cx = canvas.width / 2, cy = canvas.height / 2;
+        let best: (typeof challengers)[number] | null = null;
+        let bestDistSq = Infinity;
+        for (const hb of npcHitboxes) {
+          const dx = cx - hb.screenX, dy = cy - hb.screenY;
+          const distSq = dx * dx + dy * dy;
+          const tolerance = Math.max(hb.radius, 46);
+          if (distSq <= tolerance * tolerance && distSq < bestDistSq) { best = hb.term; bestDistSq = distSq; }
+        }
+        return best;
+      }
+
       const handleKeyDown = (e: KeyboardEvent) => {
         if (!roamingActive) return;
         const key = e.key.toLowerCase();
         if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'e'].includes(key)) {
           keys[key] = true;
-          if (key === 'e' && activeTerminalTarget) interact(activeTerminalTarget);
+          if (key === 'e') {
+            const target = hitTestNpcAtCenter();
+            if (target) interact(target);
+          }
         }
       };
       const handleKeyUp = (e: KeyboardEvent) => { keys[e.key.toLowerCase()] = false; };
       const handleMouseMove = (e: MouseEvent) => { if (pointerLocked) mouseDX += e.movementX; };
-      const handleCanvasClick = () => { if (!pointerLocked && !isMobile && roamingActive) canvas.requestPointerLock(); };
+      // Desktop click: with a free cursor (not yet pointer-locked), a click that lands on
+      // an NPC's on-screen sprite interacts with it directly — otherwise it engages
+      // mouselook as before. Once pointer-locked there's no cursor to click WITH, so a
+      // click there falls back to the same center-reticle hit-test 'E' uses.
+      const handleCanvasClick = (e: MouseEvent) => {
+        if (!roamingActive) return;
+        if (pointerLocked) {
+          const target = hitTestNpcAtCenter();
+          if (target) interact(target);
+          return;
+        }
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
+        const target = hitTestNpcAt((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY);
+        if (target) { interact(target); return; }
+        if (!isMobile) canvas.requestPointerLock();
+      };
       const handlePointerLockChange = () => {
         pointerLocked = document.pointerLockElement === canvas;
         if (pointerLocked) tapStart.style.display = 'none';
         else if (!isMobile && roamingActive) tapStart.style.display = 'block';
-      };
-      const handlePromptTap = (e: Event) => { e.preventDefault(); e.stopPropagation(); if (activeTerminalTarget) interact(activeTerminalTarget); };
-      // Floating badge above the NPC: tapping/touching it opens the quest modal directly,
-      // same as pressing 'E' or tapping the bottom prompt bar. touchstart (with
-      // preventDefault) makes mobile taps feel instant instead of waiting on the
-      // synthetic click; the click listener covers mouse/desktop taps.
-      const handleBadgeActivate = (e: Event) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (activeTerminalTarget) interact(activeTerminalTarget);
       };
       document.addEventListener('keydown', handleKeyDown);
       document.addEventListener('keyup', handleKeyUp);
       document.addEventListener('mousemove', handleMouseMove);
       canvas.addEventListener('click', handleCanvasClick);
       document.addEventListener('pointerlockchange', handlePointerLockChange);
-      prompt.addEventListener('click', handlePromptTap);
-      prompt.addEventListener('touchstart', handlePromptTap, { passive: false });
-      badge.addEventListener('click', handleBadgeActivate);
-      badge.addEventListener('touchstart', handleBadgeActivate, { passive: false });
 
       const joyCleanups: Array<() => void> = [];
       if (isMobile) {
@@ -6067,7 +6127,19 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                 let dx = touch.clientX - rect.left - CENTER;
                 let dy = touch.clientY - rect.top - CENTER;
                 const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist > MAX_DIST) { dx = (dx / dist) * MAX_DIST; dy = (dy / dist) * MAX_DIST; }
+                const DEAD_ZONE = 7;
+                if (dist <= DEAD_ZONE) {
+                  dx = 0;
+                  dy = 0;
+                } else {
+                  if (dist > MAX_DIST) { dx = (dx / dist) * MAX_DIST; dy = (dy / dist) * MAX_DIST; }
+                  const usable = MAX_DIST - DEAD_ZONE;
+                  const adjusted = Math.min(1, (dist - DEAD_ZONE) / usable);
+                  const nx = dx / dist;
+                  const ny = dy / dist;
+                  dx = nx * adjusted * MAX_DIST;
+                  dy = ny * adjusted * MAX_DIST;
+                }
                 leftJoy.dx = dx / MAX_DIST; leftJoy.dy = dy / MAX_DIST;
                 leftThumb.style.transform = `translate(${CENTER - HALF_THUMB + dx}px, ${CENTER - HALF_THUMB + dy}px)`;
               }
@@ -6096,13 +6168,21 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // desktop mouselook accumulates movementX, and drain it once per rendered frame in
         // gameLoop — so response tracks the finger 1:1 with no smoothing/inertia lag, and
         // fast vs. slow swipes stay proportional instead of clamping at a joystick's edge.
+        // This same layer doubles as the mobile tap-to-interact surface: a touch that ends
+        // close to where it started, quickly, is treated as a tap rather than a look-drag
+        // and hit-tested against this frame's NPC screen hitboxes — mirroring the desktop
+        // click behavior so mobile never gets a proximity-triggered prompt either.
         const lookLayer = lookLayerRef.current;
         if (lookLayer) {
-          const lookTouch = { id: null as number | null, lastX: 0 };
+          const lookTouch = { id: null as number | null, lastX: 0, lastY: 0, startX: 0, startY: 0, startTime: 0, moved: 0 };
           const lookStart = (e: TouchEvent) => {
             if (lookTouch.id !== null) return;
             const touch = e.changedTouches[0];
-            lookTouch.id = touch.identifier; lookTouch.lastX = touch.clientX;
+            lookTouch.id = touch.identifier;
+            lookTouch.lastX = touch.clientX; lookTouch.lastY = touch.clientY;
+            lookTouch.startX = touch.clientX; lookTouch.startY = touch.clientY;
+            lookTouch.startTime = performance.now();
+            lookTouch.moved = 0;
           };
           const lookMove = (e: TouchEvent) => {
             for (let i = 0; i < e.changedTouches.length; i++) {
@@ -6110,13 +6190,27 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
               if (touch.identifier === lookTouch.id) {
                 e.preventDefault();
                 touchLookDX += touch.clientX - lookTouch.lastX;
-                lookTouch.lastX = touch.clientX;
+                lookTouch.moved += Math.abs(touch.clientX - lookTouch.lastX) + Math.abs(touch.clientY - lookTouch.lastY);
+                lookTouch.lastX = touch.clientX; lookTouch.lastY = touch.clientY;
               }
             }
           };
           const lookEnd = (e: TouchEvent) => {
             for (let i = 0; i < e.changedTouches.length; i++) {
-              if (e.changedTouches[i].identifier === lookTouch.id) lookTouch.id = null;
+              if (e.changedTouches[i].identifier === lookTouch.id) {
+                const touch = e.changedTouches[i];
+                const elapsed = performance.now() - lookTouch.startTime;
+                // A short, mostly-stationary touch is a tap; anything that traveled
+                // farther or lingered longer was a look-drag and shouldn't also fire an
+                // interaction underneath it.
+                if (roamingActive && elapsed < 350 && lookTouch.moved < 14) {
+                  const rect = canvas.getBoundingClientRect();
+                  const scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
+                  const target = hitTestNpcAt((touch.clientX - rect.left) * scaleX, (touch.clientY - rect.top) * scaleY);
+                  if (target) interact(target);
+                }
+                lookTouch.id = null;
+              }
             }
           };
           lookLayer.addEventListener('touchstart', lookStart, { passive: true });
@@ -6136,6 +6230,16 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       function castRayDDA(angle: number, originX: number, originY: number) {
         const dirX = Math.cos(angle), dirY = Math.sin(angle);
         let mapX = Math.floor(originX), mapY = Math.floor(originY);
+        // Defensive guard: the DDA loop below only ever tests cells it steps INTO, never
+        // the cell it starts in — so a ray whose origin is already inside (or exactly on
+        // the boundary of) solid geometry would silently skip that wall and report
+        // whatever is beyond it, which reads as the wall having vanished. This should be
+        // unreachable now that the camera is kept clear of geometry (see
+        // CAMERA_MIN_DISTANCE above), but it costs nothing to make the function correct
+        // on its own terms rather than relying solely on callers never misusing it.
+        if (mapX >= 0 && mapX < mapWidth && mapY >= 0 && mapY < mapHeight && map[mapY][mapX] !== 0) {
+          return { dist: 0.01, side: 0, tile: map[mapY][mapX], wallX: 0 };
+        }
         const deltaDistX = Math.abs(1 / (dirX || 0.00001));
         const deltaDistY = Math.abs(1 / (dirY || 0.00001));
         let stepX: number, stepY: number, sideDistX: number, sideDistY: number;
@@ -6161,31 +6265,52 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       function render() {
         const w = canvas!.width, h = canvas!.height;
         const now = performance.now();
-        // Mobile's fixed-position camera (no mouse-look nuance to fall back on) made the
-        // narrower 60° FOV feel like navigating through a straw, and the fog cutting walls
-        // to black at 15 units meant surrounding rooms/paths/landmarks vanished before they
-        // were actually far away. Both widen further now that the camera sits much farther
-        // back for the bird's-eye-style view — a wide FOV and long draw distance are what
-        // actually let the wider vista (NPCs, buildings, paths) read as a broad view of the
-        // surrounding world rather than a distant, cropped tunnel.
-        const fov = isMobile ? Math.PI / 2.05 : Math.PI / 2.25; // wide bird's-eye-style third-person view
+        // Wide-ish perspective per spec (~75-80°): mobile sits at the top of that range
+        // since there's no mouse-look nuance to fall back on there and a narrower FOV reads
+        // like navigating through a straw on a fixed touch camera; desktop sits a touch
+        // narrower since free-look mouse control makes the extra width less necessary.
+        const fov = isMobile ? (80 * Math.PI) / 180 : (78 * Math.PI) / 180; // ~75-80° wide third-person view
         const fogDistance = isMobile ? 26 : 22;
 
-        // Third-person camera: trails behind the player along playerAngle at a constant
-        // distance (camPullback, fixed above). No per-frame wall probe, no easing toward
-        // a moving target — the distance from camera to player is always exactly
-        // THIRD_PERSON_DISTANCE, so the player's projected size (h / distance, see
-        // projectSprite below) never changes while walking, regardless of nearby walls.
-        const camX = playerX - Math.cos(playerAngle) * camPullback;
-        const camY = playerY - Math.sin(playerAngle) * camPullback;
-        // This raycaster has no true vertical pitch, so "well above, angled clearly down" is
-        // approximated the way 2.5D engines traditionally fake it: shift the horizon (and
-        // everything projected relative to it — walls, floor/ceiling split, sprites) up by
-        // a fixed number of pixels. A camera actually elevated and angled steeply down would
-        // reveal a lot more floor and almost no ceiling, exactly like this — pushed further
-        // than before for the bird's-eye-style read, without going all the way to horizonY's
-        // ceiling limit (which would read as fully top-down).
-        const pitchOffsetPx = h * 0.24; // steeper downward camera angle: wide floor/environment view
+        // Third-person camera: trails behind the player along playerAngle. The distance
+        // used for the CAMERA'S OWN POSITION (camDist) is normally just the nominal
+        // THIRD_PERSON_DISTANCE — no easing, no per-frame drift — but it's allowed to
+        // shrink, instantly and only as far as necessary, when a wall sits closer than
+        // that directly behind the player. That keeps the camera from ever rendering from
+        // inside solid geometry (which would otherwise look like seeing through the wall
+        // it clipped into). Crucially, this value is used ONLY to position the camera —
+        // the player's own on-screen size is pinned to THIRD_PERSON_DISTANCE regardless
+        // (see the forced-size override at the player's draw call below), so this
+        // wall-clearance nudge never shows up as the character shrinking or growing; it
+        // only ever changes how much of the surrounding environment is in view.
+        const backProbe = castRayDDA(playerAngle + Math.PI, playerX, playerY);
+        // The camera must never cross the wall directly behind the player. Use the measured
+        // wall distance, but never allow the fallback minimum to place the render origin on
+        // the far side of that wall. This is especially important at corners on mobile where
+        // a single frame of joystick movement can otherwise put the camera into solid geometry.
+        const safeBehindDistance = Math.max(0.02, backProbe.dist - CAMERA_WALL_CLEARANCE);
+        const camDist = Math.min(THIRD_PERSON_DISTANCE, safeBehindDistance);
+        let camX = playerX - Math.cos(playerAngle) * camDist;
+        let camY = playerY - Math.sin(playerAngle) * camDist;
+
+        // Final point-in-solid guard. DDA now reports an immediate hit when its origin cell is
+        // solid, so if rounding ever puts the camera on the wall boundary, step it back toward
+        // the player instead of allowing a ray to originate inside the wall.
+        for (let guard = 0; guard < 4; guard++) {
+          const cx = Math.floor(camX), cy = Math.floor(camY);
+          if (cx < 0 || cx >= mapWidth || cy < 0 || cy >= mapHeight || map[cy][cx] === 0) break;
+          camX = (camX + playerX) * 0.5;
+          camY = (camY + playerY) * 0.5;
+        }
+        // This raycaster has no true vertical pitch, so "positioned above, angled slightly
+        // down" is approximated the way 2.5D engines traditionally fake it: shift the
+        // horizon (and everything projected relative to it — walls, floor/ceiling split,
+        // sprites) up by a fixed number of pixels. Tuned down from the earlier steep,
+        // near-top-down value to a moderate ~20-30° downward read: enough floor and
+        // building frontage to see where you're walking and keep the environment feeling
+        // close, while keeping the horizon clearly on-screen and walls tall enough that you
+        // can't see over them.
+        const pitchOffsetPx = h * 0.15; // moderate ~25° downward camera angle
         const horizonY = h / 2 - pitchOffsetPx;
 
         const district = getDistrictAt(playerX, playerY);
@@ -6215,6 +6340,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         ctx!.fillStyle = cachedSkyGradients.floor; ctx!.fillRect(0, horizonY, w, h - horizonY);
 
         const numRays = Math.min(w, rayCap);
+        npcHitboxes.length = 0; // rebuilt below as each challenger is projected this frame
         const stripWidth = w / numRays;
         if (zBuffer.length !== numRays) zBuffer = new Float32Array(numRays);
 
@@ -6223,8 +6349,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           const result = castRayDDA(rayAngle, camX, camY);
           const correctedDist = result.dist * Math.cos(rayAngle - playerAngle);
           zBuffer[i] = correctedDist;
-          const wallHeight = h / correctedDist;
-          const wallTop = (h - wallHeight) / 2 - pitchOffsetPx;
+          // A 1.0-high raycaster wall is too short for the requested elevated camera: at
+          // ~25° pitch the view can look over distant wall tops and expose the floor/void
+          // behind the enclosure. Render the existing map walls as taller solid walls without
+          // changing their collision cells or map layout. Roof/building sprites remain visible.
+          const wallHeight = (h * RENDER_WALL_HEIGHT) / correctedDist;
+          const wallTop = horizonY - wallHeight / 2;
           const brightness = Math.max(0, 1 - correctedDist / fogDistance);
           let r: number, g: number, b: number;
           if (result.tile === 2) { r = Math.floor(120 * brightness); g = Math.floor(80 * brightness); b = Math.floor(40 * brightness); }
@@ -6463,6 +6593,15 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           const proj = projectSprite(term.x, term.y + idleBob, beaconRange);
           if (!proj) return;
           const { screenX: spriteScreenX, size: spriteSize, drawY, dist: spriteDist } = proj;
+          // Tap/click hit target for this NPC, rebuilt fresh every frame from its actual
+          // projected screen position — this is what lets interaction be driven purely by
+          // "the player touched this sprite on screen" instead of world-space proximity.
+          // Only registered while the body itself is actually visible/rendered (inside
+          // fogDistance, same threshold the body draw below uses), so you can never tap
+          // an NPC that isn't legitimately on screen.
+          if (term.active && spriteDist <= fogDistance) {
+            npcHitboxes.push({ term, screenX: spriteScreenX, screenY: drawY + spriteSize * 0.55, radius: Math.max(24, spriteSize * 0.34) });
+          }
           spriteDrawQueue.push({
             dist: spriteDist,
             draw: () => {
@@ -6679,19 +6818,28 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // entering the campus.
         const playerProj = projectSprite(playerX, playerY);
         if (playerProj) {
-          const { screenX: pScreenX, size: pSize, drawY: pDrawY, dist: pDist, fogAlpha: pFogAlpha } = playerProj;
+          const { screenX: pScreenX, dist: pDist, fogAlpha: pFogAlpha } = playerProj;
+          // Size and draw position are pinned to the NOMINAL follow distance
+          // (THIRD_PERSON_DISTANCE), not playerProj's own size/drawY — those are derived
+          // from the actual camera-to-player distance (pDist), which can be temporarily
+          // shorter than nominal when the wall-clearance nudge above pulls the camera in.
+          // Pinning here is what keeps the character a stable size even in that case,
+          // rather than growing as the camera nudges closer to a wall behind the player.
+          const pSize = h / THIRD_PERSON_DISTANCE;
+          const pDrawY = (h - pSize) / 2 - pitchOffsetPx;
           spriteDrawQueue.push({
             dist: pDist,
             draw: () => {
               ctx!.globalAlpha = pFogAlpha;
-              // The shared pitchOffsetPx shift above is what tilts the whole scene
-              // convincingly downward, but applied uniformly it also pushes the player's
-              // own feet up toward mid-screen once the camera sits this far back (the
-              // sprite shrinks with distance, so the usual (h+size)/2 center-point drifts
-              // toward the true horizon). Nudge the player's own ground contact back down
-              // so they stay anchored near the lower-center of the frame — the one sprite
-              // the "keep the customized character clearly visible" requirement is about —
-              // without touching where NPCs, props, or the environment itself land.
+              // The shared pitchOffsetPx shift above tilts the whole scene downward, but
+              // this pseudo-3D projection centers a sprite relative to the shifted horizon
+              // based on its height alone — it has no notion of an actual camera height
+              // looking down at ground level, so without help a sprite's feet land nearer
+              // mid-screen than a real over-the-shoulder camera would put them. Nudge the
+              // player's own ground contact down to sit properly in the lower portion of
+              // the frame — the one sprite the "player should be large and clearly visible"
+              // requirement is about — without touching where NPCs, props, or the
+              // environment itself land.
               const groundY = pDrawY + pSize + h * 0.22;
               const figureHeight = pSize * 0.82;
               drawVoxelFigure(pScreenX, groundY, figureHeight, avatarRef.current, 'back', walkPhase, playerWalking);
@@ -6748,43 +6896,17 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // always runs — only the prompt-bar line it can post below is gated on the card.
         checkGateUnlock();
 
-        // The ambient "nearby object" UI — prompt bar, floating badge above an NPC, mobile
-        // CTA — only ever shows one thing at a time, and never while a discovery/hint card
-        // is already up. A note or guide can trigger its card at the exact moment the
-        // player also happens to be standing next to a challenger or the locked gate; without
-        // this guard the prompt bar goes on updating and showing itself underneath/behind
-        // that card every frame, which is exactly the overlapping-popups bug this fixes.
-        // `activeTerminalTarget` is cleared too, so E/tap can't fire a second interaction
-        // while the card is still up.
+        // The bottom prompt bar is now purely the locked-gate status line — challenger
+        // interaction no longer surfaces any proximity-driven UI (see hitTestNpcAt /
+        // hitTestNpcAtCenter above: tapping/clicking directly on an NPC's sprite is the
+        // only path into interact() now). The floating badge that used to track a nearby
+        // challenger is retired along with that proximity path; it stays hidden.
+        badge.style.display = 'none';
         if (discoveryActive) {
-          activeTerminalTarget = null;
           hideFieldUi();
         } else {
-          activeTerminalTarget = null;
-          let badgeTarget: { x: number; y: number } | null = null;
-          for (const term of challengers) {
-            const distToTerm = Math.hypot(playerX - term.x, playerY - term.y);
-            if (distToTerm < 1.5 && term.active) {
-              activeTerminalTarget = term;
-              const alreadyDone = defeatedIdsRef.current.includes(term.id);
-              prompt.innerText = alreadyDone ? `[${term.area}] ${term.name} — QUEST ALREADY COMPLETED` : `[${term.area}] PRESS 'E' OR TAP TO CHALLENGE: ${term.name}`;
-              prompt.style.display = 'block';
-              if (!alreadyDone) {
-                // Reproject this NPC to screen space so the floating badge can sit right
-                // above its sprite. Only shown when it's actually in front of the player and
-                // not hidden behind a wall — matches how the sprite itself is drawn/occluded.
-                const bProj = projectSprite(term.x, term.y);
-                if (bProj) badgeTarget = { x: bProj.screenX, y: bProj.drawY };
-              }
-              break;
-            }
-          }
-
-          // Locked gate: shows a status line in the prompt bar (no badge, nothing to press —
-          // it opens itself once the mastery condition is met) whenever the player is nearby
-          // and no challenger prompt is already claiming the bar.
           let gateNearby = false;
-          if (!activeTerminalTarget && !gate.open) {
+          if (!gate.open) {
             const gateDist = Math.hypot(playerX - (gate.x + 0.5), playerY - (gate.y + 0.5));
             if (gateDist < 1.6) {
               gateNearby = true;
@@ -6793,33 +6915,182 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
               prompt.style.display = 'block';
             }
           }
-          if (!activeTerminalTarget && !gateNearby && prompt.style.display === 'block') prompt.style.display = 'none';
+          if (!gateNearby && prompt.style.display === 'block') prompt.style.display = 'none';
+        }
+      }
 
-          if (badgeTarget) {
-            badge.style.display = 'flex';
-            badge.style.transform = `translate(${badgeTarget.x - 17}px, ${badgeTarget.y - 42}px)`;
-          } else {
-            badge.style.display = 'none';
+      // Wall collision: a proper circle-vs-tile test, replacing an earlier point-sampling
+      // approach. Point-sampling (testing a handful of fixed offsets around the player)
+      // has two failure modes: sample gaps big enough to let a corner slip between two
+      // probes (clipping onto/through a wall corner), and — once diagonal probes were
+      // added to close that gap — false positives during axis-separated sliding, since a
+      // diagonal probe samples perpendicular to the axis actually being tested and can
+      // "see" a wall that isn't really in the player's path, snagging what should be a
+      // smooth slide. A circle-vs-tile-AABB test has neither problem: for each solid tile
+      // near the candidate position, find the closest point on that tile's actual square
+      // to the circle's center and compare against the radius — exactly the same
+      // rectangle a wall occupies on screen, so the collision boundary always matches the
+      // rendered wall with no invisible padding, and sliding falls out naturally since X
+      // and Y are still resolved independently below.
+      // Tight physical footprints: these are deliberately much smaller than the visual
+      // sprite/hit-test sizes. Interaction distance is NOT collision distance. Keeping the
+      // physical radii small prevents the invisible "bubble" around walls/NPCs that made
+      // corners and narrow passages feel blocked from far away.
+      // Keep the player's physical footprint close to the character's actual feet.
+      // Interaction/tap hitboxes are intentionally much larger and are NOT used for movement.
+      const PLAYER_RADIUS = 0.11;
+      const NPC_RADIUS = 0.08;
+      const NPC_CONTACT_PADDING = 0.0;
+
+      // Only map tiles are environmental collision. Decorative billboards/props/holograms
+      // are visual/interactive objects and must never create an invisible movement barrier.
+      function circleHitsWall(cx: number, cy: number, radius: number) {
+        const minTX = Math.floor(cx - radius), maxTX = Math.floor(cx + radius);
+        const minTY = Math.floor(cy - radius), maxTY = Math.floor(cy + radius);
+
+        for (let ty = minTY; ty <= maxTY; ty++) {
+          for (let tx = minTX; tx <= maxTX; tx++) {
+            if (tx < 0 || tx >= mapWidth || ty < 0 || ty >= mapHeight) return true;
+            if (map[ty][tx] === 0) continue;
+
+            const closestX = Math.max(tx, Math.min(cx, tx + 1));
+            const closestY = Math.max(ty, Math.min(cy, ty + 1));
+            const dx = cx - closestX;
+            const dy = cy - closestY;
+
+            if (dx * dx + dy * dy < radius * radius) return true;
           }
         }
+        return false;
       }
 
-      function canMove(nx: number, ny: number) {
-        const radius = 0.25;
-        const testPoints = [[nx, ny], [nx - radius, ny], [nx + radius, ny], [nx, ny - radius], [nx, ny + radius]];
-        for (const [cx, cy] of testPoints) {
-          const mx = Math.floor(cx), my = Math.floor(cy);
-          if (mx < 0 || mx >= mapWidth || my < 0 || my >= mapHeight) return false;
-          const tile = map[my][mx];
-          // Every non-floor tile blocks movement — 1/2/3/4 are wall-texture variants
-          // (color only, per the tile legend), so all four are solid on par with the
-          // others, not just 1. Previously 2/3/4 were left out here, meaning strips of
-          // the map that render as solid colored wall could actually be walked straight
-          // through — fixed so what's visually a wall is always actually a wall.
-          if (tile !== 0) return false;
+      // NPCs/guides are SOFT obstacles, not walls. They are resolved after wall movement
+      // instead of being included in canMove(), which prevents an NPC from becoming an
+      // oversized invisible wall at a corner or when standing close to a wall.
+      function npcAtPosition(nx: number, ny: number) {
+        const separation = PLAYER_RADIUS + NPC_RADIUS + NPC_CONTACT_PADDING;
+        const separationSq = separation * separation;
+
+        for (const term of challengers) {
+          const dx = nx - term.x;
+          const dy = ny - term.y;
+          if (dx * dx + dy * dy < separationSq) {
+            return { x: term.x, y: term.y };
+          }
         }
-        return true;
+
+        for (const guide of guides) {
+          const dx = nx - guide.x;
+          const dy = ny - guide.y;
+          if (dx * dx + dy * dy < separationSq) {
+            return { x: guide.x, y: guide.y };
+          }
+        }
+
+        return null;
       }
+
+      // Wall collision is the only hard movement constraint. This is what prevents
+      // decorative objects from accidentally creating invisible barriers.
+      function canMove(nx: number, ny: number) {
+        return !circleHitsWall(nx, ny, PLAYER_RADIUS);
+      }
+
+      // Softly separate the player from NPCs/guides after movement. The player can approach
+      // closely and then naturally slide around the character instead of being stopped by a
+      // large circular "wall". If an NPC is beside a wall, wall collision still wins.
+      function resolveNpcContacts() {
+        const separation = PLAYER_RADIUS + NPC_RADIUS;
+        const minDistSq = separation * separation;
+
+        for (let pass = 0; pass < 3; pass++) {
+          let changed = false;
+
+          const bodies = [
+            ...challengers.map(n => ({ x: n.x, y: n.y })),
+            ...guides.map(n => ({ x: n.x, y: n.y })),
+          ];
+
+          for (const body of bodies) {
+            let dx = playerX - body.x;
+            let dy = playerY - body.y;
+            let distSq = dx * dx + dy * dy;
+
+            if (distSq >= minDistSq) continue;
+
+            let dist = Math.sqrt(distSq);
+            if (dist < 0.0001) {
+              // Deterministic fallback direction if the player is exactly on the NPC.
+              dx = Math.cos(playerAngle);
+              dy = Math.sin(playerAngle);
+              dist = 1;
+            }
+
+            const push = (separation - dist) / dist;
+            const candidateX = playerX + dx * push;
+            const candidateY = playerY + dy * push;
+
+            // Prefer the full separation, but never push the player through a wall.
+            if (canMove(candidateX, candidateY)) {
+              playerX = candidateX;
+              playerY = candidateY;
+              changed = true;
+              continue;
+            }
+
+            // If the full push meets a wall, resolve each component independently.
+            // This creates a natural "brush past" behavior at wall/NPC corners.
+            const xOnly = playerX + dx * push;
+            if (canMove(xOnly, playerY)) {
+              playerX = xOnly;
+              changed = true;
+            }
+
+            const yOnly = playerY + dy * push;
+            if (canMove(playerX, yOnly)) {
+              playerY = yOnly;
+              changed = true;
+            }
+          }
+
+          if (!changed) break;
+        }
+      }
+
+      // Movement is resolved against walls first, using small sub-steps for mobile
+      // touch/joystick input. NPCs are then treated as soft bodies and separated without
+      // turning their entire interaction area into a hard collision barrier.
+      function movePlayerBy(dx: number, dy: number) {
+        const distance = Math.hypot(dx, dy);
+        const maxStep = isMobile ? 0.035 : 0.05;
+        const steps = Math.max(1, Math.ceil(distance / maxStep));
+        const stepX = dx / steps;
+        const stepY = dy / steps;
+
+        for (let i = 0; i < steps; i++) {
+          const fullX = playerX + stepX;
+          const fullY = playerY + stepY;
+
+          if (canMove(fullX, fullY)) {
+            playerX = fullX;
+            playerY = fullY;
+            continue;
+          }
+
+          // Axis-separated wall sliding. This is deliberately wall-only so an NPC cannot
+          // turn a diagonal movement into a sticky corner.
+          if (canMove(playerX + stepX, playerY)) {
+            playerX += stepX;
+          }
+
+          if (canMove(playerX, playerY + stepY)) {
+            playerY += stepY;
+          }
+        }
+
+        resolveNpcContacts();
+      }
+
 
       let lastTime = performance.now();
       function gameLoop(timestamp: number) {
@@ -6845,9 +7116,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           if (isWalking) {
             walkPhase += dt * (isMobile ? 9.5 : 10.5);
             moveX = (moveX / len) * moveSpeed * dt; moveY = (moveY / len) * moveSpeed * dt;
-            const nx = playerX + moveX, ny = playerY + moveY;
-            if (canMove(nx, playerY)) playerX = nx;
-            if (canMove(playerX, ny)) playerY = ny;
+            // Use the shared collision resolver for walls and NPCs. It keeps the physical
+            // footprint tight, prevents tunnelling, and slides along the first blocked
+            // surface instead of treating every corner like a large invisible wall.
+            movePlayerBy(moveX, moveY);
           }
           render();
         }
@@ -6864,10 +7136,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         document.removeEventListener('mousemove', handleMouseMove);
         canvas.removeEventListener('click', handleCanvasClick);
         document.removeEventListener('pointerlockchange', handlePointerLockChange);
-        prompt.removeEventListener('click', handlePromptTap);
-        prompt.removeEventListener('touchstart', handlePromptTap);
-        badge.removeEventListener('click', handleBadgeActivate);
-        badge.removeEventListener('touchstart', handleBadgeActivate);
         discoveryBtn.removeEventListener('click', handleDiscoveryTap);
         discoveryBtn.removeEventListener('touchstart', handleDiscoveryTap);
         if (discoveryTimer) window.clearTimeout(discoveryTimer);
