@@ -3306,10 +3306,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     color: #9ca7c4;
     font-size: 10px;
   }
-  .campus-mini-map { position:absolute; z-index:18; top:14px; left:14px; width:156px; height:128px; border:1px solid rgba(103,205,209,.65); border-radius:10px; background:rgba(6,12,18,.88); box-shadow:0 8px 28px rgba(0,0,0,.35); pointer-events:none; image-rendering:pixelated; }
-  .campus-mini-map canvas { width:100%; height:100%; display:block; border-radius:9px; }
-  @media (max-width: 720px) { .campus-mini-map { width:118px; height:96px; top:9px; left:9px; } }
-
   .campus-interact-badge {
     position: absolute;
     top: 0;
@@ -4426,8 +4422,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   type Quest = { id: string; title: string; meta: string; rewardXp: number; rewardCoins: number; done: boolean };
   type ShopItem = { id: string; name: string; copy: string; price: number; icon: typeof Crosshair; category: 'Gear' | 'Consumables' | 'Cosmetics'; requiredQuestId?: string };
   type PlayerPreferences = { sound: boolean; encounterFeedback: boolean };
-  type QuestionHistoryEntry = { questId: string; questTitle: string; tier: number; questionId: string; subject: string; question: string; selectedAnswer: string; correctAnswer: string; correct: boolean; explanation: string; answeredAt: number };
-  type GameState = { coins: number; xp: number; quests: Quest[]; owned: string[]; equipped: string | null; studyMinutes: number; activityDates: string[]; subjectMastery: Record<string, { correct: number; total: number }>; defeatedChallengerIds: string[]; questTier: number; usedQuestionIds: string[]; questionHistory: QuestionHistoryEntry[]; completedQuestCycles: number; preferences: PlayerPreferences };
+  type GameState = { coins: number; xp: number; quests: Quest[]; owned: string[]; equipped: string | null; studyMinutes: number; activityDates: string[]; subjectMastery: Record<string, { correct: number; total: number }>; defeatedChallengerIds: string[]; preferences: PlayerPreferences };
   // No `password` field anymore — Firebase Auth owns credentials entirely; this is now
   // purely the Firestore document shape for `players/{uid}`.
   type StoredAccount = { profile: Profile; game: GameState };
@@ -4476,7 +4471,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     if (achievement.requiredCategory) return owned.some((id) => shopItems.find((item) => item.id === id)?.category === achievement.requiredCategory);
     return false;
   };
-  type Question = { id?: string; subject: string; question: string; options: string[]; answer: number; explanation: string; difficulty?: number };
+  type Question = { subject: string; question: string; options: string[]; answer: number; explanation: string };
 
   // One question bank per strand (the same four values chosen at signup: STEM / ABM /
   // HUMSS / GENERAL KNOWLEDGE). Every question a player ever sees comes from their own
@@ -4614,7 +4609,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     const derivedName = authUser?.displayName?.trim() || authUser?.email?.split('@')[0] || 'Player';
     return { name: derivedName, email: authUser?.email ?? '', strand: 'STEM', avatar: makeDefaultAvatar() };
   };
-  const makeFreshGameState = (): GameState => ({ coins: 0, xp: 0, quests: initialQuests.map((quest) => ({ ...quest })), owned: [], equipped: null, studyMinutes: 0, activityDates: [], subjectMastery: {}, defeatedChallengerIds: [], questTier: 0, usedQuestionIds: [], questionHistory: [], completedQuestCycles: 0, preferences: { sound: true, encounterFeedback: true } });
+  const makeFreshGameState = (): GameState => ({ coins: 0, xp: 0, quests: initialQuests.map((quest) => ({ ...quest })), owned: [], equipped: null, studyMinutes: 0, activityDates: [], subjectMastery: {}, defeatedChallengerIds: [], preferences: { sound: true, encounterFeedback: true } });
   const getInitials = (name: string) => name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'PL';
 
   const toISODate = (date: Date) => {
@@ -4654,10 +4649,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       ...data.game,
       subjectMastery: data.game.subjectMastery ?? {},
       defeatedChallengerIds: data.game.defeatedChallengerIds ?? [],
-      questTier: data.game.questTier ?? 0,
-      usedQuestionIds: data.game.usedQuestionIds ?? [],
-      questionHistory: data.game.questionHistory ?? [],
-      completedQuestCycles: data.game.completedQuestCycles ?? 0,
       preferences: { sound: data.game.preferences?.sound ?? true, encounterFeedback: data.game.preferences?.encounterFeedback ?? true },
     },
   });
@@ -5254,13 +5245,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
   function Dashboard({
     profile, quests, claimQuest, timerRunning, secondsLeft, toggleTimer, resetTimer, studyMinutes, xp, coins, streak, setScreen,
-    defeatedChallengerIds, subjectMastery, questTier, usedQuestionIds, onExploreCampus,
+    defeatedChallengerIds, subjectMastery, onExploreCampus,
   }: {
     profile: Profile; quests: Quest[]; claimQuest: (id: string) => void;
     timerRunning: boolean; secondsLeft: number; toggleTimer: () => void; resetTimer: () => void;
     studyMinutes: number; xp: number; coins: number; streak: number;
     setScreen: (screen: Screen) => void;
-    defeatedChallengerIds: string[]; subjectMastery: Record<string, { correct: number; total: number }>; questTier: number; usedQuestionIds: string[]; onExploreCampus: () => void;
+    defeatedChallengerIds: string[]; subjectMastery: Record<string, { correct: number; total: number }>; onExploreCampus: () => void;
   }) {
     const time = `${String(Math.floor(secondsLeft / 60)).padStart(2, '0')}:${String(secondsLeft % 60).padStart(2, '0')}`;
     const openQuestCount = quests.filter((quest) => !quest.done).length;
@@ -5281,7 +5272,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // NEXT DISCOVERY recommendation: the lowest-recommendedLevel challenger the player
     // hasn't beaten yet — i.e. the natural next step in the campus's intended progression,
     // not just "whichever one is first in the array." Null once every district is cleared.
-    const nextChallenger = [...getQuestTierChallengers(questTier)]
+    const nextChallenger = [...CAMPUS_CHALLENGERS]
       .filter((c) => !defeatedChallengerIds.includes(c.id))
       .sort((a, b) => a.recommendedLevel - b.recommendedLevel)[0] ?? null;
     const discoveryDistrict = nextChallenger ? nextChallenger.area.split(':')[0].trim() : null;
@@ -5290,7 +5281,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // instead of a generic area name, and the questions actually asked (see
     // getEncounterQuestions) are the ones this text describes.
     const discoveryTopic = nextChallenger ? getDistrictFocus(nextChallenger.districtId, profile.strand) : null;
-    const nextChallengerQuestions = nextChallenger ? getEncounterQuestions(nextChallenger, profile.strand, questTier, usedQuestionIds) : [];
+    const nextChallengerQuestions = nextChallenger ? getEncounterQuestions(nextChallenger, profile.strand) : [];
     const estimatedMinutes = Math.max(3, nextChallengerQuestions.length * 2);
 
     // Live clock: drives the time-of-day greeting only (no separate day/time readout —
@@ -5606,22 +5597,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // Every quest has a deliberately authored enemy identity. The loadout is owned by the
   // challenger, never by the player, so changing the player's profile can never change an
   // enemy. Each quest uses a different silhouette/outfit/accessory combination.
-  const getQuestTierChallengers = (tier: number) => CAMPUS_CHALLENGERS.map((base) => {
-    if (tier <= 0) return base;
-    const prefix = tier === 1 ? 'Advanced' : tier === 2 ? 'Expert' : `Mastery Tier ${tier + 1}`;
-    return {
-      ...base,
-      id: `${base.id}:tier:${tier}`,
-      name: `${prefix} ${base.name}`,
-      questTitle: `${prefix}: ${base.questTitle}`,
-      statement: `${base.statement} This tier is harder than your previous run.`,
-      lore: `${base.lore} This is quest tier ${tier + 1}; previous questions will never return.`,
-      recommendedLevel: base.recommendedLevel + tier * 2,
-      rewardXp: Math.round(base.rewardXp * (1 + tier * 0.35)),
-      rewardCoins: Math.round(base.rewardCoins * (1 + tier * 0.35)),
-    };
-  });
-
   const getChallengerAvatar = (challenger: Pick<CampusChallenger, 'id' | 'name' | 'style'>): AvatarConfig => {
     const seed = hashSeed(`${challenger.id}:${challenger.name}`);
     const skins = ['#f1c6a8', '#d59a78', '#8d5a42', '#6d4437'] as const;
@@ -5646,120 +5621,36 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     return 'dean-enemy';
   };
 
-  // Procedural higher-tier questions: every tier gets genuinely new question text and a
-  // unique ID. Values change with tier/variant, so a question is never recycled verbatim.
-  // This keeps the game expandable without requiring an enormous static question file.
-  const makeProgressionQuestions = (strand: string, tier: number): Question[] => {
-    const t = Math.max(0, tier);
-    const v = (n: number) => n + t * 3;
-    const pool: Question[] = [];
-    const add = (base: string, variant: number, subject: string, question: string, options: string[], answer: number, explanation: string) => {
-      pool.push({ id: `gen-${strand}-${t}-${base}-${variant}`, subject, question: `${question} (Case ${variant + 1})`, options, answer, explanation, difficulty: t + 1 });
-    };
-    if (strand === 'STEM') {
-      for (let i = 0; i < 2; i++) {
-        const a = 3 + v(i * 2), b = 7 + v(i), x = 5 + v(i);
-        add('linear', i, 'Algebra', `Solve ${a}x + ${b} = ${a * x + b}. What is x?`, [String(x - 2), String(x), String(x + 2), String(x + 4)], 1, `Subtract ${b} and divide by ${a}: x = ${x}.`);
-        const n = 3 + t + i, c = 2 + i;
-        add('derivative', i, 'Calculus', `What is the derivative of ${n}x^${c + 2} - ${c}x^2?`, [`${n * (c + 2)}x^${c + 1} - ${2 * c}x`, `${n}x^${c + 1} - ${c}x`, `${n * (c + 1)}x^${c} - ${c}x`, `${n * (c + 2)}x^${c + 2}`], 0, `Apply the power rule term by term: ${n}(x^${c + 2}) becomes ${n * (c + 2)}x^${c + 1}, and ${c}x² becomes ${2 * c}x.`);
-        const mass = 4 + v(i), accel = 3 + i, force = mass * accel;
-        add('newton', i, 'Physics', `A ${mass} kg object accelerates at ${accel} m/s². What net force acts on it?`, [`${force - mass} N`, `${force} N`, `${force + mass} N`, `${mass + accel} N`], 1, `Newton's second law gives F = ma = ${mass} × ${accel} = ${force} N.`);
-        const mol = 2 + i + t, volume = 4 + i, molarity = mol / volume;
-        const mtxt = Number.isInteger(molarity) ? String(molarity) : molarity.toFixed(2);
-        add('molarity', i, 'Chemistry', `A solution contains ${mol} mol of solute in ${volume} L. What is its molarity?`, [`${volume / mol} M`, `${mtxt} M`, `${mol + volume} M`, `${mol * volume} M`], 1, `Molarity = moles ÷ liters = ${mol} ÷ ${volume} = ${mtxt} M.`);
-        add('genetics', i, 'Biology', `If two heterozygous parents (Aa × Aa) have a child, what is the probability the child is aa?`, ['0%', '25%', '50%', '75%'], 1, 'The Punnett square gives AA, Aa, Aa, aa, so 1 out of 4 outcomes is aa.');
-        const red = 3 + i + t, blue = 2 + i, total = red + blue;
-        add('probability', i, 'Statistics', `A bag has ${red} red and ${blue} blue tokens. What is the probability of drawing a red token on one draw?`, [`${blue}/${total}`, `${red}/${total}`, `1/${red}`, `${total}/${red}`], 1, `There are ${red} favorable outcomes out of ${total} total tokens.`);
-        const voltage = 6 + v(i), resistance = 2 + i, current = voltage / resistance;
-        add('electric', i, 'Physics', `A ${voltage} V source is connected to a ${resistance} Ω resistor. What current flows?`, [`${current + 1} A`, `${current} A`, `${voltage + resistance} A`, `${resistance / voltage} A`], 1, `Ohm's law gives I = V/R = ${voltage}/${resistance} = ${current} A.`);
-        const values = [4 + t + i, 7 + t, 9 + i, 10 + t, 15 + i];
-        const mean = values.reduce((a,b)=>a+b,0)/values.length;
-        add('mean', i, 'Statistics', `What is the mean of ${values.join(', ')}?`, [String(mean - 2), String(mean), String(mean + 2), String(mean + 4)], 1, `Add the five values and divide by 5: the mean is ${mean}.`);
-      }
-    } else if (strand === 'ABM') {
-      for (let i = 0; i < 2; i++) {
-        const assets = 120000 + t * 15000 + i * 10000, liabilities = 45000 + i * 5000, equity = assets - liabilities;
-        add('equity', i, 'Accounting', `A company has assets of ₱${assets.toLocaleString()} and liabilities of ₱${liabilities.toLocaleString()}. What is its equity?`, [`₱${equity-10000}`, `₱${equity}`, `₱${equity+10000}`, `₱${assets+liabilities}`], 1, `Equity = Assets − Liabilities = ₱${equity.toLocaleString()}.`);
-        const fixed = 12000 + t * 1500 + i * 1000, price = 80 + t * 5 + i * 5, variable = 50 + t * 2 + i * 2, units = Math.ceil(fixed / (price-variable));
-        add('breakeven', i, 'Management', `A product sells for ₱${price} with variable cost ₱${variable} per unit and fixed costs ₱${fixed}. About how many units reach break-even?`, [String(units-50), String(units), String(units+50), String(units+100)], 1, `Break-even units = fixed costs ÷ contribution margin = ${fixed} ÷ (${price}−${variable}) ≈ ${units} units.`);
-        const investment = 5000 + t*1000 + i*500, profit = 750 + t*150 + i*100, roi = Math.round((profit/investment)*100);
-        add('roi', i, 'Finance', `An investment costs ₱${investment.toLocaleString()} and returns ₱${profit.toLocaleString()} in profit. What is the approximate ROI?`, [`${roi-5}%`, `${roi}%`, `${roi+5}%`, `${roi+10}%`], 1, `ROI = profit ÷ investment × 100 ≈ ${roi}%.`);
-        const principal = 10000 + t*1000 + i*500, rate = 0.05 + i*0.01, years = 2 + t%2, interest = principal*rate*years;
-        add('interest', i, 'Finance', `What simple interest is earned on ₱${principal.toLocaleString()} at ${rate*100}% per year for ${years} years?`, [`₱${Math.round(interest/2)}`, `₱${Math.round(interest)}`, `₱${Math.round(interest*2)}`, `₱${principal+interest}`], 1, `Simple interest = P × r × t = ₱${principal.toLocaleString()} × ${rate} × ${years} = ₱${Math.round(interest).toLocaleString()}.`);
-        const pct = 10 + i*5, qdrop = 20 + t*5 + i*5, elasticity = (qdrop/pct).toFixed(1);
-        add('elasticity', i, 'Economics', `Price rises ${pct}% while quantity demanded falls ${qdrop}%. What is the approximate absolute price elasticity of demand?`, [String(Number(elasticity)-0.5), String(elasticity), String(Number(elasticity)+0.5), String(Number(elasticity)+1)], 1, `Elasticity ≈ % change in quantity ÷ % change in price = ${qdrop} ÷ ${pct} = ${elasticity}.`);
-        const sales = 200000 + t*25000 + i*10000, cogs = 120000 + t*12000 + i*6000, margin = Math.round(((sales-cogs)/sales)*100);
-        add('margin', i, 'Accounting', `A business has sales of ₱${sales.toLocaleString()} and cost of goods sold of ₱${cogs.toLocaleString()}. What is its gross margin percentage?`, [`${margin-5}%`, `${margin}%`, `${margin+5}%`, `${margin+10}%`], 1, `Gross margin = (sales − COGS) ÷ sales × 100 ≈ ${margin}%.`);
-        const avgInventory = 25000 + t*2000 + i*1000, cogs2 = 100000 + t*10000 + i*5000, turnover = (cogs2/avgInventory).toFixed(1);
-        add('turnover', i, 'Accounting', `If annual COGS is ₱${cogs2.toLocaleString()} and average inventory is ₱${avgInventory.toLocaleString()}, what is inventory turnover?`, [String(Number(turnover)-1), `${turnover}×`, `${Number(turnover)+1}×`, `${Number(turnover)+2}×`], 1, `Inventory turnover = COGS ÷ average inventory ≈ ${turnover}×.`);
-        const currentAssets = 90000 + t*7000 + i*4000, currentLiabilities = 45000 + t*3000 + i*2000, currentRatio = (currentAssets/currentLiabilities).toFixed(1);
-        add('currentratio', i, 'Accounting', `A business has current assets of ₱${currentAssets.toLocaleString()} and current liabilities of ₱${currentLiabilities.toLocaleString()}. What is its current ratio?`, [`${Number(currentRatio)-0.5}:1`, `${currentRatio}:1`, `${Number(currentRatio)+0.5}:1`, `${Number(currentRatio)+1}:1`], 1, `Current ratio = current assets ÷ current liabilities ≈ ${currentRatio}:1.`);
-      }
-    } else if (strand === 'HUMSS') {
-      for (let i = 0; i < 2; i++) {
-        const year = 1896 + t + i;
-        add('source', i, 'History', `A historian wants to verify a claim about an event in ${year}. Which source is generally strongest for establishing what a participant directly recorded at the time?`, ['A modern meme', 'A primary-source diary from a participant', 'A later anonymous comment', 'A textbook summary written centuries later'], 1, 'A contemporaneous participant diary is a primary source and directly records an experience from the period.');
-        add('causation', i, 'Social Science', `A study finds that students who sleep more tend to score higher. Which conclusion is safest without an experimental design?`, ['Sleep definitely causes higher scores', 'The variables are associated, but causation is not established', 'Scores cause students to sleep', 'There is no relationship at all'], 1, 'An observational association does not by itself prove a causal relationship.');
-        add('rhetoric', i, 'Language', `Which rhetorical strategy relies mainly on the speaker's credibility or authority?`, ['Ethos', 'Pathos', 'Logos', 'Irony'], 0, 'Ethos persuades through credibility, character, or authority.');
-        add('fallacy', i, 'Critical Thinking', `A speaker says, "Everyone in our class agrees, so the claim must be true." Which fallacy is this closest to?`, ['Ad hominem', 'Appeal to popularity', 'False dilemma', 'Straw man'], 1, 'Treating popularity as proof is an appeal to popularity.');
-        add('literary', i, 'Literature', `A story repeatedly contrasts a character's public confidence with private doubt. Which device is most directly created by that contrast?`, ['Characterization through contrast', 'Chronological order', 'Literal repetition', 'Meter'], 0, 'The contrast between outward behavior and inner doubt develops the character through juxtaposition.');
-        add('civics', i, 'Civics', `Why is separation of powers used in many constitutional systems?`, ['To concentrate authority', 'To distribute authority and provide checks', 'To eliminate courts', 'To prevent elections'], 1, 'Separating powers helps prevent one branch or institution from accumulating unchecked authority.');
-        add('argument', i, 'Critical Thinking', `Which statement is the strongest thesis for an analytical essay?`, ['Social media is interesting.', 'Social media has effects.', `Because algorithmic feeds reward engagement, social media can shape what users repeatedly encounter.`, 'I will discuss social media.'], 2, 'A strong thesis makes a specific, arguable claim and gives the reader the analytical direction.');
-        add('context', i, 'History', `When evaluating a historical speech, why should a researcher examine its political context?`, ['Context is irrelevant', 'Context can explain intended audience, motives, and constraints', 'Context changes the date', 'Context proves every statement true'], 1, 'Historical context helps interpret why a source was produced and what pressures shaped it.');
-      }
-    } else {
-      for (let i = 0; i < 2; i++) {
-        const planet = 5 + t + i;
-        add('planet', i, 'Science', `Which planet is ${planet === 5 ? 'the largest in our solar system' : 'known for its prominent ring system'}?`, planet === 5 ? ['Earth','Jupiter','Mars','Venus'] : ['Mars','Saturn','Mercury','Neptune'], 1, planet === 5 ? 'Jupiter is the largest planet in the solar system.' : 'Saturn is famous for its prominent ring system.');
-        const km = 120 + t*10 + i*20;
-        add('distance', i, 'Geography', `A traveler drives ${km} km at an average speed of 60 km/h. About how many hours does the trip take?`, [`${(km/60-1).toFixed(1)} h`, `${(km/60).toFixed(1)} h`, `${(km/60+1).toFixed(1)} h`, `${(km/60+2).toFixed(1)} h`], 1, `Time = distance ÷ speed = ${km} ÷ 60 ≈ ${(km/60).toFixed(1)} hours.`);
-        add('evidence', i, 'Critical Thinking', `Which piece of evidence is most useful for checking whether a surprising factual claim is reliable?`, ['A post with no source', 'An independently verifiable primary or authoritative source', 'A comment with many likes', 'A repeated rumor'], 1, 'Reliable claims should be checked against evidence that can be independently verified.');
-        add('probability', i, 'Mathematics', `A fair six-sided die is rolled once. What is the probability of rolling a value greater than 4?`, ['1/6','1/3','1/2','2/3'], 1, 'Values 5 and 6 are favorable: 2 out of 6 = 1/3.');
-        add('climate', i, 'Science', `Which process transfers carbon from the atmosphere into plants?`, ['Photosynthesis','Evaporation','Erosion','Condensation'], 0, 'Plants take in atmospheric carbon dioxide during photosynthesis and incorporate carbon into organic molecules.');
-        add('map', i, 'Geography', `On a map with a scale of 1 cm = 20 km, how far does 4.5 cm represent?`, ['45 km','70 km','90 km','120 km'], 2, 'Multiply 4.5 by 20: the represented distance is 90 km.');
-        add('art', i, 'Arts', `Which principle of design describes visual weight being distributed so a composition feels stable?`, ['Balance','Texture','Hue','Perspective'], 0, 'Balance distributes visual weight so the composition feels stable rather than lopsided.');
-        add('logic', i, 'Logic', `If all A are B and no B are C, which statement must be true?`, ['Some A are C','No A are C','All C are A','Some C are B'], 1, 'If every A belongs to B and B cannot overlap C, A cannot overlap C either.');
-      }
-    }
-    return pool;
-  };
-
-  // Builds a fresh encounter set. Question IDs are filtered against persisted history and
-  // the current session cache, so a question already seen by the player can never be selected
-  // again. Every challenger gets four questions; later quest tiers use procedurally harder,
-  // completely new question text.
-  const questionSetCache: Record<string, Question[]> = {};
-  const getQuestionStableId = (q: Question, strand: string, tier: number, index: number) =>
-    q.id ?? `bank-${strand}-${tier}-${hashSeed(`${strand}:${tier}:${q.subject}:${q.question}:${index}`)}`;
-
-  const buildChallengerQuestionSet = (challenger: Pick<CampusChallenger, 'id' | 'districtId'>, strand: string, tier: number, usedQuestionIds: string[]): Question[] => {
-    const base = QUESTION_BANK[strand] ?? QUESTION_BANK['GENERAL KNOWLEDGE'];
-    const generated = makeProgressionQuestions(strand, tier);
-    const pool = tier === 0 ? [...base, ...generated] : generated;
-    const used = new Set(usedQuestionIds);
-    const reserved = new Set(Object.values(questionSetCache).flat().map((q) => q.id).filter(Boolean) as string[]);
-    const available = pool.map((q, index) => ({ ...q, id: getQuestionStableId(q, strand, tier, index) }))
-      .filter((q) => !used.has(q.id!) && !reserved.has(q.id!));
-
-    // Deterministically rotate the pool by challenger so multiple NPCs in the same tier do
-    // not all pick the same first four questions. Shuffle only the fresh candidates.
-    const rotated = shuffleArray(available);
-    let selected = rotated.slice(0, 4);
-    if (selected.length < 4) {
-      // If a partially completed encounter consumed the remaining candidates, use only the
-      // genuinely fresh questions available. Never silently recycle an old question.
-      selected = rotated;
-    }
-    return selected.map((q) => {
+  // Builds the exact shuffled question set one challenger presents, from the player's own
+  // strand bank. Districts partition their strand's 8-question bank so every NPC gets a
+  // genuinely different set: Foundation takes the first pair (quick basics check), Peaks
+  // the next three (the hardest reasoning questions), Wilds the last three (repeated
+  // practice) — a clean, non-overlapping split — while Citadel pulls the whole bank,
+  // matching its "comprehensive exam" role. Question order and each question's own choices
+  // are both shuffled (Fisher–Yates), with the correct answer's index remapped to match.
+  const buildChallengerQuestionSet = (challenger: Pick<CampusChallenger, 'districtId'>, strand: string): Question[] => {
+    const bank = QUESTION_BANK[strand] ?? QUESTION_BANK['GENERAL KNOWLEDGE'];
+    const slice = challenger.districtId === 'foundation' ? bank.slice(0, 2)
+      : challenger.districtId === 'peaks' ? bank.slice(2, 5)
+      : challenger.districtId === 'wilds' ? bank.slice(5, 8)
+      : bank; // citadel: comprehensive — the entire strand bank
+    return shuffleArray(slice).map((q) => {
       const shuffledOptions = shuffleArray(q.options.map((option, index) => ({ option, isCorrect: index === q.answer })));
-      return { ...q, options: shuffledOptions.map((o) => o.option), answer: shuffledOptions.findIndex((o) => o.isCorrect) };
+      return { subject: q.subject, question: q.question, options: shuffledOptions.map((o) => o.option), answer: shuffledOptions.findIndex((o) => o.isCorrect), explanation: q.explanation };
     });
   };
 
-  const getEncounterQuestions = (challenger: CampusChallenger | null, strand: string, tier: number, usedQuestionIds: string[]): Question[] => {
+  // Per-encounter question set cache, keyed by challenger + strand. Generated once, on
+  // whichever screen needs it first (briefing shows the count, battle asks the questions),
+  // then reused for the rest of that challenger's undefeated lifetime — retreating from the
+  // briefing, or retreating mid-battle, both just re-read this same cached set rather than
+  // rolling a new one. A different challenger is a different key, so it gets its own fresh
+  // shuffle the first time it's approached — that's the only way a "new set" happens.
+  const questionSetCache: Record<string, Question[]> = {};
+  const getEncounterQuestions = (challenger: CampusChallenger | null, strand: string): Question[] => {
     if (!challenger) return [];
-    const key = `${challenger.id}:${strand}:tier:${tier}:${usedQuestionIds.join(',')}`;
-    if (!questionSetCache[key]) questionSetCache[key] = buildChallengerQuestionSet(challenger, strand, tier, usedQuestionIds);
+    const key = `${challenger.id}:${strand}`;
+    if (!questionSetCache[key]) questionSetCache[key] = buildChallengerQuestionSet(challenger, strand);
     return questionSetCache[key];
   };
 
@@ -5872,14 +5763,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // foreshorten it by viewing angle. See the `signs.forEach` render pass below.
   const SIGN_NORMALS: Record<CampusSign['side'], [number, number]> = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] };
 
-  function CampusExplorer({ level, strand, avatar, defeatedIds, questTier, initialPosition, onChallengerFound, onExit, notify, onReward }: { level: number; strand: string; avatar: AvatarConfig; defeatedIds: string[]; questTier: number; initialPosition?: CampusReturnPosition | null; onChallengerFound: (challenger: CampusChallenger, position: CampusReturnPosition) => void; onExit: () => void; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void; onReward: (coins: number, xp: number) => void }) {
+  function CampusExplorer({ level, strand, avatar, defeatedIds, initialPosition, onChallengerFound, onExit, notify, onReward }: { level: number; strand: string; avatar: AvatarConfig; defeatedIds: string[]; initialPosition?: CampusReturnPosition | null; onChallengerFound: (challenger: CampusChallenger, position: CampusReturnPosition) => void; onExit: () => void; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void; onReward: (coins: number, xp: number) => void }) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const worldRef = useRef<HTMLDivElement | null>(null);
     const promptRef = useRef<HTMLDivElement | null>(null);
     const badgeRef = useRef<HTMLButtonElement | null>(null);
     const districtChipRef = useRef<HTMLDivElement | null>(null);
     const progressChipRef = useRef<HTMLDivElement | null>(null);
-    const miniMapRef = useRef<HTMLCanvasElement | null>(null);
     const tapStartRef = useRef<HTMLDivElement | null>(null);
     const leftThumbRef = useRef<HTMLDivElement | null>(null);
     const leftZoneRef = useRef<HTMLDivElement | null>(null);
@@ -5919,7 +5809,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const map = CAMPUS_MAP.map((row) => row.slice());
       const mapWidth = map[0].length;
       const mapHeight = map.length;
-      const challengers = getQuestTierChallengers(questTier).map((c) => ({ ...c, active: true }));
+      const challengers = CAMPUS_CHALLENGERS.map((c) => ({ ...c, active: true }));
       // Same deterministic per-challenger AvatarConfig used everywhere else a challenger's
       // likeness is shown (Battle, the quest briefing card) — computed once here rather
       // than every animation frame, since the world sprite below now renders a full
@@ -5942,10 +5832,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
       const checkGateUnlock = () => {
         if (gate.open) return;
-        if (questTier > 0 || gate.requiredIds.every((id) => defeatedIdsRef.current.includes(id))) {
+        if (gate.requiredIds.every((id) => defeatedIdsRef.current.includes(id))) {
           gate.open = true;
           map[gate.y][gate.x] = 0;
-          if (questTier === 0) notifyRef.current(gate.label, 'The seal breaks — all three Districts have been bested. The Mastery Citadel is open.');
+          notifyRef.current(gate.label, 'The seal breaks — all three Districts have been bested. The Mastery Citadel is open.');
         }
       };
       checkGateUnlock();
@@ -6002,40 +5892,27 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // render origin (camX/camY, computed fresh each frame near the top of render()) and
       // the fact that the player's own body now gets drawn as a sprite are new.
       //
-      // THIRD_PERSON_DISTANCE is the NOMINAL follow distance, and it is what the player's
-      // on-screen size is always computed from (the forced-size override at the player's
-      // draw call below) — it is a true constant, never eased, scaled, or otherwise
-      // altered by movement, so the player's apparent size never changes while walking.
-      // Pulled in close and paired with a moderate pitch (see pitchOffsetPx) for a large,
-      // clearly-visible character rather than the small-and-distant bird's-eye read.
-      //
-      // The camera's actual render position (camX/camY, computed fresh each frame in
-      // render()) CAN still be nudged closer than this nominal distance — see
-      // CAMERA_WALL_CLEARANCE below — but only far enough to keep the camera from ever
-      // rendering from inside solid geometry (which would otherwise let you see "through"
-      // a wall the camera has clipped into). That nudge only affects how much of the
-      // environment is visible around the player; it never touches the player's own
-      // projected size, so it isn't a zoom effect.
-      const THIRD_PERSON_DISTANCE = 2.8; // close third-person follow distance — player reads large on screen
-      const CAMERA_WALL_CLEARANCE = 0.20; // keep the camera at least this far from a wall directly behind the player
-      // This used to be 0.6 — a floor big enough that whenever a wall sat closer than
-      // ~0.95 tiles behind the player (i.e. almost any time the player backed up to a
-      // wall or stood in a corner), `Math.max(CAMERA_MIN_DISTANCE, backProbe.dist -
-      // CAMERA_WALL_CLEARANCE)` picked the 0.6 floor instead of the clearance-based
-      // value — pushing the camera's render origin PAST the wall (sometimes fully
-      // inside/behind it). castRayDDA never tests whether its own origin cell is solid
-      // (it only starts stepping outward from it), so a camera embedded in a wall would
-      // cast rays that completely miss that wall and sail on to whatever is beyond it —
-      // exactly the "wall disappears, reveals empty space" glitch. This only needs to be
-      // a small degenerate-math guard (projectSprite divides by transformX), so it's now
-      // well under the smallest clearance the wall-clearance term can produce, meaning
-      // clearance always wins and the camera can never render from inside geometry.
-      const CAMERA_MIN_DISTANCE = 0.08;
+      // camPullback is a FIXED distance, not a value that eases toward some per-frame
+      // target. It used to be re-derived every frame from a ray cast backward from the
+      // player (so the camera would pull in when a wall was close behind), then eased
+      // toward that changing target. That's what caused the reported bug: the player's
+      // on-screen size is size = h / distanceToCamera (see projectSprite below), so any
+      // change to this distance directly changes how big the character looks — the
+      // character would shrink as the camera pulled in near walls and grow again as it
+      // eased back out, even though the player hadn't zoomed anything. Keeping this a
+      // true constant means the camera-to-player distance — and therefore the player's
+      // apparent size — never changes while walking around, regardless of walls,
+      // movement, or frame-to-frame smoothing. The trade-off is that the camera can dip
+      // behind/through geometry when the player backs into a tight corner; that's an
+      // intentional acceptance in exchange for a rock-stable apparent size.
+      const THIRD_PERSON_DISTANCE = 7.2; // fixed elevated bird's-eye-style third-person distance
+      const camPullback = THIRD_PERSON_DISTANCE;
       let pointerLocked = false;
       let roamingActive = true;
       let raf = 0;
       let walkPhase = 0;
       let playerWalking = false;
+      let activeTerminalTarget: (typeof challengers)[number] | null = null;
 
       const keys: Record<string, boolean> = {};
       let mouseDX = 0;
@@ -6045,7 +5922,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // and the touch-drag look turned sharp enough, that the (also-too-close) walls made
       // navigation feel frantic rather than immersive. Desktop (keyboard + mouse) was never
       // reported as a problem, so only the mobile-specific values change here.
-      const moveSpeed = isMobile ? 1.75 : 3.0;
+      const moveSpeed = isMobile ? 2.1 : 3.0;
       const sensitivity = 1.0;
       const touchLookSensitivity = 0.0023; // was 0.0035 — same full-width-swipe-turns-you-around feel, just gentler
 
@@ -6055,13 +5932,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // (and garbage-collecting) a fresh array 60x/sec, which was a source of intermittent
       // stutter during movement, especially on mobile GC pauses.
       let zBuffer: Float32Array = new Float32Array(0);
-      // Rebuilt fresh every frame in render() from each NPC's actual projected screen
-      // position, then read by the click/tap handlers below — this is the whole
-      // mechanism behind "interact only on tap/click", since a hit-test against this
-      // array is the only thing that can ever call interact() for a challenger now.
-      let npcHitboxes: { term: (typeof challengers)[number]; screenX: number; screenY: number; radius: number }[] = [];
-      type InteractiveHitbox = { kind: 'npc' | 'note' | 'guide' | 'sign' | 'gate'; item: any; screenX: number; screenY: number; radius: number };
-      const interactiveHitboxes: InteractiveHitbox[] = [];
       // Mobile devices raycast+fill noticeably more columns per frame than desktop needs
       // for the same visual density (phone viewport widths often exceed the old 360 cap in
       // some orientations); trimming the cap there is the single biggest lever for smoother
@@ -6107,10 +5977,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const interact = (target: (typeof challengers)[number]) => {
         if (!target.active) return;
         if (defeatedIdsRef.current.includes(target.id)) {
-          // Tapping/clicking a finished quest-giver still deserves feedback — it just
-          // comes through the same one-shot discovery popup notes/guides already use,
-          // rather than the old proximity-driven bottom prompt bar.
-          pushDiscovery({ title: `[${target.area}]`, body: `${target.name} — QUEST ALREADY COMPLETED`, duration: 2200 });
+          prompt.innerText = `[${target.area}] ${target.name} — QUEST ALREADY COMPLETED`;
           return;
         }
 
@@ -6137,113 +6004,41 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         onFoundRef.current(target, { x: playerX, y: playerY, angle: playerAngle });
       };
 
-      // Hit-tests screen-space coordinates (actual pointer position, or the reticle at
-      // screen center for pointer-locked/keyboard interaction) against this frame's
-      // npcHitboxes. This — not world-space distance — is what "the player taps/clicks
-      // the NPC" means: walking near a challenger no longer surfaces any prompt on its
-      // own; only an actual hit here can ever lead to interact() being called.
-      function hitTestNpcAt(px: number, py: number) {
-        let best: (typeof challengers)[number] | null = null;
-        let bestDistSq = Infinity;
-        for (const hb of npcHitboxes) {
-          const dx = px - hb.screenX, dy = py - hb.screenY;
-          const distSq = dx * dx + dy * dy;
-          if (distSq <= hb.radius * hb.radius && distSq < bestDistSq) { best = hb.term; bestDistSq = distSq; }
-        }
-        return best;
-      }
-      function hitTestInteractiveAt(px: number, py: number) {
-        let best: InteractiveHitbox | null = null;
-        let bestDistSq = Infinity;
-        for (const hb of interactiveHitboxes) {
-          const dx = px - hb.screenX, dy = py - hb.screenY;
-          const distSq = dx * dx + dy * dy;
-          if (distSq <= hb.radius * hb.radius && distSq < bestDistSq) { best = hb; bestDistSq = distSq; }
-        }
-        return best;
-      }
-      const INTERACTION_RANGE = 2.0;
-      function interactInteractive(target: InteractiveHitbox) {
-        const worldItem = target.item as { x?: number; y?: number };
-        if (typeof worldItem.x === 'number' && typeof worldItem.y === 'number' && Math.hypot(playerX - worldItem.x, playerY - worldItem.y) > INTERACTION_RANGE) return;
-        if (target.kind === 'npc') { interact(target.item); return; }
-        if (target.kind === 'note') {
-          const note = target.item as CampusNote;
-          if (collectedNotes.has(note.id)) return;
-          collectedNotes.add(note.id);
-          pushDiscovery({ title: `✦ HINT — ${note.title}`, body: note.hint, duration: 4500 });
-          return;
-        }
-        if (target.kind === 'guide') {
-          const guide = target.item as CampusGuide;
-          if (triggeredGuides.has(guide.id)) return;
-          triggeredGuides.add(guide.id);
-          const line = guide.lines[Math.floor(Math.random() * guide.lines.length)];
-          if (guide.reward) {
-            onRewardRef.current(guide.reward.coins, guide.reward.xp);
-            pushDiscovery({ title: `✦ ${guide.name}`, body: `${line} (+${guide.reward.coins} credits, +${guide.reward.xp} XP)`, duration: 5000 });
-          } else pushDiscovery({ title: `✦ ${guide.name}`, body: line, duration: 4500 });
-          return;
-        }
-        if (target.kind === 'sign') {
-          const sign = target.item as CampusSign;
-          pushDiscovery({ title: '✦ LOCATION', body: sign.label.replace(/^[^\s]+\s*/, ''), duration: 2500 });
-          return;
-        }
-        if (target.kind === 'gate') {
-          if (gate.open) pushDiscovery({ title: '✦ MASTERY CITADEL', body: 'The gate is open. Continue through to the next challenge.', duration: 3000 });
-          else {
-            const doneCount = gate.requiredIds.filter((id) => defeatedIdsRef.current.includes(id)).length;
-            pushDiscovery({ title: `🔒 ${gate.label}`, body: `Defeat all required district challengers first. (${doneCount}/${gate.requiredIds.length})`, duration: 3000 });
-          }
-        }
-      }
-      function hitTestNpcAtCenter() {
-        return hitTestInteractiveAt(canvas.width / 2, canvas.height / 2)?.kind === 'npc'
-          ? hitTestInteractiveAt(canvas.width / 2, canvas.height / 2)!.item as (typeof challengers)[number]
-          : null;
-      }
-
       const handleKeyDown = (e: KeyboardEvent) => {
         if (!roamingActive) return;
         const key = e.key.toLowerCase();
         if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'e'].includes(key)) {
           keys[key] = true;
-          if (key === 'e') {
-            const target = hitTestNpcAtCenter();
-            if (target) interact(target);
-          }
+          if (key === 'e' && activeTerminalTarget) interact(activeTerminalTarget);
         }
       };
       const handleKeyUp = (e: KeyboardEvent) => { keys[e.key.toLowerCase()] = false; };
       const handleMouseMove = (e: MouseEvent) => { if (pointerLocked) mouseDX += e.movementX; };
-      // Desktop click: with a free cursor (not yet pointer-locked), a click that lands on
-      // an NPC's on-screen sprite interacts with it directly — otherwise it engages
-      // mouselook as before. Once pointer-locked there's no cursor to click WITH, so a
-      // click there falls back to the same center-reticle hit-test 'E' uses.
-      const handleCanvasClick = (e: MouseEvent) => {
-        if (!roamingActive) return;
-        if (pointerLocked) {
-          const hit = hitTestInteractiveAt(canvas.width / 2, canvas.height / 2);
-          if (hit) { interactInteractive(hit); return; }
-          return;
-        }
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
-        const hit = hitTestInteractiveAt((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY);
-        if (hit) { interactInteractive(hit); return; }
-        if (!isMobile) canvas.requestPointerLock();
-      };
+      const handleCanvasClick = () => { if (!pointerLocked && !isMobile && roamingActive) canvas.requestPointerLock(); };
       const handlePointerLockChange = () => {
         pointerLocked = document.pointerLockElement === canvas;
         if (pointerLocked) tapStart.style.display = 'none';
         else if (!isMobile && roamingActive) tapStart.style.display = 'block';
+      };
+      const handlePromptTap = (e: Event) => { e.preventDefault(); e.stopPropagation(); if (activeTerminalTarget) interact(activeTerminalTarget); };
+      // Floating badge above the NPC: tapping/touching it opens the quest modal directly,
+      // same as pressing 'E' or tapping the bottom prompt bar. touchstart (with
+      // preventDefault) makes mobile taps feel instant instead of waiting on the
+      // synthetic click; the click listener covers mouse/desktop taps.
+      const handleBadgeActivate = (e: Event) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (activeTerminalTarget) interact(activeTerminalTarget);
       };
       document.addEventListener('keydown', handleKeyDown);
       document.addEventListener('keyup', handleKeyUp);
       document.addEventListener('mousemove', handleMouseMove);
       canvas.addEventListener('click', handleCanvasClick);
       document.addEventListener('pointerlockchange', handlePointerLockChange);
+      prompt.addEventListener('click', handlePromptTap);
+      prompt.addEventListener('touchstart', handlePromptTap, { passive: false });
+      badge.addEventListener('click', handleBadgeActivate);
+      badge.addEventListener('touchstart', handleBadgeActivate, { passive: false });
 
       const joyCleanups: Array<() => void> = [];
       if (isMobile) {
@@ -6272,19 +6067,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                 let dx = touch.clientX - rect.left - CENTER;
                 let dy = touch.clientY - rect.top - CENTER;
                 const dist = Math.sqrt(dx * dx + dy * dy);
-                const DEAD_ZONE = 7;
-                if (dist <= DEAD_ZONE) {
-                  dx = 0;
-                  dy = 0;
-                } else {
-                  if (dist > MAX_DIST) { dx = (dx / dist) * MAX_DIST; dy = (dy / dist) * MAX_DIST; }
-                  const usable = MAX_DIST - DEAD_ZONE;
-                  const adjusted = Math.min(1, (dist - DEAD_ZONE) / usable);
-                  const nx = dx / dist;
-                  const ny = dy / dist;
-                  dx = nx * adjusted * MAX_DIST;
-                  dy = ny * adjusted * MAX_DIST;
-                }
+                if (dist > MAX_DIST) { dx = (dx / dist) * MAX_DIST; dy = (dy / dist) * MAX_DIST; }
                 leftJoy.dx = dx / MAX_DIST; leftJoy.dy = dy / MAX_DIST;
                 leftThumb.style.transform = `translate(${CENTER - HALF_THUMB + dx}px, ${CENTER - HALF_THUMB + dy}px)`;
               }
@@ -6313,21 +6096,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // desktop mouselook accumulates movementX, and drain it once per rendered frame in
         // gameLoop — so response tracks the finger 1:1 with no smoothing/inertia lag, and
         // fast vs. slow swipes stay proportional instead of clamping at a joystick's edge.
-        // This same layer doubles as the mobile tap-to-interact surface: a touch that ends
-        // close to where it started, quickly, is treated as a tap rather than a look-drag
-        // and hit-tested against this frame's NPC screen hitboxes — mirroring the desktop
-        // click behavior so mobile never gets a proximity-triggered prompt either.
         const lookLayer = lookLayerRef.current;
         if (lookLayer) {
-          const lookTouch = { id: null as number | null, lastX: 0, lastY: 0, startX: 0, startY: 0, startTime: 0, moved: 0 };
+          const lookTouch = { id: null as number | null, lastX: 0 };
           const lookStart = (e: TouchEvent) => {
             if (lookTouch.id !== null) return;
             const touch = e.changedTouches[0];
-            lookTouch.id = touch.identifier;
-            lookTouch.lastX = touch.clientX; lookTouch.lastY = touch.clientY;
-            lookTouch.startX = touch.clientX; lookTouch.startY = touch.clientY;
-            lookTouch.startTime = performance.now();
-            lookTouch.moved = 0;
+            lookTouch.id = touch.identifier; lookTouch.lastX = touch.clientX;
           };
           const lookMove = (e: TouchEvent) => {
             for (let i = 0; i < e.changedTouches.length; i++) {
@@ -6335,27 +6110,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
               if (touch.identifier === lookTouch.id) {
                 e.preventDefault();
                 touchLookDX += touch.clientX - lookTouch.lastX;
-                lookTouch.moved += Math.abs(touch.clientX - lookTouch.lastX) + Math.abs(touch.clientY - lookTouch.lastY);
-                lookTouch.lastX = touch.clientX; lookTouch.lastY = touch.clientY;
+                lookTouch.lastX = touch.clientX;
               }
             }
           };
           const lookEnd = (e: TouchEvent) => {
             for (let i = 0; i < e.changedTouches.length; i++) {
-              if (e.changedTouches[i].identifier === lookTouch.id) {
-                const touch = e.changedTouches[i];
-                const elapsed = performance.now() - lookTouch.startTime;
-                // A short, mostly-stationary touch is a tap; anything that traveled
-                // farther or lingered longer was a look-drag and shouldn't also fire an
-                // interaction underneath it.
-                if (roamingActive && elapsed < 350 && lookTouch.moved < 14) {
-                  const rect = canvas.getBoundingClientRect();
-                  const scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
-                  const hit = hitTestInteractiveAt((touch.clientX - rect.left) * scaleX, (touch.clientY - rect.top) * scaleY);
-                  if (hit) interactInteractive(hit);
-                }
-                lookTouch.id = null;
-              }
+              if (e.changedTouches[i].identifier === lookTouch.id) lookTouch.id = null;
             }
           };
           lookLayer.addEventListener('touchstart', lookStart, { passive: true });
@@ -6375,16 +6136,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       function castRayDDA(angle: number, originX: number, originY: number) {
         const dirX = Math.cos(angle), dirY = Math.sin(angle);
         let mapX = Math.floor(originX), mapY = Math.floor(originY);
-        // Defensive guard: the DDA loop below only ever tests cells it steps INTO, never
-        // the cell it starts in — so a ray whose origin is already inside (or exactly on
-        // the boundary of) solid geometry would silently skip that wall and report
-        // whatever is beyond it, which reads as the wall having vanished. This should be
-        // unreachable now that the camera is kept clear of geometry (see
-        // CAMERA_MIN_DISTANCE above), but it costs nothing to make the function correct
-        // on its own terms rather than relying solely on callers never misusing it.
-        if (mapX >= 0 && mapX < mapWidth && mapY >= 0 && mapY < mapHeight && map[mapY][mapX] !== 0) {
-          return { dist: 0.01, side: 0, tile: map[mapY][mapX], wallX: 0 };
-        }
         const deltaDistX = Math.abs(1 / (dirX || 0.00001));
         const deltaDistY = Math.abs(1 / (dirY || 0.00001));
         let stepX: number, stepY: number, sideDistX: number, sideDistY: number;
@@ -6410,37 +6161,31 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       function render() {
         const w = canvas!.width, h = canvas!.height;
         const now = performance.now();
-        // Wide-ish perspective per spec (~75-80°): mobile sits at the top of that range
-        // since there's no mouse-look nuance to fall back on there and a narrower FOV reads
-        // like navigating through a straw on a fixed touch camera; desktop sits a touch
-        // narrower since free-look mouse control makes the extra width less necessary.
-        const fov = isMobile ? (80 * Math.PI) / 180 : (78 * Math.PI) / 180; // ~75-80° wide third-person view
+        // Mobile's fixed-position camera (no mouse-look nuance to fall back on) made the
+        // narrower 60° FOV feel like navigating through a straw, and the fog cutting walls
+        // to black at 15 units meant surrounding rooms/paths/landmarks vanished before they
+        // were actually far away. Both widen further now that the camera sits much farther
+        // back for the bird's-eye-style view — a wide FOV and long draw distance are what
+        // actually let the wider vista (NPCs, buildings, paths) read as a broad view of the
+        // surrounding world rather than a distant, cropped tunnel.
+        const fov = isMobile ? Math.PI / 2.05 : Math.PI / 2.25; // wide bird's-eye-style third-person view
         const fogDistance = isMobile ? 26 : 22;
 
-        // Third-person camera: trails behind the player along playerAngle. The distance
-        // used for the CAMERA'S OWN POSITION (camDist) is normally just the nominal
-        // THIRD_PERSON_DISTANCE — no easing, no per-frame drift — but it's allowed to
-        // shrink, instantly and only as far as necessary, when a wall sits closer than
-        // that directly behind the player. That keeps the camera from ever rendering from
-        // inside solid geometry (which would otherwise look like seeing through the wall
-        // it clipped into). Crucially, this value is used ONLY to position the camera —
-        // the player's own on-screen size is pinned to THIRD_PERSON_DISTANCE regardless
-        // (see the forced-size override at the player's draw call below), so this
-        // wall-clearance nudge never shows up as the character shrinking or growing; it
-        // only ever changes how much of the surrounding environment is in view.
-        const backProbe = castRayDDA(playerAngle + Math.PI, playerX, playerY);
-        const camDist = Math.min(THIRD_PERSON_DISTANCE, Math.max(CAMERA_MIN_DISTANCE, backProbe.dist - CAMERA_WALL_CLEARANCE));
-        const camX = playerX - Math.cos(playerAngle) * camDist;
-        const camY = playerY - Math.sin(playerAngle) * camDist;
-        // This raycaster has no true vertical pitch, so "positioned above, angled slightly
-        // down" is approximated the way 2.5D engines traditionally fake it: shift the
-        // horizon (and everything projected relative to it — walls, floor/ceiling split,
-        // sprites) up by a fixed number of pixels. Tuned down from the earlier steep,
-        // near-top-down value to a moderate ~20-30° downward read: enough floor and
-        // building frontage to see where you're walking and keep the environment feeling
-        // close, while keeping the horizon clearly on-screen and walls tall enough that you
-        // can't see over them.
-        const pitchOffsetPx = h * 0.14; // moderate ~20-30° downward camera angle
+        // Third-person camera: trails behind the player along playerAngle at a constant
+        // distance (camPullback, fixed above). No per-frame wall probe, no easing toward
+        // a moving target — the distance from camera to player is always exactly
+        // THIRD_PERSON_DISTANCE, so the player's projected size (h / distance, see
+        // projectSprite below) never changes while walking, regardless of nearby walls.
+        const camX = playerX - Math.cos(playerAngle) * camPullback;
+        const camY = playerY - Math.sin(playerAngle) * camPullback;
+        // This raycaster has no true vertical pitch, so "well above, angled clearly down" is
+        // approximated the way 2.5D engines traditionally fake it: shift the horizon (and
+        // everything projected relative to it — walls, floor/ceiling split, sprites) up by
+        // a fixed number of pixels. A camera actually elevated and angled steeply down would
+        // reveal a lot more floor and almost no ceiling, exactly like this — pushed further
+        // than before for the bird's-eye-style read, without going all the way to horizonY's
+        // ceiling limit (which would read as fully top-down).
+        const pitchOffsetPx = h * 0.24; // steeper downward camera angle: wide floor/environment view
         const horizonY = h / 2 - pitchOffsetPx;
 
         const district = getDistrictAt(playerX, playerY);
@@ -6455,34 +6200,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             notifyRef.current(`${district.icon} ${district.name}`, getDistrictFocus(district.id, strand));
           }
         }
-        // Lightweight mini-map: a tiny top-down guide, independent from the 2.5D camera.
-        // It is rendered every frame into a small canvas so it stays accurate on both desktop
-        // and mobile without adding DOM elements for every map cell.
-        const mini = miniMapRef.current;
-        if (mini) {
-          const mctx = mini.getContext('2d');
-          if (mctx) {
-            const mw = mini.width, mh = mini.height;
-            mctx.clearRect(0, 0, mw, mh);
-            const cell = Math.min(mw / mapWidth, mh / mapHeight);
-            const ox = (mw - cell * mapWidth) / 2, oy = (mh - cell * mapHeight) / 2;
-            mctx.fillStyle = 'rgba(7, 14, 20, 0.96)'; mctx.fillRect(0, 0, mw, mh);
-            for (let yy = 0; yy < mapHeight; yy++) for (let xx = 0; xx < mapWidth; xx++) {
-              const tile = map[yy][xx];
-              mctx.fillStyle = tile === 0 ? 'rgba(44, 67, 54, 0.75)' : 'rgba(21, 31, 40, 0.95)';
-              mctx.fillRect(ox + xx * cell, oy + yy * cell, Math.ceil(cell), Math.ceil(cell));
-            }
-            const dot = (x:number,y:number,r:number,fill:string) => { mctx.fillStyle=fill; mctx.beginPath(); mctx.arc(ox+x*cell, oy+y*cell, r, 0, Math.PI*2); mctx.fill(); };
-            challengers.filter(c => !defeatedIdsRef.current.includes(c.id)).forEach(c => dot(c.x, c.y, Math.max(2, cell*.22), '#f8b84e'));
-            guides.forEach(g => dot(g.x, g.y, Math.max(1.8, cell*.18), '#67cdd1'));
-            notes.filter(n => !collectedNotes.has(n.id)).forEach(n => dot(n.x, n.y, Math.max(1.5, cell*.15), '#f1f5f9'));
-            dot(gate.x + 0.5, gate.y + 0.5, Math.max(2, cell*.2), gate.open ? '#34d399' : '#f8b84e');
-            dot(playerX, playerY, Math.max(2.5, cell*.28), '#34d399');
-            const px = ox + playerX*cell, py = oy + playerY*cell;
-            mctx.strokeStyle = '#34d399'; mctx.lineWidth = 2; mctx.beginPath(); mctx.moveTo(px,py); mctx.lineTo(px+Math.cos(playerAngle)*cell*1.1, py+Math.sin(playerAngle)*cell*1.1); mctx.stroke();
-          }
-        }
-
         const [fr, fg, fb] = district.floor;
         const [cr, cg, cb] = district.ceil;
         if (!cachedSkyGradients || cachedSkyGradients.districtId !== district.id || cachedSkyGradients.h !== h) {
@@ -6498,7 +6215,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         ctx!.fillStyle = cachedSkyGradients.floor; ctx!.fillRect(0, horizonY, w, h - horizonY);
 
         const numRays = Math.min(w, rayCap);
-        npcHitboxes.length = 0; // rebuilt below as each challenger is projected this frame
         const stripWidth = w / numRays;
         if (zBuffer.length !== numRays) zBuffer = new Float32Array(numRays);
 
@@ -6747,15 +6463,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           const proj = projectSprite(term.x, term.y + idleBob, beaconRange);
           if (!proj) return;
           const { screenX: spriteScreenX, size: spriteSize, drawY, dist: spriteDist } = proj;
-          // Tap/click hit target for this NPC, rebuilt fresh every frame from its actual
-          // projected screen position — this is what lets interaction be driven purely by
-          // "the player touched this sprite on screen" instead of world-space proximity.
-          // Only registered while the body itself is actually visible/rendered (inside
-          // fogDistance, same threshold the body draw below uses), so you can never tap
-          // an NPC that isn't legitimately on screen.
-          if (term.active && spriteDist <= fogDistance) {
-            npcHitboxes.push({ term, screenX: spriteScreenX, screenY: drawY + spriteSize * 0.55, radius: Math.max(24, spriteSize * 0.34) });
-          }
           spriteDrawQueue.push({
             dist: spriteDist,
             draw: () => {
@@ -6841,7 +6548,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           const proj = projectSprite(note.x, note.y + bob);
           if (!proj) return;
           const { screenX, size, drawY, fogAlpha, dist } = proj;
-          if (dist <= fogDistance) interactiveHitboxes.push({ kind: 'note', item: note, screenX, screenY: drawY + size * 0.72, radius: Math.max(22, size * 0.25) });
           spriteDrawQueue.push({
             dist,
             draw: () => {
@@ -6869,7 +6575,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           const proj = projectSprite(guide.x, guide.y);
           if (!proj) return;
           const { screenX: spriteScreenX, size: spriteSize, drawY, fogAlpha, dist } = proj;
-          if (dist <= fogDistance) interactiveHitboxes.push({ kind: 'guide', item: guide, screenX: spriteScreenX, screenY: drawY + spriteSize * 0.55, radius: Math.max(24, spriteSize * 0.34) });
           spriteDrawQueue.push({
             dist,
             draw: () => {
@@ -6926,7 +6631,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           const proj = projectSprite(sign.x, sign.y);
           if (!proj) return;
           const { screenX, size, drawY, fogAlpha, dist } = proj;
-          if (dist <= fogDistance) interactiveHitboxes.push({ kind: 'sign', item: sign, screenX, screenY: drawY - size * 0.3, radius: Math.max(26, size * 0.3) });
           const [nx, ny] = SIGN_NORMALS[sign.side];
           const toPlayerX = playerX - sign.x, toPlayerY = playerY - sign.y;
           const toPlayerLen = Math.hypot(toPlayerX, toPlayerY) || 1;
@@ -6965,11 +6669,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           });
         });
 
-        const gateProj = projectSprite(gate.x + 0.5, gate.y + 0.5);
-        if (gateProj && gateProj.dist <= fogDistance) {
-          interactiveHitboxes.push({ kind: 'gate', item: gate, screenX: gateProj.screenX, screenY: gateProj.drawY + gateProj.size * 0.45, radius: Math.max(28, gateProj.size * 0.4) });
-        }
-
         // The player's own body: this is what actually makes the view third-person rather
         // than just "first-person with the camera moved back". Projected exactly like any
         // other sprite (camera-relative, occluded by the same z-buffer), so a wall or a
@@ -6980,28 +6679,19 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // entering the campus.
         const playerProj = projectSprite(playerX, playerY);
         if (playerProj) {
-          const { screenX: pScreenX, dist: pDist, fogAlpha: pFogAlpha } = playerProj;
-          // Size and draw position are pinned to the NOMINAL follow distance
-          // (THIRD_PERSON_DISTANCE), not playerProj's own size/drawY — those are derived
-          // from the actual camera-to-player distance (pDist), which can be temporarily
-          // shorter than nominal when the wall-clearance nudge above pulls the camera in.
-          // Pinning here is what keeps the character a stable size even in that case,
-          // rather than growing as the camera nudges closer to a wall behind the player.
-          const pSize = h / THIRD_PERSON_DISTANCE;
-          const pDrawY = (h - pSize) / 2 - pitchOffsetPx;
+          const { screenX: pScreenX, size: pSize, drawY: pDrawY, dist: pDist, fogAlpha: pFogAlpha } = playerProj;
           spriteDrawQueue.push({
             dist: pDist,
             draw: () => {
               ctx!.globalAlpha = pFogAlpha;
-              // The shared pitchOffsetPx shift above tilts the whole scene downward, but
-              // this pseudo-3D projection centers a sprite relative to the shifted horizon
-              // based on its height alone — it has no notion of an actual camera height
-              // looking down at ground level, so without help a sprite's feet land nearer
-              // mid-screen than a real over-the-shoulder camera would put them. Nudge the
-              // player's own ground contact down to sit properly in the lower portion of
-              // the frame — the one sprite the "player should be large and clearly visible"
-              // requirement is about — without touching where NPCs, props, or the
-              // environment itself land.
+              // The shared pitchOffsetPx shift above is what tilts the whole scene
+              // convincingly downward, but applied uniformly it also pushes the player's
+              // own feet up toward mid-screen once the camera sits this far back (the
+              // sprite shrinks with distance, so the usual (h+size)/2 center-point drifts
+              // toward the true horizon). Nudge the player's own ground contact back down
+              // so they stay anchored near the lower-center of the frame — the one sprite
+              // the "keep the customized character clearly visible" requirement is about —
+              // without touching where NPCs, props, or the environment itself land.
               const groundY = pDrawY + pSize + h * 0.22;
               const figureHeight = pSize * 0.82;
               drawVoxelFigure(pScreenX, groundY, figureHeight, avatarRef.current, 'back', walkPhase, playerWalking);
@@ -7016,9 +6706,34 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         spriteDrawQueue.sort((a, b) => b.dist - a.dist);
         spriteDrawQueue.forEach((entry) => entry.draw());
 
-        // Notes, guides, signs and gates are now strictly tap/click interactions. Proximity
-        // alone never creates a prompt or grants a reward. Their screen-space hitboxes were
-        // rebuilt above during rendering and are the only way to interact with them.
+        // Lost Note pickups: no button/press needed, just walk close enough. This always
+        // runs, regardless of whether a discovery card is already showing — pushDiscovery
+        // just adds it to the queue (see above), so a pickup made mid-card still gets
+        // shown, just one at a time in order rather than stacking on screen.
+        for (const note of notes) {
+          if (collectedNotes.has(note.id)) continue;
+          if (Math.hypot(playerX - note.x, playerY - note.y) < 0.6) {
+            collectedNotes.add(note.id);
+            pushDiscovery({ title: `✦ HINT — ${note.title}`, body: note.hint, duration: 4500 });
+          }
+        }
+
+        // Guide NPCs: ambient one-shot hint, triggered by proximity rather than an interact key.
+        // A guide with a `reward` also hands over real credits/XP the moment they're found —
+        // this is what makes them worth seeking out, not just background lore.
+        for (const guide of guides) {
+          if (triggeredGuides.has(guide.id)) continue;
+          if (Math.hypot(playerX - guide.x, playerY - guide.y) < 1.3) {
+            triggeredGuides.add(guide.id);
+            const line = guide.lines[Math.floor(Math.random() * guide.lines.length)];
+            if (guide.reward) {
+              onRewardRef.current(guide.reward.coins, guide.reward.xp);
+              pushDiscovery({ title: `✦ ${guide.name}`, body: `${line} (+${guide.reward.coins} credits, +${guide.reward.xp} XP)`, duration: 5000 });
+            } else {
+              pushDiscovery({ title: `✦ ${guide.name}`, body: line, duration: 4500 });
+            }
+          }
+        }
 
         // Visible progression: a plain "X / Y discovered" readout so a run always has a
         // sense of how much ground has actually been covered. Only touches the DOM when the
@@ -7033,190 +6748,78 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // always runs — only the prompt-bar line it can post below is gated on the card.
         checkGateUnlock();
 
-        // The bottom prompt bar is now purely the locked-gate status line — challenger
-        // interaction no longer surfaces any proximity-driven UI (see hitTestNpcAt /
-        // hitTestNpcAtCenter above: tapping/clicking directly on an NPC's sprite is the
-        // only path into interact() now). The floating badge that used to track a nearby
-        // challenger is retired along with that proximity path; it stays hidden.
-        badge.style.display = 'none';
-        // No automatic proximity prompt exists anywhere in the campus. The prompt layer is
-        // reserved for explicit post-tap discovery cards; the gate itself is handled by its
-        // screen-space tap hitbox above.
-        prompt.style.display = 'none';
-      }
+        // The ambient "nearby object" UI — prompt bar, floating badge above an NPC, mobile
+        // CTA — only ever shows one thing at a time, and never while a discovery/hint card
+        // is already up. A note or guide can trigger its card at the exact moment the
+        // player also happens to be standing next to a challenger or the locked gate; without
+        // this guard the prompt bar goes on updating and showing itself underneath/behind
+        // that card every frame, which is exactly the overlapping-popups bug this fixes.
+        // `activeTerminalTarget` is cleared too, so E/tap can't fire a second interaction
+        // while the card is still up.
+        if (discoveryActive) {
+          activeTerminalTarget = null;
+          hideFieldUi();
+        } else {
+          activeTerminalTarget = null;
+          let badgeTarget: { x: number; y: number } | null = null;
+          for (const term of challengers) {
+            const distToTerm = Math.hypot(playerX - term.x, playerY - term.y);
+            if (distToTerm < 1.5 && term.active) {
+              activeTerminalTarget = term;
+              const alreadyDone = defeatedIdsRef.current.includes(term.id);
+              prompt.innerText = alreadyDone ? `[${term.area}] ${term.name} — QUEST ALREADY COMPLETED` : `[${term.area}] PRESS 'E' OR TAP TO CHALLENGE: ${term.name}`;
+              prompt.style.display = 'block';
+              if (!alreadyDone) {
+                // Reproject this NPC to screen space so the floating badge can sit right
+                // above its sprite. Only shown when it's actually in front of the player and
+                // not hidden behind a wall — matches how the sprite itself is drawn/occluded.
+                const bProj = projectSprite(term.x, term.y);
+                if (bProj) badgeTarget = { x: bProj.screenX, y: bProj.drawY };
+              }
+              break;
+            }
+          }
 
-      // Wall collision: a proper circle-vs-tile test, replacing an earlier point-sampling
-      // approach. Point-sampling (testing a handful of fixed offsets around the player)
-      // has two failure modes: sample gaps big enough to let a corner slip between two
-      // probes (clipping onto/through a wall corner), and — once diagonal probes were
-      // added to close that gap — false positives during axis-separated sliding, since a
-      // diagonal probe samples perpendicular to the axis actually being tested and can
-      // "see" a wall that isn't really in the player's path, snagging what should be a
-      // smooth slide. A circle-vs-tile-AABB test has neither problem: for each solid tile
-      // near the candidate position, find the closest point on that tile's actual square
-      // to the circle's center and compare against the radius — exactly the same
-      // rectangle a wall occupies on screen, so the collision boundary always matches the
-      // rendered wall with no invisible padding, and sliding falls out naturally since X
-      // and Y are still resolved independently below.
-      // Tight physical footprints: these are deliberately much smaller than the visual
-      // sprite/hit-test sizes. Interaction distance is NOT collision distance. Keeping the
-      // physical radii small prevents the invisible "bubble" around walls/NPCs that made
-      // corners and narrow passages feel blocked from far away.
-      // Keep the player's physical footprint close to the character's actual feet.
-      // Interaction/tap hitboxes are intentionally much larger and are NOT used for movement.
-      const PLAYER_RADIUS = 0.11;
-      const NPC_RADIUS = 0.08;
-      const NPC_CONTACT_PADDING = 0.0;
+          // Locked gate: shows a status line in the prompt bar (no badge, nothing to press —
+          // it opens itself once the mastery condition is met) whenever the player is nearby
+          // and no challenger prompt is already claiming the bar.
+          let gateNearby = false;
+          if (!activeTerminalTarget && !gate.open) {
+            const gateDist = Math.hypot(playerX - (gate.x + 0.5), playerY - (gate.y + 0.5));
+            if (gateDist < 1.6) {
+              gateNearby = true;
+              const doneCount = gate.requiredIds.filter((id) => defeatedIdsRef.current.includes(id)).length;
+              prompt.innerText = `🔒 ${gate.label} — SEALED. Defeat all three Districts first. (${doneCount}/${gate.requiredIds.length} mastered)`;
+              prompt.style.display = 'block';
+            }
+          }
+          if (!activeTerminalTarget && !gateNearby && prompt.style.display === 'block') prompt.style.display = 'none';
 
-      // Only map tiles are environmental collision. Decorative billboards/props/holograms
-      // are visual/interactive objects and must never create an invisible movement barrier.
-      function circleHitsWall(cx: number, cy: number, radius: number) {
-        const minTX = Math.floor(cx - radius), maxTX = Math.floor(cx + radius);
-        const minTY = Math.floor(cy - radius), maxTY = Math.floor(cy + radius);
-
-        for (let ty = minTY; ty <= maxTY; ty++) {
-          for (let tx = minTX; tx <= maxTX; tx++) {
-            if (tx < 0 || tx >= mapWidth || ty < 0 || ty >= mapHeight) return true;
-            if (map[ty][tx] === 0) continue;
-
-            const closestX = Math.max(tx, Math.min(cx, tx + 1));
-            const closestY = Math.max(ty, Math.min(cy, ty + 1));
-            const dx = cx - closestX;
-            const dy = cy - closestY;
-
-            if (dx * dx + dy * dy < radius * radius) return true;
+          if (badgeTarget) {
+            badge.style.display = 'flex';
+            badge.style.transform = `translate(${badgeTarget.x - 17}px, ${badgeTarget.y - 42}px)`;
+          } else {
+            badge.style.display = 'none';
           }
         }
-        return false;
       }
 
-      // NPCs/guides are SOFT obstacles, not walls. They are resolved after wall movement
-      // instead of being included in canMove(), which prevents an NPC from becoming an
-      // oversized invisible wall at a corner or when standing close to a wall.
-      function npcAtPosition(nx: number, ny: number) {
-        const separation = PLAYER_RADIUS + NPC_RADIUS + NPC_CONTACT_PADDING;
-        const separationSq = separation * separation;
-
-        for (const term of challengers) {
-          const dx = nx - term.x;
-          const dy = ny - term.y;
-          if (dx * dx + dy * dy < separationSq) {
-            return { x: term.x, y: term.y };
-          }
-        }
-
-        for (const guide of guides) {
-          const dx = nx - guide.x;
-          const dy = ny - guide.y;
-          if (dx * dx + dy * dy < separationSq) {
-            return { x: guide.x, y: guide.y };
-          }
-        }
-
-        return null;
-      }
-
-      // Wall collision is the only hard movement constraint. This is what prevents
-      // decorative objects from accidentally creating invisible barriers.
       function canMove(nx: number, ny: number) {
-        return !circleHitsWall(nx, ny, PLAYER_RADIUS);
-      }
-
-      // Softly separate the player from NPCs/guides after movement. The player can approach
-      // closely and then naturally slide around the character instead of being stopped by a
-      // large circular "wall". If an NPC is beside a wall, wall collision still wins.
-      function resolveNpcContacts() {
-        const separation = PLAYER_RADIUS + NPC_RADIUS;
-        const minDistSq = separation * separation;
-
-        for (let pass = 0; pass < 3; pass++) {
-          let changed = false;
-
-          const bodies = [
-            ...challengers.map(n => ({ x: n.x, y: n.y })),
-            ...guides.map(n => ({ x: n.x, y: n.y })),
-          ];
-
-          for (const body of bodies) {
-            let dx = playerX - body.x;
-            let dy = playerY - body.y;
-            let distSq = dx * dx + dy * dy;
-
-            if (distSq >= minDistSq) continue;
-
-            let dist = Math.sqrt(distSq);
-            if (dist < 0.0001) {
-              // Deterministic fallback direction if the player is exactly on the NPC.
-              dx = Math.cos(playerAngle);
-              dy = Math.sin(playerAngle);
-              dist = 1;
-            }
-
-            const push = (separation - dist) / dist;
-            const candidateX = playerX + dx * push;
-            const candidateY = playerY + dy * push;
-
-            // Prefer the full separation, but never push the player through a wall.
-            if (canMove(candidateX, candidateY)) {
-              playerX = candidateX;
-              playerY = candidateY;
-              changed = true;
-              continue;
-            }
-
-            // If the full push meets a wall, resolve each component independently.
-            // This creates a natural "brush past" behavior at wall/NPC corners.
-            const xOnly = playerX + dx * push;
-            if (canMove(xOnly, playerY)) {
-              playerX = xOnly;
-              changed = true;
-            }
-
-            const yOnly = playerY + dy * push;
-            if (canMove(playerX, yOnly)) {
-              playerY = yOnly;
-              changed = true;
-            }
-          }
-
-          if (!changed) break;
+        const radius = 0.25;
+        const testPoints = [[nx, ny], [nx - radius, ny], [nx + radius, ny], [nx, ny - radius], [nx, ny + radius]];
+        for (const [cx, cy] of testPoints) {
+          const mx = Math.floor(cx), my = Math.floor(cy);
+          if (mx < 0 || mx >= mapWidth || my < 0 || my >= mapHeight) return false;
+          const tile = map[my][mx];
+          // Every non-floor tile blocks movement — 1/2/3/4 are wall-texture variants
+          // (color only, per the tile legend), so all four are solid on par with the
+          // others, not just 1. Previously 2/3/4 were left out here, meaning strips of
+          // the map that render as solid colored wall could actually be walked straight
+          // through — fixed so what's visually a wall is always actually a wall.
+          if (tile !== 0) return false;
         }
+        return true;
       }
-
-      // Movement is resolved against walls first, using small sub-steps for mobile
-      // touch/joystick input. NPCs are then treated as soft bodies and separated without
-      // turning their entire interaction area into a hard collision barrier.
-      function movePlayerBy(dx: number, dy: number) {
-        const distance = Math.hypot(dx, dy);
-        const maxStep = isMobile ? 0.035 : 0.05;
-        const steps = Math.max(1, Math.ceil(distance / maxStep));
-        const stepX = dx / steps;
-        const stepY = dy / steps;
-
-        for (let i = 0; i < steps; i++) {
-          const fullX = playerX + stepX;
-          const fullY = playerY + stepY;
-
-          if (canMove(fullX, fullY)) {
-            playerX = fullX;
-            playerY = fullY;
-            continue;
-          }
-
-          // Axis-separated wall sliding. This is deliberately wall-only so an NPC cannot
-          // turn a diagonal movement into a sticky corner.
-          if (canMove(playerX + stepX, playerY)) {
-            playerX += stepX;
-          }
-
-          if (canMove(playerX, playerY + stepY)) {
-            playerY += stepY;
-          }
-        }
-
-        resolveNpcContacts();
-      }
-
 
       let lastTime = performance.now();
       function gameLoop(timestamp: number) {
@@ -7242,10 +6845,9 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           if (isWalking) {
             walkPhase += dt * (isMobile ? 9.5 : 10.5);
             moveX = (moveX / len) * moveSpeed * dt; moveY = (moveY / len) * moveSpeed * dt;
-            // Use the shared collision resolver for walls and NPCs. It keeps the physical
-            // footprint tight, prevents tunnelling, and slides along the first blocked
-            // surface instead of treating every corner like a large invisible wall.
-            movePlayerBy(moveX, moveY);
+            const nx = playerX + moveX, ny = playerY + moveY;
+            if (canMove(nx, playerY)) playerX = nx;
+            if (canMove(playerX, ny)) playerY = ny;
           }
           render();
         }
@@ -7262,6 +6864,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         document.removeEventListener('mousemove', handleMouseMove);
         canvas.removeEventListener('click', handleCanvasClick);
         document.removeEventListener('pointerlockchange', handlePointerLockChange);
+        prompt.removeEventListener('click', handlePromptTap);
+        prompt.removeEventListener('touchstart', handlePromptTap);
+        badge.removeEventListener('click', handleBadgeActivate);
+        badge.removeEventListener('touchstart', handleBadgeActivate);
         discoveryBtn.removeEventListener('click', handleDiscoveryTap);
         discoveryBtn.removeEventListener('touchstart', handleDiscoveryTap);
         if (discoveryTimer) window.clearTimeout(discoveryTimer);
@@ -7274,7 +6880,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       <div className="campus-frame">
         <div ref={worldRef} className="campus-world">
           <canvas ref={canvasRef} className="campus-canvas" />
-          <div className="campus-mini-map"><canvas ref={miniMapRef} width={156} height={128} /></div>
           <div className="campus-hud-bar">
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <div className="campus-chip">LVL {level} · {strand}</div>
@@ -7307,13 +6912,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     );
   }
 
-  function QuestBriefing({ challenger, playerLevel, strand, questTier, usedQuestionIds, onAccept, onLeave }: { challenger: CampusChallenger; playerLevel: number; strand: string; questTier: number; usedQuestionIds: string[]; onAccept: () => void; onLeave: () => void }) {
+  function QuestBriefing({ challenger, playerLevel, strand, onAccept, onLeave }: { challenger: CampusChallenger; playerLevel: number; strand: string; onAccept: () => void; onLeave: () => void }) {
     const underleveled = playerLevel < challenger.recommendedLevel;
     // Same district-to-strand mapping the campus itself uses when you enter a district
     // (see CampusExplorer) — so the briefing tells you what you're actually about to be
     // tested on, in terms of your own strand, not just a generic area name.
     const focus = getDistrictFocus(challenger.districtId, strand);
-    const questionCount = getEncounterQuestions(challenger, strand, questTier, usedQuestionIds).length;
+    const questionCount = getEncounterQuestions(challenger, strand).length;
     // Same avatar system used in Battle (getChallengerAvatar), not a placeholder icon —
     // so the challenger you meet here is the same character you actually fight.
     const challengerAvatar = getChallengerAvatar(challenger);
@@ -7369,19 +6974,18 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     );
   }
 
-  function Quests({ quests, claimQuest, onBattle, questTier, questionHistory }: { quests: Quest[]; claimQuest: (id: string) => void; onBattle: () => void; questTier: number; questionHistory: QuestionHistoryEntry[] }) {
-    const [reviewOpen, setReviewOpen] = useState(false);
+  function Quests({ quests, claimQuest, onBattle }: { quests: Quest[]; claimQuest: (id: string) => void; onBattle: () => void }) {
     return (
       <div className="page-wrap">
         <div className="page-toolbar">
           <div>
-            <div className="eyebrow">MISSION CONTROL · QUEST TIER {questTier + 1}</div>
+            <div className="eyebrow">MISSION CONTROL</div>
             <h1 className="page-title">Choose your <em>fight.</em></h1>
-            <p className="muted text-sm mt-3">Each cleared tier unlocks harder quests with new questions. Questions you already answered never return.</p>
+            <p className="muted text-sm mt-3">Every completed objective makes the next one easier to enter.</p>
           </div>
-          <div className="flex gap-2"><button className="btn-secondary" onClick={() => setReviewOpen((v) => !v)}><BookOpen size={14} /> {reviewOpen ? 'Hide history' : 'Review completed quests'}</button><button className="btn-secondary" onClick={() => window.location.reload()}>
+          <button className="btn-secondary" onClick={() => window.location.reload()}>
             <RotateCcw size={14} /> Refresh board
-          </button></div>
+          </button>
         </div>
         <div className="quest-cards">
           <div className="panel quest-card featured animate-rise">
@@ -7432,25 +7036,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
               <p className="muted text-sm mt-2">The next wave arrives at midnight.</p>
             </div>
           )}
-          {reviewOpen && (
-            <div className="panel mt-4 p-5">
-              <div className="panel-title">Quest review history</div>
-              <p className="muted text-sm mt-1">Every answered question is saved with your answer, the correct answer, and the explanation.</p>
-              {questionHistory.length === 0 ? <p className="muted text-sm mt-4">No completed question history yet.</p> : (
-                <div className="mt-4" style={{ display:'grid', gap:10, maxHeight:420, overflowY:'auto' }}>
-                  {[...questionHistory].reverse().map((h, i) => (
-                    <div key={`${h.questionId}-${h.answeredAt}-${i}`} className="panel" style={{ padding:12 }}>
-                      <div className="quest-tags"><span className="tag">Tier {h.tier + 1}</span><span className="tag">{h.questTitle}</span><span className="tag">{h.correct ? '✓ Correct' : '✕ Mistake'}</span></div>
-                      <strong style={{ display:'block', marginTop:8 }}>{h.question}</strong>
-                      <div className="muted text-sm mt-2">Your answer: <b>{h.selectedAnswer}</b></div>
-                      <div className="muted text-sm">Correct answer: <b>{h.correctAnswer}</b></div>
-                      <div className="muted text-sm mt-1">{h.explanation}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </div>
     );
@@ -7464,7 +7049,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   const BATTLE_ATTACK_DURATION_MS = 760; // total time before both fighters are idle again
   const BATTLE_IMPACT_EFFECT_MS = 320; // how long the shake/flash/spark stay on screen
 
-  function Battle({ profile, opponent, questTier, usedQuestionIds, soundEnabled, onExit, onComplete }: { profile: Profile; opponent: CampusChallenger | null; questTier: number; usedQuestionIds: string[]; soundEnabled: boolean; onExit: () => void; onComplete: (payload: { results: { subject: string; correct: boolean }[]; history: QuestionHistoryEntry[] }) => void }) {
+  function Battle({ profile, opponent, onExit, onComplete }: { profile: Profile; opponent: CampusChallenger | null; onExit: () => void; onComplete: (results: { subject: string; correct: boolean }[]) => void }) {
     const [question, setQuestion] = useState(0);
     const [selected, setSelected] = useState<number | null>(null);
     // HP is never tracked as its own free-floating number — it's derived below from
@@ -7497,33 +7082,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // One entry per answered question — feeds subject-level mastery tracking on the
     // dashboard once the encounter finishes (see onComplete below).
     const resultsRef = useRef<{ subject: string; correct: boolean }[]>([]);
-    const historyRef = useRef<QuestionHistoryEntry[]>([]);
-    const audioRef = useRef<AudioContext | null>(null);
-    const lastSoundAtRef = useRef(0);
-    const playSfx = (kind: 'correct' | 'wrong' | 'enemy-attack') => {
-      if (!soundEnabled) return;
-      const now = performance.now();
-      if (now - lastSoundAtRef.current < 80) return;
-      lastSoundAtRef.current = now;
-      try {
-        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-        if (!AudioCtx) return;
-        const ac = audioRef.current ?? (audioRef.current = new AudioCtx());
-        if (ac.state === 'suspended') ac.resume();
-        const osc = ac.createOscillator(); const gain = ac.createGain();
-        osc.connect(gain); gain.connect(ac.destination);
-        const t0 = ac.currentTime;
-        if (kind === 'correct') { osc.type='sine'; osc.frequency.setValueAtTime(660,t0); osc.frequency.setValueAtTime(880,t0+0.09); gain.gain.setValueAtTime(0.0001,t0); gain.gain.exponentialRampToValueAtTime(0.16,t0+0.01); gain.gain.exponentialRampToValueAtTime(0.0001,t0+0.24); osc.start(t0); osc.stop(t0+0.25); }
-        else if (kind === 'wrong') { osc.type='sawtooth'; osc.frequency.setValueAtTime(180,t0); osc.frequency.exponentialRampToValueAtTime(95,t0+0.22); gain.gain.setValueAtTime(0.0001,t0); gain.gain.exponentialRampToValueAtTime(0.11,t0+0.01); gain.gain.exponentialRampToValueAtTime(0.0001,t0+0.24); osc.start(t0); osc.stop(t0+0.25); }
-        else { osc.type='square'; osc.frequency.setValueAtTime(120,t0); osc.frequency.exponentialRampToValueAtTime(70,t0+0.16); gain.gain.setValueAtTime(0.0001,t0); gain.gain.exponentialRampToValueAtTime(0.13,t0+0.01); gain.gain.exponentialRampToValueAtTime(0.0001,t0+0.18); osc.start(t0); osc.stop(t0+0.19); }
-      } catch { /* WebAudio is optional; gameplay must still work if blocked. */ }
-    };
     // This encounter's question set comes from the shared per-encounter cache — already
     // sliced to this district, already shuffled, and stable for as long as this challenger
     // stays undefeated (see getEncounterQuestions). No local memoization needed: the cache
     // itself guarantees the same array comes back whether this is the first render or the
     // result of retreating and re-entering the exact same fight.
-    const questions = getEncounterQuestions(opponent, profile.strand, questTier, usedQuestionIds);
+    const questions = getEncounterQuestions(opponent, profile.strand);
     const current = questions[question];
     // Every point of damage is sized off the real length of this encounter, so a short
     // 2-question skirmish and a long Citadel run both use up the full health bar over
@@ -7545,9 +7109,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       setSelected(index); setResolved(true);
       const isCorrect = index === current.answer;
       resultsRef.current.push({ subject: current.subject, correct: isCorrect });
-      historyRef.current.push({ questId: opponent?.id ?? 'unknown', questTitle: opponent?.questTitle ?? 'Encounter', tier: questTier, questionId: current.id ?? `runtime-${question}`, subject: current.subject, question: current.question, selectedAnswer: current.options[index], correctAnswer: current.options[current.answer], correct: isCorrect, explanation: current.explanation, answeredAt: Date.now() });
-      playSfx(isCorrect ? 'correct' : 'wrong');
-      if (!isCorrect) window.setTimeout(() => playSfx('enemy-attack'), 180);
       // No toast here on purpose — the answer buttons, health bars, and attack animation
       // already give immediate feedback per question. A toast per answer would just be
       // the same information twice, several times a battle.
@@ -7570,8 +7131,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // End the fight the instant either bar would actually hit zero — a clean KO,
         // not something the player has to click "Next" through. Whichever side's counter
         // just reached the total question count is the one that ran out of HP.
-        if (nextEnemyHitsTaken >= questionCount) { setComplete(true); onComplete({ results: resultsRef.current, history: historyRef.current }); }
-        else if (nextPlayerHitsTaken >= questionCount) { setComplete(true); onComplete({ results: resultsRef.current, history: historyRef.current }); }
+        if (nextEnemyHitsTaken >= questionCount) { setComplete(true); onComplete(resultsRef.current); }
+        else if (nextPlayerHitsTaken >= questionCount) { setComplete(true); onComplete(resultsRef.current); }
       }, BATTLE_IMPACT_DELAY_MS);
       resetTimeoutRef.current = window.setTimeout(() => setAttackPhase('idle'), BATTLE_ATTACK_DURATION_MS);
     };
@@ -7580,7 +7141,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // Completion is announced once, by the caller (completeBattle), which knows the real
       // reward numbers and can also surface any subject mastery improvement — no duplicate
       // toast here.
-      setComplete(true); onComplete({ results: resultsRef.current, history: historyRef.current });
+      setComplete(true); onComplete(resultsRef.current);
     };
     return (
       <div className="page-wrap battle-layout">
@@ -8440,8 +8001,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       notify('Quest cleared', `Received +${quest.rewardXp} XP and +${quest.rewardCoins} credits.`);
     };
 
-    const completeBattle = (payload: { results: { subject: string; correct: boolean }[]; history: QuestionHistoryEntry[] }) => {
-      const { results, history } = payload;
+    const completeBattle = (results: { subject: string; correct: boolean }[]) => {
       const xpReward = foundChallenger?.rewardXp ?? 300;
       const coinReward = foundChallenger?.rewardCoins ?? 150;
 
@@ -8468,14 +8028,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // this same updateAccountData call (rather than a separate setState) means the
       // "quest complete" checkmark and its persistence to Firestore happen together,
       // atomically — never one without the other.
-      const currentTierIds = getQuestTierChallengers(game.questTier).map((c) => c.id);
-      const projectedDefeated = foundChallenger && !game.defeatedChallengerIds.includes(foundChallenger.id) ? [...game.defeatedChallengerIds, foundChallenger.id] : game.defeatedChallengerIds;
-      const tierCompleteNow = currentTierIds.length > 0 && currentTierIds.every((id) => projectedDefeated.includes(id));
       updateAccountData((acc) => {
         const alreadyDefeated = foundChallenger ? acc.game.defeatedChallengerIds.includes(foundChallenger.id) : true;
-        const nextDefeated = foundChallenger && !alreadyDefeated ? [...acc.game.defeatedChallengerIds, foundChallenger.id] : acc.game.defeatedChallengerIds;
-        const activeTierIds = getQuestTierChallengers(acc.game.questTier).map((c) => c.id);
-        const tierComplete = activeTierIds.length > 0 && activeTierIds.every((id) => nextDefeated.includes(id));
         return {
           ...acc,
           game: {
@@ -8483,16 +8037,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             xp: acc.game.xp + xpReward,
             coins: acc.game.coins + coinReward,
             subjectMastery,
-            defeatedChallengerIds: nextDefeated,
-            usedQuestionIds: Array.from(new Set([...acc.game.usedQuestionIds, ...history.map((h) => h.questionId)])),
-            questionHistory: [...acc.game.questionHistory, ...history],
-            questTier: tierComplete ? acc.game.questTier + 1 : acc.game.questTier,
-            completedQuestCycles: tierComplete ? acc.game.completedQuestCycles + 1 : acc.game.completedQuestCycles,
+            defeatedChallengerIds: foundChallenger && !alreadyDefeated
+              ? [...acc.game.defeatedChallengerIds, foundChallenger.id]
+              : acc.game.defeatedChallengerIds,
           },
         };
       });
       notify('Quest cleared', `Received +${xpReward} XP and +${coinReward} credits.`);
-      if (tierCompleteNow) notify(`NEW QUEST SET UNLOCKED`, `Tier ${game.questTier + 2} is now available. New, harder questions have been loaded — previous questions will not repeat.`);
       // Academic improvement: only fires when a subject actually crosses into a better
       // mastery tier, not on every battle — keeps it meaningful instead of routine.
       for (const improvement of improvedSubjects) {
@@ -8599,13 +8150,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                   setScreen={setScreen}
                   defeatedChallengerIds={defeatedChallengerIds}
                   subjectMastery={game.subjectMastery}
-                  questTier={game.questTier}
-                  usedQuestionIds={game.usedQuestionIds}
                   onExploreCampus={() => { setQuestReturnPosition(null); setScreen('quests'); enterImmersiveBattle(); setQuestStage('roaming'); }}
                 />
               )}
               {screen === 'quests' && questStage === 'list' && (
-                <Quests quests={game.quests} claimQuest={claimQuest} questTier={game.questTier} questionHistory={game.questionHistory} onBattle={() => { setQuestReturnPosition(null); enterImmersiveBattle(); setQuestStage('roaming'); }} />
+                <Quests quests={game.quests} claimQuest={claimQuest} onBattle={() => { setQuestReturnPosition(null); enterImmersiveBattle(); setQuestStage('roaming'); }} />
               )}
               {screen === 'quests' && questStage === 'roaming' && (
                 <CampusExplorer
@@ -8614,7 +8163,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                   strand={profile.strand}
                   avatar={profile.avatar}
                   defeatedIds={defeatedChallengerIds}
-                  questTier={game.questTier}
                   onChallengerFound={(challenger, position) => { setFoundChallenger(challenger); setQuestReturnPosition(position); setQuestStage('briefing'); }}
                   onExit={() => { setQuestReturnPosition(null); setQuestStage('list'); }}
                   notify={notify}
@@ -8622,10 +8170,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                 />
               )}
               {screen === 'quests' && questStage === 'briefing' && foundChallenger && (
-                <QuestBriefing challenger={foundChallenger} playerLevel={getLevelInfo(game.xp).level} strand={profile.strand} questTier={game.questTier} usedQuestionIds={game.usedQuestionIds} onAccept={() => setQuestStage('battle')} onLeave={() => { setFoundChallenger(null); setQuestStage('roaming'); }} />
+                <QuestBriefing challenger={foundChallenger} playerLevel={getLevelInfo(game.xp).level} strand={profile.strand} onAccept={() => setQuestStage('battle')} onLeave={() => { setFoundChallenger(null); setQuestStage('roaming'); }} />
               )}
               {screen === 'quests' && questStage === 'battle' && (
-                <Battle profile={profile} opponent={foundChallenger} questTier={game.questTier} usedQuestionIds={game.usedQuestionIds} soundEnabled={game.preferences.sound} onExit={() => { setFoundChallenger(null); setQuestStage('roaming'); }} onComplete={completeBattle} />
+                <Battle profile={profile} opponent={foundChallenger} onExit={() => { setFoundChallenger(null); setQuestStage('roaming'); }} onComplete={completeBattle} />
               )}
               {screen === 'shop' && <Shop coins={game.coins} owned={game.owned} equipped={game.equipped} buyItem={buyItem} equipItem={equipItem} quests={game.quests} />}
               {screen === 'achievements' && <AchievementsView quests={game.quests} studyMinutes={game.studyMinutes} owned={game.owned} />}
