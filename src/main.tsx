@@ -5691,26 +5691,17 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   type CampusGate = { x: number; y: number; requiredIds: string[]; label: string };
   const CAMPUS_GATE: CampusGate = { x: 13, y: 6, requiredIds: ['npc_1', 'npc_2', 'npc_3'], label: 'Mastery Citadel Gate' };
 
-  // Environmental props — trees, planters, lamp posts (outdoors) plus themed furniture for
-  // the three walk-in rooms below. Purely decorative billboards: no collision, no
-  // interaction, no proximity/discovery tracking. Each one costs exactly one draw call
-  // (same as a Lost Note), which is what keeps two dozen of them on screen at once a
-  // non-issue on mobile. `sway` gets the same cheap single-sin idle motion already used for
-  // challengers — everything else is fully static, since inanimate props shouldn't move.
+  // Environmental props — intentionally minimal. Outdoor decorative clutter is removed;
+  // only useful interior furniture/equipment remains. These are visual-only billboards with
+  // no collision or interaction.
   // The three lone chairs that used to sit in the open plaza with no table or room around
   // them are gone — furniture now only appears where it belongs, inside the room it
   // furnishes, with an aisle deliberately left clear from each entrance to the back wall.
   type CampusProp = { id: string; x: number; y: number; glyph: string; sway?: boolean };
   const CAMPUS_PROPS: CampusProp[] = [
-    // Outdoor landscaping — trees, lamps, planters, the plaza's own dressing.
-    { id: 'prop_1', x: 1.5, y: 6.5, glyph: '🌳', sway: true },
-    { id: 'prop_2', x: 11.5, y: 6.5, glyph: '🌳', sway: true },
-    { id: 'prop_3', x: 3.5, y: 5.3, glyph: '💡' },
-    { id: 'prop_4', x: 9.5, y: 5.3, glyph: '💡' },
-    { id: 'prop_5', x: 3.5, y: 9.3, glyph: '🪴', sway: true },
-    { id: 'prop_6', x: 9.5, y: 9.3, glyph: '🌳', sway: true },
-    { id: 'prop_9', x: 6.5, y: 9.3, glyph: '🪴', sway: true },
-    { id: 'prop_11', x: 6.5, y: 3.5, glyph: '🌳', sway: true },
+    // Keep the outdoor areas intentionally clean and open: removed decorative trees,
+    // lamps/bulbs, and extra planters that made the main paths visually cluttered.
+    // Functional/interior props remain below.
     // Laboratory interior (row 2) — equipment along the back wall, walking space kept
     // clear between it and the open south entrance.
     { id: 'prop_lab_1', x: 2.5, y: 2.4, glyph: '🧪' },
@@ -5936,9 +5927,9 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // and the touch-drag look turned sharp enough, that the (also-too-close) walls made
       // navigation feel frantic rather than immersive. Desktop (keyboard + mouse) was never
       // reported as a problem, so only the mobile-specific values change here.
-      const moveSpeed = isMobile ? 1.75 : 3.0;
-      const sensitivity = 1.0;
-      const touchLookSensitivity = 0.0023; // was 0.0035 — same full-width-swipe-turns-you-around feel, just gentler
+      const moveSpeed = isMobile ? 1.65 : 3.0;
+      const sensitivity = 0.75;
+      const touchLookSensitivity = 0.0016;
 
       let leftJoy = { active: false, id: null as number | null, dx: 0, dy: 0 };
 
@@ -6583,14 +6574,17 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           // A tiny idle bob is applied only to the sprite's projected render position below;
           // purely cosmetic — it never touches term.x/term.y.
           const isFinished = defeatedIdsRef.current.includes(term.id);
-          const idleBob = Math.sin(now / 650 + term.x * 4) * 0.035;
+          // IMPORTANT: never bob the NPC's world Y position. The world Y coordinate is its
+          // ground contact point, so changing it makes the feet float/sink whenever the NPC
+          // is viewed from a different camera angle. Any idle animation must happen inside
+          // the character drawing while keeping feetY fixed.
           // The beacon is documented/intended to read from far across the map, well past
           // where the NPC's own body would normally fog out — so it gets its own longer
           // projection range. The body, sword icon, and name tag all still respect the
           // standard fogDistance below (checked via proj.dist), keeping their fade in sync
           // with the walls around them; only the beacon uses the extended range directly.
           const beaconRange = fogDistance * 1.8;
-          const proj = projectSprite(term.x, term.y + idleBob, beaconRange);
+          const proj = projectSprite(term.x, term.y, beaconRange);
           if (!proj) return;
           const { screenX: spriteScreenX, size: spriteSize, drawY, dist: spriteDist } = proj;
           // Tap/click hit target for this NPC, rebuilt fresh every frame from its actual
@@ -6608,9 +6602,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
               const inBodyRange = spriteDist <= fogDistance;
               const bodyAlpha = Math.max(0, Math.min(1, 1 - spriteDist / fogDistance));
               if (inBodyRange) {
-                // Anchor at the floor plane for this projected distance/size (same convention
-                // walls and the floor grid already use), so the figure's feet actually meet the
-                // ground instead of floating at an arbitrary fraction of the sprite square.
+                // FIXED GROUND ANCHOR:
+                // projectSprite() projects the NPC's world position onto the floor plane.
+                // Always use the bottom of that projected sprite square as the feet anchor.
+                // Never derive the feet from camera-facing orientation or from a world-Y bob.
+                // This keeps every NPC's feet planted on the same ground plane from every
+                // viewing direction.
                 const groundY = drawY + spriteSize;
                 const figureHeight = spriteSize * 0.82;
                 ctx!.globalAlpha = bodyAlpha;
@@ -6718,15 +6715,21 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             dist,
             draw: () => {
               ctx!.globalAlpha = fogAlpha;
+              // Keep the guide's feet on the same projected floor plane as every other
+              // character. The old version positioned the body from drawY, which is the top
+              // of the billboard projection, so the guide could visibly float depending on
+              // camera direction/perspective.
+              const groundY = drawY + spriteSize;
               const drawX = spriteScreenX - spriteSize * 0.25;
               const gWidth = spriteSize * 0.5, gHeight = spriteSize * 0.8;
+              const bodyTop = groundY - gHeight;
               ctx!.fillStyle = '#0f2e2c';
-              ctx!.fillRect(drawX + gWidth * 0.2, drawY + gHeight * 0.4, gWidth * 0.6, gHeight * 0.6);
+              ctx!.fillRect(drawX + gWidth * 0.2, bodyTop, gWidth * 0.6, gHeight);
               ctx!.fillStyle = '#67cdd1';
-              ctx!.fillRect(drawX + gWidth * 0.3, drawY + gHeight * 0.45, gWidth * 0.4, gHeight * 0.3);
+              ctx!.fillRect(drawX + gWidth * 0.3, bodyTop + gHeight * 0.05, gWidth * 0.4, gHeight * 0.3);
               ctx!.fillStyle = '#ffffff';
               ctx!.font = GUIDE_FONT;
-              ctx!.fillText('💬', spriteScreenX - 8, drawY - 8);
+              ctx!.fillText('💬', spriteScreenX - 8, bodyTop - 8);
               ctx!.globalAlpha = 1;
             },
           });
@@ -6938,8 +6941,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // corners and narrow passages feel blocked from far away.
       // Keep the player's physical footprint close to the character's actual feet.
       // Interaction/tap hitboxes are intentionally much larger and are NOT used for movement.
-      const PLAYER_RADIUS = 0.11;
-      const NPC_RADIUS = 0.08;
+      const PLAYER_RADIUS = 0.065;
+      const NPC_RADIUS = 0.065;
       const NPC_CONTACT_PADDING = 0.0;
 
       // Only map tiles are environmental collision. Decorative billboards/props/holograms
@@ -7062,43 +7065,66 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // turning their entire interaction area into a hard collision barrier.
       function movePlayerBy(dx: number, dy: number) {
         const distance = Math.hypot(dx, dy);
-        const maxStep = isMobile ? 0.035 : 0.05;
+        const maxStep = isMobile ? 0.025 : 0.04;
         const steps = Math.max(1, Math.ceil(distance / maxStep));
         const stepX = dx / steps;
         const stepY = dy / steps;
 
         for (let i = 0; i < steps; i++) {
-          const fullX = playerX + stepX;
-          const fullY = playerY + stepY;
+          const targetX = playerX + stepX;
+          const targetY = playerY + stepY;
 
-          if (canMove(fullX, fullY)) {
-            playerX = fullX;
-            playerY = fullY;
+          // Open path: take the complete movement in one go.
+          if (canMove(targetX, targetY)) {
+            playerX = targetX;
+            playerY = targetY;
             continue;
           }
 
-          // Axis-separated wall sliding. This is deliberately wall-only so an NPC cannot
-          // turn a diagonal movement into a sticky corner.
-          if (canMove(playerX + stepX, playerY)) {
-            playerX += stepX;
-          }
+          // Blocked diagonal movement: test each axis from the CURRENT position.
+          // This is the important part for narrow passages/corners: being close to a
+          // wall on one side must not prevent movement along the open side.
+          const canX = canMove(playerX + stepX, playerY);
+          const canY = canMove(playerX, playerY + stepY);
 
-          if (canMove(playerX, playerY + stepY)) {
+          if (canX && canY) {
+            // Both axes are individually open, so the diagonal is only blocked by a
+            // corner. Prefer the axis with the larger amount of progress toward the
+            // requested direction, then try the other axis on the next sub-step.
+            if (Math.abs(stepX) >= Math.abs(stepY)) {
+              playerX += stepX;
+            } else {
+              playerY += stepY;
+            }
+          } else if (canX) {
+            playerX += stepX;
+          } else if (canY) {
             playerY += stepY;
           }
         }
 
+        // NPCs are soft contacts, resolved after the wall/path movement. They never
+        // enlarge the wall collision footprint or close an otherwise open route.
         resolveNpcContacts();
       }
-
 
       let lastTime = performance.now();
       function gameLoop(timestamp: number) {
         const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
         lastTime = timestamp;
         if (roamingActive) {
-          if (pointerLocked) { playerAngle += mouseDX * 0.002 * sensitivity; mouseDX = 0; }
-          if (touchLookDX !== 0) { playerAngle += touchLookDX * touchLookSensitivity; touchLookDX = 0; }
+          if (pointerLocked) {
+            // Normalize mouse look so it feels steady rather than overly sensitive.
+            const lookDelta = Math.max(-35, Math.min(35, mouseDX));
+            playerAngle += lookDelta * 0.0015 * sensitivity;
+            mouseDX = 0;
+          }
+          if (touchLookDX !== 0) {
+            // Cap one-frame touch rotation so a fast mobile swipe cannot snap the camera.
+            const lookDelta = Math.max(-28, Math.min(28, touchLookDX));
+            playerAngle += lookDelta * touchLookSensitivity;
+            touchLookDX = 0;
+          }
           playerAngle = playerAngle % (Math.PI * 2);
           let moveX = 0, moveY = 0;
           if (keys['w'] || keys['arrowup']) { moveX += Math.cos(playerAngle); moveY += Math.sin(playerAngle); }
@@ -7396,20 +7422,24 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         setImpactSide(isCorrect ? 'enemy' : 'player');
         setImpactActive(true);
         impactPulseTimeoutRef.current = window.setTimeout(() => setImpactActive(false), BATTLE_IMPACT_EFFECT_MS);
-        // End the fight the instant either bar would actually hit zero — a clean KO,
-        // not something the player has to click "Next" through. Whichever side's counter
-        // just reached the total question count is the one that ran out of HP.
-        if (nextEnemyHitsTaken >= questionCount) { setComplete(true); onComplete(resultsRef.current); }
-        else if (nextPlayerHitsTaken >= questionCount) { setComplete(true); onComplete(resultsRef.current); }
+        // On the final question, DO NOT leave the battle immediately. Keep the question,
+        // selected answer, correct answer, feedback, and final attack result visible until
+        // the player explicitly presses the completion button. This prevents the last
+        // answer/result from disappearing before the player has time to read it.
       }, BATTLE_IMPACT_DELAY_MS);
       resetTimeoutRef.current = window.setTimeout(() => setAttackPhase('idle'), BATTLE_ATTACK_DURATION_MS);
     };
     const next = () => {
-      if (question < questions.length - 1) { setQuestion((value) => value + 1); setSelected(null); setResolved(false); return; }
-      // Completion is announced once, by the caller (completeBattle), which knows the real
-      // reward numbers and can also surface any subject mastery improvement — no duplicate
-      // toast here.
-      setComplete(true); onComplete(resultsRef.current);
+      if (question < questions.length - 1) {
+        setQuestion((value) => value + 1);
+        setSelected(null);
+        setResolved(false);
+        return;
+      }
+      // Final question: the player explicitly chooses when they are finished reviewing
+      // the result. Do not auto-close the battle.
+      setComplete(true);
+      onComplete(resultsRef.current);
     };
     return (
       <div className="page-wrap battle-layout">
@@ -7481,8 +7511,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             <Trophy size={34} className="text-amber-300 mx-auto" />
             <div className="question-index mt-4">ENCOUNTER CLEARED</div>
             <h2 className="question-text">You stayed with the hard part.</h2>
-            <p className="muted text-sm">The result is logged to your player file. Take the momentum with you.</p>
-            <button className="btn-primary mt-5" onClick={onExit}>Return to mission control <ChevronRight size={14} /></button>
+            <p className="muted text-sm">Your battle result is logged. You can continue exploring the arena.</p>
+            <button className="btn-primary mt-5" onClick={onExit}>Return to arena <ChevronRight size={14} /></button>
           </div>
         ) : (
           <div className="panel question-panel">
@@ -7514,7 +7544,9 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                 </div>
                 {/* Disabled until the attack sequence finishes so the fighters are always
                     back at rest before the next question's UI appears underneath them. */}
-                <button className="btn-primary mt-4" onClick={next} disabled={attackPhase !== 'idle'}>{question === questions.length - 1 ? 'Finish encounter' : 'Next question'} <ChevronRight size={14} /></button>
+                <button className="btn-primary mt-4" onClick={next} disabled={attackPhase !== 'idle'}>
+                  {question === questions.length - 1 ? 'Return to arena' : 'Next question'} <ChevronRight size={14} />
+                </button>
               </>
             )}
           </div>
