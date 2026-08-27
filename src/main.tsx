@@ -5175,7 +5175,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   /* =====================================================================================
   * SHELL: SIDEBAR / TOPBAR
   * ===================================================================================== */
-  function Sidebar({ screen, setScreen, onLogout, profile, xp, quests }: { screen: Screen; setScreen: (screen: Screen) => void; onLogout: () => void; profile: Profile; xp: number; quests: Quest[] }) {
+  function Sidebar({ screen, setScreen, onLogout, profile, xp, quests, soundEnabled }: { screen: Screen; setScreen: (screen: Screen) => void; onLogout: () => void; profile: Profile; xp: number; quests: Quest[]; soundEnabled: boolean }) {
     const navItems: { id: Screen; label: string; icon: typeof Brain }[] = [
       { id: 'dashboard', label: 'Dashboard', icon: Brain }, 
       { id: 'quests', label: 'Quests', icon: Swords }, 
@@ -5185,13 +5185,23 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     ];
     const { level } = getLevelInfo(xp);
     const openQuestCount = quests.filter((quest) => !quest.done).length;
+    // A tab click only gets the UI-click cue when it actually switches screens — tapping
+    // the tab you're already on is a no-op and shouldn't repeat the same sound back at you.
+    const goToScreen = (id: Screen) => {
+      if (id !== screen && soundEnabled) playUiClickSfx();
+      setScreen(id);
+    };
+    const handleLogout = () => {
+      if (soundEnabled) playUiClickSfx();
+      onLogout();
+    };
     return (
       <aside className="sidebar">
         <Logo />
         <div className="nav-label">Main deck</div>
         <nav className="nav-list">
           {navItems.map(({ id, label, icon: Icon }) => (
-            <button className={`nav-btn ${screen === id ? 'active' : ''}`} key={id} onClick={() => setScreen(id)}>
+            <button className={`nav-btn ${screen === id ? 'active' : ''}`} key={id} onClick={() => goToScreen(id)}>
               <Icon size={17} strokeWidth={1.7} /><span>{label}</span>
               {id === 'quests' && openQuestCount > 0 && <b className="nav-count">{String(openQuestCount).padStart(2, '0')}</b>}
             </button>
@@ -5202,7 +5212,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             <div className="avatar"><AvatarFigure avatar={profile.avatar} initials={getInitials(profile.name)} size="medium" /></div>
             <div className="mini-profile-copy"><strong>{profile.name}</strong><small>LVL {level} · {profile.strand}</small></div>
           </div>
-          <button className="logout-btn" onClick={onLogout}><LogOut size={15} /><span>Log out</span></button>
+          <button className="logout-btn" onClick={handleLogout}><LogOut size={15} /><span>Log out</span></button>
         </div>
       </aside>
     );
@@ -5721,7 +5731,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   ];
 
   // NPC guides: friendly, non-battle campus staff who drop context, rumors, and hints about the
-  // challengers and the sealed Mastery Citadel gate. Triggered once per visit, just by walking near.
+  // challengers and the sealed Mastery Citadel gate. Triggered once per visit, via an actual
+  // tap/click (see interactGuide()) — not proximity.
   // Most just talk — but the Librarian actually hands over something (a small credit/XP bonus),
   // so guides feel like real campus resources you'd want to seek out, not just lore triggers.
   type CampusGuide = { id: string; x: number; y: number; dir: number; name: string; lines: string[]; reward?: { coins: number; xp: number } };
@@ -5818,7 +5829,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // foreshorten it by viewing angle. See the `signs.forEach` render pass below.
   const SIGN_NORMALS: Record<CampusSign['side'], [number, number]> = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] };
 
-  function CampusExplorer({ level, strand, avatar, defeatedIds, initialPosition, onChallengerFound, onExit, notify, onReward }: { level: number; strand: string; avatar: AvatarConfig; defeatedIds: string[]; initialPosition?: CampusReturnPosition | null; onChallengerFound: (challenger: CampusChallenger, position: CampusReturnPosition) => void; onExit: () => void; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void; onReward: (coins: number, xp: number) => void }) {
+  function CampusExplorer({ level, strand, avatar, defeatedIds, initialPosition, onChallengerFound, onExit, notify, soundEnabled, onReward }: { level: number; strand: string; avatar: AvatarConfig; defeatedIds: string[]; initialPosition?: CampusReturnPosition | null; onChallengerFound: (challenger: CampusChallenger, position: CampusReturnPosition) => void; onExit: () => void; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void; soundEnabled: boolean; onReward: (coins: number, xp: number) => void }) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const worldRef = useRef<HTMLDivElement | null>(null);
     const promptRef = useRef<HTMLDivElement | null>(null);
@@ -5840,6 +5851,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     onFoundRef.current = onChallengerFound;
     const notifyRef = useRef(notify);
     notifyRef.current = notify;
+    const soundEnabledRef = useRef(soundEnabled);
+    soundEnabledRef.current = soundEnabled;
     const onRewardRef = useRef(onReward);
     onRewardRef.current = onReward;
     // The player's live customization (appearance) — kept current via ref so the render
@@ -5869,10 +5882,18 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const mapHeight = map.length;
       const challengers = CAMPUS_CHALLENGERS.map((c) => ({ ...c, active: true }));
 
-      // Clean radar-style mini-map. It is UI-only: it never affects movement, collision,
-      // interaction, or the main raycaster. It is deliberately rendered at a low frequency
-      // and at a compact resolution so it stays smooth on mobile devices.
-      const drawMiniMap = () => {
+      // Fixed-orientation radar, Mobile Legends-style: north/south/east/west never
+      // rotate with the camera — only the player's own heading marker turns. The grid,
+      // walls, and every other icon below are drawn straight from world (x, y), with no
+      // rotation ever applied to the map itself, so "up" on this panel is always world
+      // north no matter which way the player is currently looking. It's UI-only — never
+      // affects movement, collision, interaction, or the main raycaster — and its redraw
+      // is throttled (see MINIMAP_REDRAW_INTERVAL_MS) rather than tied to the raycaster's
+      // own frame rate, since a HUD radar doesn't need 60fps and this keeps it cheap on
+      // mobile GPUs.
+      const drawMiniMap = (now: number) => {
+        if (now - lastMiniMapDrawAt < MINIMAP_REDRAW_INTERVAL_MS) return;
+        lastMiniMapDrawAt = now;
         const cssW = minimapCanvas.clientWidth || 164;
         const cssH = minimapCanvas.clientHeight || 164;
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -5935,28 +5956,66 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         notes.forEach((n) => { if (!collectedNotes.has(n.id)) dot(n.x, n.y, 2.1, '#d8b4fe'); });
         if (gate) dot(gate.x, gate.y, 3.1, '#fb7185', 'rgba(255,255,255,.7)');
 
-        // Player marker: a clean directional chevron rather than a generic dot.
+        // Player marker — Mobile Legends-style: a glowing dot at the true (unrotated)
+        // world position, with a soft directional cone/line showing facing. The heading
+        // is eased (see displayedHeading above) so it turns smoothly between the radar's
+        // own throttled redraws instead of snapping; the cone/line vector below is plain
+        // (cos, sin) in the same, un-rotated world axes as the map grid itself — the
+        // exact vector movement/the raycaster use — so North/South/East/West on this
+        // panel always match the real compass direction, never the camera's rotation.
         const px = ox + playerX * scale;
         const py = oy + playerY * scale;
-        miniCtx.save();
-        miniCtx.translate(px, py);
-        miniCtx.rotate(playerAngle);
-        miniCtx.beginPath();
-        miniCtx.moveTo(0, -7);
-        miniCtx.lineTo(4.5, 5);
-        miniCtx.lineTo(0, 3);
-        miniCtx.lineTo(-4.5, 5);
-        miniCtx.closePath();
-        miniCtx.fillStyle = '#f4f0e7'; miniCtx.fill();
-        miniCtx.strokeStyle = '#67cdd1'; miniCtx.lineWidth = 1.5; miniCtx.stroke();
-        miniCtx.restore();
+        if (displayedHeading === null) {
+          displayedHeading = playerAngle;
+        } else {
+          let delta = playerAngle - displayedHeading;
+          delta = ((delta + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+          displayedHeading += delta * 0.45;
+        }
+        const facingX = Math.cos(displayedHeading);
+        const facingY = Math.sin(displayedHeading);
 
-        // Heading line adds immediate direction awareness.
-        miniCtx.strokeStyle = 'rgba(103,205,209,.35)';
-        miniCtx.lineWidth = 1;
+        // Soft facing cone: a narrow, fading gradient wedge — reads as "this is roughly
+        // where you're looking" without the harshness of a hard-edged arrow.
+        const coneLength = 17;
+        const coneHalfAngle = 0.5;
+        const coneAngle = Math.atan2(facingY, facingX);
+        const coneGrad = miniCtx.createRadialGradient(px, py, 0, px, py, coneLength);
+        coneGrad.addColorStop(0, 'rgba(103, 205, 209, 0.32)');
+        coneGrad.addColorStop(1, 'rgba(103, 205, 209, 0)');
         miniCtx.beginPath();
         miniCtx.moveTo(px, py);
-        miniCtx.lineTo(px + Math.sin(playerAngle) * 18, py - Math.cos(playerAngle) * 18);
+        miniCtx.arc(px, py, coneLength, coneAngle - coneHalfAngle, coneAngle + coneHalfAngle);
+        miniCtx.closePath();
+        miniCtx.fillStyle = coneGrad;
+        miniCtx.fill();
+
+        // Thin heading line down the cone's centerline for a precise read at a glance.
+        miniCtx.strokeStyle = 'rgba(103, 205, 209, 0.55)';
+        miniCtx.lineWidth = 1.25;
+        miniCtx.beginPath();
+        miniCtx.moveTo(px, py);
+        miniCtx.lineTo(px + facingX * coneLength, py + facingY * coneLength);
+        miniCtx.stroke();
+
+        // Glowing player dot: outer soft bloom + solid core. Deliberately never rotated —
+        // it's the facing cone above that carries direction, so the dot itself always
+        // looks the same regardless of which way the player is turned.
+        const glowRadius = 8;
+        const glowGrad = miniCtx.createRadialGradient(px, py, 0, px, py, glowRadius);
+        glowGrad.addColorStop(0, 'rgba(244, 240, 231, 0.85)');
+        glowGrad.addColorStop(0.45, 'rgba(103, 205, 209, 0.5)');
+        glowGrad.addColorStop(1, 'rgba(103, 205, 209, 0)');
+        miniCtx.beginPath();
+        miniCtx.arc(px, py, glowRadius, 0, Math.PI * 2);
+        miniCtx.fillStyle = glowGrad;
+        miniCtx.fill();
+        miniCtx.beginPath();
+        miniCtx.arc(px, py, 3.2, 0, Math.PI * 2);
+        miniCtx.fillStyle = '#f4f0e7';
+        miniCtx.fill();
+        miniCtx.strokeStyle = '#67cdd1';
+        miniCtx.lineWidth = 1.5;
         miniCtx.stroke();
 
         // Header + compact legend.
@@ -5981,9 +6040,18 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const collectedNotes = new Set<string>();
       const triggeredGuides = new Set<string>();
       const signaledIds = new Set<string>();
-      const announcedDistricts = new Set<string>();
       let currentDistrictId: string | null = null;
       let lastProgressCount = -1;
+      // Minimap redraw throttle + heading smoothing. The radar is a HUD element, not the
+      // main raycast view, so it doesn't need to redraw every single animation frame —
+      // capping it to ~30fps halves its (otherwise per-frame) full grid/wall repaint cost
+      // with no visible difference, which matters most on mobile GPUs. The displayed
+      // heading is separately smoothed (eased toward the real playerAngle each redraw)
+      // purely so the facing cone doesn't visibly snap on the lower-frequency redraw —
+      // movement/collision/the raycaster all keep reading the real, unsmoothed angle.
+      let lastMiniMapDrawAt = 0;
+      const MINIMAP_REDRAW_INTERVAL_MS = 33;
+      let displayedHeading: number | null = null;
       // "Discovered" = every signal pinged, note picked up, guide met — a simple, honest
       // count of how much of this run's world the player has actually found so far.
       const totalDiscoverable = challengers.length + notes.length + guides.length;
@@ -5994,6 +6062,9 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           gate.open = true;
           map[gate.y][gate.x] = 0;
           notifyRef.current(gate.label, 'The seal breaks — all three Districts have been bested. The Mastery Citadel is open.');
+          // A major, rare unlock — the same fanfare cue as an achievement, not the
+          // routine quest/item reward jingle.
+          if (soundEnabledRef.current) playAchievementSfx();
         }
       };
       checkGateUnlock();
@@ -6034,6 +6105,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const pushDiscovery = (card: DiscoveryCard) => { discoveryQueue.push(card); advanceDiscoveryQueue(); };
       const handleDiscoveryTap = (e: Event) => {
         e.preventDefault(); e.stopPropagation();
+        if (soundEnabledRef.current) playUiClickSfx();
         const tap = discoveryActive?.onTap;
         dismissDiscovery();
         tap?.();
@@ -6455,16 +6527,15 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         const district = getDistrictAt(playerX, playerY);
         if (district.id !== currentDistrictId) {
           currentDistrictId = district.id;
+          // The chip label is the only feedback simply entering a district gets — it's
+          // passive, ambient HUD text and updates on every crossing. Entering an area is
+          // ordinary movement, not a new/important event, so it no longer pushes a toast
+          // notification (quest signals, notes, guides, and the gate still do — see
+          // pushDiscovery()/notifyRef.current() calls above, which are gated on an actual
+          // player interaction, not proximity).
           if (districtChipRef.current) districtChipRef.current.textContent = `${district.icon} ${district.name.toUpperCase()}`;
-          // Only announce a district the first time it's entered — the chip label above
-          // still updates on every crossing, but re-crossing a boundary back and forth
-          // shouldn't spam a toast each time.
-          if (!announcedDistricts.has(district.id)) {
-            announcedDistricts.add(district.id);
-            notifyRef.current(`${district.icon} ${district.name}`, getDistrictFocus(district.id, strand));
-          }
         }
-        drawMiniMap();
+        drawMiniMap(now);
 
         const [fr, fg, fb] = district.floor;
         const [cr, cg, cb] = district.ceil;
@@ -7343,93 +7414,226 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     );
   }
 
-  // --- Battle sound effects: synthesized, not audio files -----------------------------
-  // Three short, procedurally-generated cues (correct answer / wrong answer / enemy
-  // attack landing) via the Web Audio API, kept fully self-contained like the rest of
-  // this app's embedded assets — no network fetch, no bundled audio files. A single
-  // shared AudioContext is created lazily on first actual play call, which is always
-  // itself the result of a click (answering a question), so no separate "unlock"
+  // --- Game-wide SFX engine: synthesized, not audio files ------------------------------
+  // Every cue here is procedurally generated via the Web Audio API — no network fetch, no
+  // bundled audio files — kept fully self-contained like the rest of this app's embedded
+  // assets. A single shared AudioContext is created lazily on the first actual play call,
+  // which is always itself the result of a click/tap somewhere, so no separate "unlock"
   // gesture is needed to satisfy browser autoplay policies.
-  let sharedBattleAudioCtx: AudioContext | null = null;
-  function getBattleAudioCtx(): AudioContext | null {
+  //
+  // Design language (Tekken-inspired): every impact is at least two layers — a low-body
+  // "thump" (sub-oscillator or filtered noise, carries the weight) plus a short bright
+  // "crack"/"snap" (fast noise burst or square-wave click, carries the sting) — rather
+  // than one flat tone. Layers are staggered by a few milliseconds, never simultaneous
+  // to the sample, which is what reads as a real strike instead of a synth blip. Reward/
+  // achievement cues are the opposite: pure tonal arpeggios, bright and un-percussive, so
+  // the ear never confuses "you got hit" with "you got rewarded."
+  let sharedGameAudioCtx: AudioContext | null = null;
+  function getGameAudioCtx(): AudioContext | null {
     if (typeof window === 'undefined') return null;
     const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!Ctor) return null;
-    if (!sharedBattleAudioCtx) sharedBattleAudioCtx = new Ctor();
-    if (sharedBattleAudioCtx.state === 'suspended') sharedBattleAudioCtx.resume().catch(() => {});
-    return sharedBattleAudioCtx;
+    if (!sharedGameAudioCtx) sharedGameAudioCtx = new Ctor();
+    if (sharedGameAudioCtx.state === 'suspended') sharedGameAudioCtx.resume().catch(() => {});
+    return sharedGameAudioCtx;
   }
-  // Bright ascending two-note chime — a clean, positive "ding-ding" for a correct answer.
-  function playCorrectSfx() {
-    const ctx = getBattleAudioCtx();
+  // Overlap/spam guard: every named cue below is routed through this before it's allowed
+  // to actually play. Each cue has its own minimum re-trigger gap — short for UI clicks
+  // (so a fast tap sequence stays crisp instead of getting silently swallowed) and longer
+  // for impacts/rewards (so e.g. a double-fired event, a re-render, or a mashed button
+  // can't stack two copies of the same sound on top of each other, which is what reads
+  // as cheap/spammy rather than punchy). A different cue is never blocked by this — only
+  // the exact same one, too soon after itself.
+  const sfxLastPlayedAt = new Map<string, number>();
+  function throttledSfx(key: string, minGapMs: number, play: (ctx: AudioContext) => void) {
+    const ctx = getGameAudioCtx();
     if (!ctx) return;
-    [660, 990].forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      const startAt = ctx.currentTime + i * 0.09;
-      gain.gain.setValueAtTime(0, startAt);
-      gain.gain.linearRampToValueAtTime(0.18, startAt + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.22);
-      osc.start(startAt);
-      osc.stop(startAt + 0.24);
-    });
+    const now = performance.now();
+    const last = sfxLastPlayedAt.get(key);
+    if (last !== undefined && now - last < minGapMs) return;
+    sfxLastPlayedAt.set(key, now);
+    play(ctx);
   }
-  // Short, low descending buzz — a clear "no" without being harsh or startling.
-  function playWrongSfx() {
-    const ctx = getBattleAudioCtx();
-    if (!ctx) return;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(220, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(110, ctx.currentTime + 0.22);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    gain.gain.setValueAtTime(0, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(0.16, ctx.currentTime + 0.015);
-    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.26);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.28);
-  }
-  // A short filtered-noise "thwack" layered under a fast pitch-drop click, meant to be
-  // triggered right when the enemy's lunge visually lands (see BATTLE_IMPACT_DELAY_MS
-  // in answer() below) rather than at the moment the answer is picked.
-  function playAttackSfx() {
-    const ctx = getBattleAudioCtx();
-    if (!ctx) return;
-    const noiseDuration = 0.14;
-    const bufferSize = Math.max(1, Math.floor(ctx.sampleRate * noiseDuration));
+  // Short filtered-noise burst — the shared building block for every "crack"/"snap"
+  // transient below (punches, clicks). Returns nothing; wires straight to destination.
+  function playNoiseBurst(ctx: AudioContext, { duration, filterType, filterFreq, gain, startAt }: { duration: number; filterType: BiquadFilterType; filterFreq: number; gain: number; startAt: number }) {
+    const bufferSize = Math.max(1, Math.floor(ctx.sampleRate * duration));
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
     const data = buffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
     const noise = ctx.createBufferSource();
     noise.buffer = buffer;
-    const noiseFilter = ctx.createBiquadFilter();
-    noiseFilter.type = 'lowpass';
-    noiseFilter.frequency.value = 1800;
+    const filter = ctx.createBiquadFilter();
+    filter.type = filterType;
+    filter.frequency.value = filterFreq;
     const noiseGain = ctx.createGain();
-    noiseGain.gain.setValueAtTime(0.3, ctx.currentTime);
-    noiseGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + noiseDuration);
-    noise.connect(noiseFilter);
-    noiseFilter.connect(noiseGain);
+    noiseGain.gain.setValueAtTime(gain, startAt);
+    noiseGain.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
+    noise.connect(filter);
+    filter.connect(noiseGain);
     noiseGain.connect(ctx.destination);
-    noise.start();
-
-    const click = ctx.createOscillator();
-    const clickGain = ctx.createGain();
-    click.type = 'square';
-    click.frequency.setValueAtTime(180, ctx.currentTime);
-    click.frequency.exponentialRampToValueAtTime(60, ctx.currentTime + 0.1);
-    click.connect(clickGain);
-    clickGain.connect(ctx.destination);
-    clickGain.gain.setValueAtTime(0.22, ctx.currentTime);
-    clickGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12);
-    click.start();
-    click.stop(ctx.currentTime + 0.14);
+    noise.start(startAt);
+  }
+  // Bright ascending two-note chime — a clean, positive "ding-ding" for a correct answer.
+  // Layered with a light punch-thump so a correct answer still reads as a landed hit, not
+  // just a quiz-app "ding" — the player's attack is genuinely connecting.
+  function playCorrectSfx() {
+    throttledSfx('correct', 120, (ctx) => {
+      const t0 = ctx.currentTime;
+      [660, 990].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        const startAt = t0 + i * 0.09;
+        gain.gain.setValueAtTime(0, startAt);
+        gain.gain.linearRampToValueAtTime(0.18, startAt + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.22);
+        osc.start(startAt);
+        osc.stop(startAt + 0.24);
+      });
+    });
+  }
+  // Short, low descending buzz — a clear "no" without being harsh or startling.
+  function playWrongSfx() {
+    throttledSfx('wrong', 120, (ctx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(220, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(110, ctx.currentTime + 0.22);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.16, ctx.currentTime + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.26);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.28);
+    });
+  }
+  // The player's punch landing on the enemy (correct answer, impact tick). A deep, fast
+  // sub-oscillator thump (the "weight") layered a few ms under a tight high-passed noise
+  // snap (the "sting" of knuckle/glove contact) — the same two-layer shape fighting games
+  // use so a hit reads as physical rather than a beep. Pitched slightly higher than the
+  // enemy's punch below so the two are distinguishable by ear alone, even with the visual
+  // hidden (e.g. a screen reader or a glance away).
+  function playPlayerPunchSfx() {
+    throttledSfx('player-punch', 180, (ctx) => {
+      const t0 = ctx.currentTime;
+      const thump = ctx.createOscillator();
+      const thumpGain = ctx.createGain();
+      thump.type = 'sine';
+      thump.frequency.setValueAtTime(150, t0);
+      thump.frequency.exponentialRampToValueAtTime(48, t0 + 0.11);
+      thump.connect(thumpGain);
+      thumpGain.connect(ctx.destination);
+      thumpGain.gain.setValueAtTime(0.32, t0);
+      thumpGain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.14);
+      thump.start(t0);
+      thump.stop(t0 + 0.15);
+      playNoiseBurst(ctx, { duration: 0.07, filterType: 'highpass', filterFreq: 2200, gain: 0.26, startAt: t0 + 0.006 });
+    });
+  }
+  // The enemy's punch landing on the player (wrong answer, impact tick). Same two-layer
+  // shape as the player's punch but tuned lower and a touch longer — a heavier, duller
+  // thud rather than a snap — so getting hit reads as distinctly worse than landing a hit,
+  // never just a re-skinned copy of the same cue.
+  function playEnemyPunchSfx() {
+    throttledSfx('enemy-punch', 180, (ctx) => {
+      const t0 = ctx.currentTime;
+      const thump = ctx.createOscillator();
+      const thumpGain = ctx.createGain();
+      thump.type = 'sine';
+      thump.frequency.setValueAtTime(110, t0);
+      thump.frequency.exponentialRampToValueAtTime(35, t0 + 0.13);
+      thump.connect(thumpGain);
+      thumpGain.connect(ctx.destination);
+      thumpGain.gain.setValueAtTime(0.34, t0);
+      thumpGain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
+      thump.start(t0);
+      thump.stop(t0 + 0.17);
+      playNoiseBurst(ctx, { duration: 0.1, filterType: 'lowpass', filterFreq: 1500, gain: 0.3, startAt: t0 + 0.008 });
+      const click = ctx.createOscillator();
+      const clickGain = ctx.createGain();
+      click.type = 'square';
+      click.frequency.setValueAtTime(180, t0);
+      click.frequency.exponentialRampToValueAtTime(60, t0 + 0.1);
+      click.connect(clickGain);
+      clickGain.connect(ctx.destination);
+      clickGain.gain.setValueAtTime(0.16, t0);
+      clickGain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.12);
+      click.start(t0);
+      click.stop(t0 + 0.14);
+    });
+  }
+  // A tiny, dry tick — deliberately the quietest and shortest cue in the whole set, so
+  // routine navigation (tabs, toggles, menu taps) never competes with battle/reward
+  // audio for attention. Filtered noise only, no tonal layer, so it stays neutral instead
+  // of nagging on repeated use.
+  function playUiClickSfx() {
+    throttledSfx('ui-click', 60, (ctx) => {
+      playNoiseBurst(ctx, { duration: 0.035, filterType: 'highpass', filterFreq: 3200, gain: 0.09, startAt: ctx.currentTime });
+    });
+  }
+  // Bright three-note ascending arpeggio — quest cleared, item unlocked, focus session
+  // banked. Distinct from the two-note correct-answer chime (one extra, higher note) so a
+  // whole-quest reward always reads as a bigger moment than a single correct answer.
+  function playRewardSfx() {
+    throttledSfx('reward', 250, (ctx) => {
+      const t0 = ctx.currentTime;
+      [523, 659, 784].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = freq;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        const startAt = t0 + i * 0.075;
+        gain.gain.setValueAtTime(0, startAt);
+        gain.gain.linearRampToValueAtTime(0.2, startAt + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.3);
+        osc.start(startAt);
+        osc.stop(startAt + 0.32);
+      });
+    });
+  }
+  // The biggest cue in the set — achievement unlocks and the Mastery Citadel gate
+  // breaking open. A four-note ascending arpeggio (one more than the reward jingle) with
+  // a soft high "sparkle" layer riding on top of the last note, so genuinely rare
+  // moments are audibly bigger than routine quest/item rewards rather than reusing the
+  // same jingle for everything.
+  function playAchievementSfx() {
+    throttledSfx('achievement', 400, (ctx) => {
+      const t0 = ctx.currentTime;
+      [523, 659, 784, 1046].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = freq;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        const startAt = t0 + i * 0.08;
+        gain.gain.setValueAtTime(0, startAt);
+        gain.gain.linearRampToValueAtTime(0.22, startAt + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.34);
+        osc.start(startAt);
+        osc.stop(startAt + 0.36);
+      });
+      const sparkle = ctx.createOscillator();
+      const sparkleGain = ctx.createGain();
+      sparkle.type = 'sine';
+      sparkle.frequency.value = 1568;
+      sparkle.connect(sparkleGain);
+      sparkleGain.connect(ctx.destination);
+      const sparkleAt = t0 + 3 * 0.08 + 0.05;
+      sparkleGain.gain.setValueAtTime(0, sparkleAt);
+      sparkleGain.gain.linearRampToValueAtTime(0.12, sparkleAt + 0.02);
+      sparkleGain.gain.exponentialRampToValueAtTime(0.0001, sparkleAt + 0.4);
+      sparkle.start(sparkleAt);
+      sparkle.stop(sparkleAt + 0.42);
+    });
   }
 
   // Battle attack animations: each answer plays a short lunge from whoever "won" the
@@ -7520,7 +7724,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // the same information twice, several times a battle.
       if (isCorrect) setScore((value) => value + 100);
       // Correct/wrong plays immediately, right on the click — the same instant the
-      // buttons themselves flash green/red. The enemy-attack cue is deliberately held
+      // buttons themselves flash green/red. The punch-impact cue is deliberately held
       // until the impact tick below instead, so it lands with the lunge rather than the
       // click; the two are staggered by BATTLE_IMPACT_DELAY_MS, never simultaneous.
       if (soundEnabled) { if (isCorrect) playCorrectSfx(); else playWrongSfx(); }
@@ -7535,27 +7739,43 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         if (isCorrect) setEnemyHitsTaken(nextEnemyHitsTaken);
         else setPlayerHitsTaken(nextPlayerHitsTaken);
         // Shake/flash/spark fire in this same tick, so they read as caused by the hit
-        // landing rather than as a separate, disconnected effect. The attack sound only
-        // plays for a wrong answer (the enemy is the one landing a hit here) — a correct
-        // answer already got its own chime above and doesn't need a second cue.
-        if (soundEnabled && !isCorrect) playAttackSfx();
+        // landing rather than as a separate, disconnected effect. Whoever's landing the
+        // hit gets their own punch cue here — the player's on a correct answer, the
+        // enemy's on a wrong one — layered under the correct/wrong chime that already
+        // played on click, not instead of it, so every hit lands with real weight.
+        if (soundEnabled) { if (isCorrect) playPlayerPunchSfx(); else playEnemyPunchSfx(); }
         setImpactSide(isCorrect ? 'enemy' : 'player');
         setImpactActive(true);
         impactPulseTimeoutRef.current = window.setTimeout(() => setImpactActive(false), BATTLE_IMPACT_EFFECT_MS);
-        // End the fight the instant either bar would actually hit zero — a clean KO,
-        // not something the player has to click "Next" through. Whichever side's counter
-        // just reached the total question count is the one that ran out of HP.
-        if (nextEnemyHitsTaken >= questionCount) { setComplete(true); onComplete({ results: resultsRef.current, history: historyRef.current }); }
-        else if (nextPlayerHitsTaken >= questionCount) { setComplete(true); onComplete({ results: resultsRef.current, history: historyRef.current }); }
+        // Deliberately NOT completing the battle here, even on a KO. The player should
+        // always get to see this question's own feedback (correct/wrong, the right
+        // answer, the explanation) and watch the attack animation play out — ending the
+        // encounter mid-lunge, the instant a hit-count crosses the threshold, was exactly
+        // the bug: it swapped the question panel out for the results screen before either
+        // had finished, and left the arena automatically without any tap from the player.
+        // The final outcome (KO or simply out of questions) is now entirely decided by
+        // the "Return to Arena" button below, once resolved and idle.
       }, BATTLE_IMPACT_DELAY_MS);
       resetTimeoutRef.current = window.setTimeout(() => setAttackPhase('idle'), BATTLE_ATTACK_DURATION_MS);
     };
+    // The only two ways an encounter can end: a fighter's health bar actually reaches
+    // zero, or the player has answered every question without either side being KO'd.
+    // Both are just "this was the last question" in practice — each answer deals damage
+    // to exactly one side, so a bar can only hit zero on the same question that exhausts
+    // the question list (see enemyHealth/playerHealth above). Either way, nothing here
+    // fires on its own; it only ever runs from the "Return to Arena" button's onClick,
+    // never automatically.
+    const finishBattle = () => {
+      setComplete(true);
+      onComplete({ results: resultsRef.current, history: historyRef.current });
+    };
+    // Advances to the next question — used for every question except the last, where
+    // the "Return to Arena" button calls finishBattle directly instead. Unchanged from
+    // before for every question short of the final one.
     const next = () => {
-      if (question < questions.length - 1) { setQuestion((value) => value + 1); setSelected(null); setResolved(false); return; }
-      // Completion is announced once, by the caller (completeBattle), which knows the real
-      // reward numbers and can also surface any subject mastery improvement — no duplicate
-      // toast here.
-      setComplete(true); onComplete({ results: resultsRef.current, history: historyRef.current });
+      setQuestion((value) => value + 1);
+      setSelected(null);
+      setResolved(false);
     };
     return (
       <div className="page-wrap battle-layout">
@@ -7659,8 +7879,17 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                     )}
                 </div>
                 {/* Disabled until the attack sequence finishes so the fighters are always
-                    back at rest before the next question's UI appears underneath them. */}
-                <button className="btn-primary mt-4" onClick={next} disabled={attackPhase !== 'idle'}>{question === questions.length - 1 ? 'Finish encounter' : 'Next question'} <ChevronRight size={14} /></button>
+                    back at rest before either the next question's UI, or the final
+                    return-to-arena action, appears underneath them. On the last question
+                    this button is the ONLY thing that can end the encounter — win or
+                    lose, it never happens automatically. */}
+                <button
+                  className="btn-primary mt-4"
+                  onClick={question === questions.length - 1 ? finishBattle : next}
+                  disabled={attackPhase !== 'idle'}
+                >
+                  {question === questions.length - 1 ? 'Return to Arena' : 'Next question'} <ChevronRight size={14} />
+                </button>
               </>
             )}
           </div>
@@ -7995,8 +8224,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
               <div><div className="panel-title">Preferences</div><div className="panel-kicker mt-1">Audio and app notification triggers</div></div>
               <Bell size={18} className="text-amber-300" />
             </div>
-            <div className="setting-row"><div><strong>Sound effects</strong><span>Play audio cues on focus completion</span></div><button type="button" aria-label="Toggle sound effects" className={`toggle ${preferences.sound ? 'on' : ''}`} onClick={() => updatePreferences({ sound: !preferences.sound })}><i /></button></div>
-            <div className="setting-row"><div><strong>Encounter feedback</strong><span>Show detailed prompts during quiz battles</span></div><button type="button" aria-label="Toggle encounter feedback" className={`toggle ${preferences.encounterFeedback ? 'on' : ''}`} onClick={() => updatePreferences({ encounterFeedback: !preferences.encounterFeedback })}><i /></button></div>
+            <div className="setting-row"><div><strong>Sound effects</strong><span>Play audio cues on focus completion</span></div><button type="button" aria-label="Toggle sound effects" className={`toggle ${preferences.sound ? 'on' : ''}`} onClick={() => { if (preferences.sound) playUiClickSfx(); updatePreferences({ sound: !preferences.sound }); }}><i /></button></div>
+            <div className="setting-row"><div><strong>Encounter feedback</strong><span>Show detailed prompts during quiz battles</span></div><button type="button" aria-label="Toggle encounter feedback" className={`toggle ${preferences.encounterFeedback ? 'on' : ''}`} onClick={() => { if (preferences.sound) playUiClickSfx(); updatePreferences({ encounterFeedback: !preferences.encounterFeedback }); }}><i /></button></div>
           </div>
         </div>
 
@@ -8138,11 +8367,25 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     const [timerRunning, setTimerRunning] = useState(false);
     const [secondsLeft, setSecondsLeft] = useState(FOCUS_DURATION_SECONDS);
 
+    // Last title+copy pushed and when — a lightweight backstop against duplicate
+    // notifications. Every call site here is already gated to fire once per genuine
+    // event (a Set of already-notified ids, a done/prev-tier diff, etc.), but this
+    // catches anything that isn't — e.g. a re-render or a retried action re-firing the
+    // exact same message — without needing every caller to remember its own guard.
+    // Only suppresses back-to-back repeats of the identical message; a different
+    // message (even fired a moment later) always goes through.
+    const lastNotifyRef = useRef<{ key: string; time: number } | null>(null);
+    const DUPLICATE_NOTIFY_WINDOW_MS = 3000;
     const notify = (title: string, copy: string, tone?: ToastItem['tone']) => {
-      const id = Date.now() + Math.random();
+      const key = `${title}::${copy}`;
+      const now = Date.now();
+      const last = lastNotifyRef.current;
+      if (last && last.key === key && now - last.time < DUPLICATE_NOTIFY_WINDOW_MS) return;
+      lastNotifyRef.current = { key, time: now };
+      const id = now + Math.random();
       setToasts((prev) => [...prev, { id, title, copy, tone }]);
       setTimeout(() => { setToasts((prev) => prev.filter((t) => t.id !== id)); }, 4200);
-      setNotifications((prev) => [{ id, title, copy, tone, time: Date.now(), read: false }, ...prev]);
+      setNotifications((prev) => [{ id, title, copy, tone, time: now, read: false }, ...prev]);
     };
     const markNotificationRead = (id: number, read: boolean) => {
       setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, read } : item)));
@@ -8170,6 +8413,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       for (const item of achievementsList) {
         if (currentUnlocked.has(item.id) && !previousUnlockedAchievementIdsRef.current.has(item.id)) {
           notify(`🏆 ${item.title}`, item.desc);
+          if (accountData.game.preferences.sound) playAchievementSfx();
         }
       }
       previousUnlockedAchievementIdsRef.current = currentUnlocked;
@@ -8369,6 +8613,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
               };
             });
             notify('Focus complete', `Earned +${FOCUS_XP_REWARD} XP and +${FOCUS_COIN_REWARD} credits.`);
+            if (accountData?.game.preferences.sound) playRewardSfx();
             return FOCUS_DURATION_SECONDS;
           }
           return prev - 1;
@@ -8413,6 +8658,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         },
       }));
       notify('Quest cleared', `Received +${quest.rewardXp} XP and +${quest.rewardCoins} credits.`);
+      if (game.preferences.sound) playRewardSfx();
     };
 
     const completeBattle = (payload: { results: { subject: string; correct: boolean }[]; history: QuestionHistoryEntry[] }) => {
@@ -8460,6 +8706,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         };
       });
       notify('Quest cleared', `Received +${xpReward} XP and +${coinReward} credits.`);
+      if (game.preferences.sound) playRewardSfx();
       // Academic improvement: only fires when a subject actually crosses into a better
       // mastery tier, not on every battle — keeps it meaningful instead of routine.
       for (const improvement of improvedSubjects) {
@@ -8483,17 +8730,23 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         },
       }));
       notify('Item acquired', `You unlocked ${name}.`);
+      if (game.preferences.sound) playRewardSfx();
     };
 
+    // Equipping/avatar changes are ordinary settings actions, not rewards — they get the
+    // same light UI-click cue as menu navigation, not the reward jingle (buyItem above is
+    // the actual unlock moment and already has one).
     const equipItem = (id: string, name: string) => {
       if (!game.owned.includes(id)) return;
       updateAccountData((acc) => ({ ...acc, game: { ...acc.game, equipped: id } }));
       notify('Loadout updated', `${name} is now active.`);
+      if (game.preferences.sound) playUiClickSfx();
     };
 
     const updateAvatar = (newAvatar: AvatarConfig) => {
       updateAccountData((acc) => ({ ...acc, profile: { ...acc.profile, avatar: newAvatar } }));
       notify('Avatar updated', 'Changes saved to player file.');
+      if (game.preferences.sound) playUiClickSfx();
     };
 
     // Sound/encounter-feedback toggles — persisted the same way as everything else in
@@ -8544,7 +8797,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           <div className="ambient-orb two" />
           <div className={`app-grid${isImmersiveQuest ? ' app-grid--immersive' : ''}`}>
             {!isImmersiveQuest && (
-              <Sidebar screen={screen} setScreen={(next) => { setQuestStage('list'); setFoundChallenger(null); setQuestReturnPosition(null); setScreen(next); }} onLogout={() => setLogoutConfirmOpen(true)} profile={profile} xp={game.xp} quests={game.quests} />
+              <Sidebar screen={screen} setScreen={(next) => { setQuestStage('list'); setFoundChallenger(null); setQuestReturnPosition(null); setScreen(next); }} onLogout={() => setLogoutConfirmOpen(true)} profile={profile} xp={game.xp} quests={game.quests} soundEnabled={game.preferences.sound} />
             )}
             <div className={`main-area${isImmersiveQuest ? ' main-area--immersive' : ''}`} ref={mainAreaRef}>
               {!isImmersiveQuest && (
@@ -8582,6 +8835,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                   onChallengerFound={(challenger, position) => { setFoundChallenger(challenger); setQuestReturnPosition(position); setQuestStage('briefing'); }}
                   onExit={() => { setQuestReturnPosition(null); setQuestStage('list'); }}
                   notify={notify}
+                  soundEnabled={game.preferences.sound}
                   onReward={(coins, xp) => updateAccountData((acc) => ({ ...acc, game: { ...acc.game, coins: acc.game.coins + coins, xp: acc.game.xp + xp } }))}
                 />
               )}
