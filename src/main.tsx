@@ -1412,10 +1412,22 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     flex-wrap: wrap;
   }
 
-  .quest-cards {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px;
+  /* Quests page: every section (hero, tier progress, side-quest grid, history, review,
+     empty state) is a direct child of this one flex column, each always full width —
+     nothing here relies on a fixed-column grid that a lone non-card panel could get
+     stranded in at half width. Consistent gap top-to-bottom instead of ad hoc mt-* on
+     some sections and not others. */
+  .quest-page {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* Shared padding scale for every panel on this page (hero, tier list, history,
+     review, empty state) — one consistent inset instead of a different one per
+     section. Side-quest cards below share it too via .quest-card. */
+  .quest-panel {
+    padding: 22px 24px;
   }
 
   .quest-card {
@@ -1423,31 +1435,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     position: relative;
     overflow: hidden;
     min-width: 0;
-  }
-
-  .quest-card.featured {
-    grid-column: span 2;
-    display: grid;
-    grid-template-columns: 1.3fr .7fr;
-    gap: 22px;
-    background: linear-gradient(125deg, rgba(34, 48, 73, .84), rgba(20, 24, 43, .75));
-  }
-
-  .quest-card.featured::after {
-    content: 'BOSS';
-    position: absolute;
-    right: 22px;
-    top: 22px;
-    color: rgba(239, 117, 103, .62);
-    font: 10px var(--app-font-mono);
-    letter-spacing: .18em;
-  }
-
-  .quest-type {
-    color: var(--coral);
-    font: 10px var(--app-font-mono);
-    text-transform: uppercase;
-    letter-spacing: .14em;
+    display: flex;
+    flex-direction: column;
   }
 
   .quest-card h3 {
@@ -1463,6 +1452,60 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     font-size: 12px;
     line-height: 1.6;
     overflow-wrap: break-word;
+  }
+
+  .quest-type {
+    color: var(--coral);
+    font: 10px var(--app-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .14em;
+  }
+
+  /* Featured hero card — the live campus-exploration signal. Its own top-of-page
+     block, not a grid cell, so it's always full width regardless of viewport and never
+     fights the side-quest grid below it for column space (the bug a fixed 2-column
+     .quest-cards grid used to have with any non-card panel dropped into it). */
+  .quest-hero {
+    display: grid;
+    grid-template-columns: 1.3fr .7fr;
+    align-items: center;
+    gap: 24px;
+    background: linear-gradient(125deg, rgba(34, 48, 73, .84), rgba(20, 24, 43, .75));
+  }
+
+  .quest-hero::after {
+    content: 'LIVE';
+    position: absolute;
+    right: 24px;
+    top: 22px;
+    color: rgba(239, 117, 103, .62);
+    font: 10px var(--app-font-mono);
+    letter-spacing: .18em;
+  }
+
+  .quest-hero .quest-action {
+    justify-content: flex-end;
+  }
+
+  /* Side quests: a natural, self-wrapping grid — one column on a phone, more as the
+     viewport genuinely allows — instead of a fixed split that leaves an awkward empty
+     half on a wide screen or feels cramped on a narrow one. Cards stretch to match the
+     tallest in their row, with the action button pinned to the bottom of each, so a
+     short quest and a long one still line up edge to edge. */
+  .quest-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 14px;
+    align-items: stretch;
+  }
+
+  .quest-grid .quest-card {
+    height: 100%;
+  }
+
+  .quest-grid .quest-card .btn-secondary {
+    margin-top: auto;
+    align-self: flex-start;
   }
 
   .quest-tags {
@@ -1483,9 +1526,183 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
   .quest-action {
     display: flex;
-    align-items: end;
-    justify-content: end;
+    align-items: center;
+    justify-content: flex-end;
   }
+
+  /* Quest tiers: Foundation → Advanced → Expert → Mastery, one uniformly-styled card
+     per tier with a real progress bar instead of bare "2/4" text, in the same
+     self-wrapping grid style as the side-quest cards above for visual consistency
+     across the whole page. */
+  .tier-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  .tier-card {
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .025);
+    transition: opacity .2s;
+    min-width: 0;
+  }
+
+  .tier-card.locked {
+    opacity: .55;
+  }
+
+  .tier-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .tier-card-name {
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+  }
+
+  .tier-progress-track {
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .06);
+    margin-top: 12px;
+    overflow: hidden;
+  }
+
+  .tier-progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--amber), var(--coral));
+    transition: width .35s ease;
+  }
+
+  .tier-card-note {
+    margin: 8px 0 0;
+    color: #8e99b2;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
+  /* Quest history / review header row — reused for both the collapsed toggle bar and,
+     inside the panel, unchanged from before. */
+  .quest-history-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  /* Completed-quest review: one flat list of bordered rows, each independently
+     collapsible, instead of panels nested inside panels inside panels — reads as one
+     consistent list top to bottom rather than stacked cards of decreasing weight. */
+  .quest-review-list {
+    display: grid;
+    gap: 10px;
+    margin-top: 16px;
+    max-height: 60vh;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+
+  .quest-review-group {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .quest-review-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 13px 14px;
+    cursor: pointer;
+    list-style: none;
+    font-weight: 700;
+    font-size: 13px;
+    min-height: 44px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .quest-review-summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .quest-review-summary::marker {
+    content: '';
+  }
+
+  .quest-review-summary .chevron {
+    transition: transform .2s;
+    flex-shrink: 0;
+    color: #7f8aa5;
+  }
+
+  details[open] > .quest-review-summary .chevron {
+    transform: rotate(90deg);
+  }
+
+  .quest-review-entries {
+    display: grid;
+    gap: 1px;
+    background: var(--line);
+    border-top: 1px solid var(--line);
+  }
+
+  .quest-review-entry {
+    padding: 12px 14px;
+    background: var(--panel);
+  }
+
+  .quest-review-entry-question {
+    display: block;
+    margin-top: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+    overflow-wrap: break-word;
+  }
+
+  .quest-empty {
+    text-align: center;
+  }
+
+  @media (max-width: 720px) {
+    .quest-hero {
+      grid-template-columns: 1fr;
+    }
+    .quest-hero::after {
+      top: 20px;
+      right: 20px;
+    }
+    .quest-hero .quest-action {
+      justify-content: flex-start;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .quest-panel,
+    .quest-card {
+      padding: 16px;
+    }
+    .quest-grid {
+      grid-template-columns: 1fr;
+    }
+    .tier-list {
+      grid-template-columns: 1fr;
+    }
+  }
+
 
   /* Quest Briefing — the "which challenger, do I take this fight" screen shown after
      CampusExplorer finds one. Deliberately lean: Quest → Topic/Subtopic → short
@@ -3235,21 +3452,48 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     right: 14px;
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
+    gap: 10px;
     pointer-events: none;
     z-index: 10;
   }
+  /* Single stacked panel: the 3 status chips and the mini-map share this container's
+     width, so they're always edge-aligned with each other with no manual syncing. */
+  .campus-hud-left {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 300px;
+    max-width: calc(100% - 96px); /* leaves room for the exit button at every width */
+  }
+  .campus-hud-row {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    width: 100%;
+  }
+  /* Equal-width, equal-height chips: flex:1 with min-width:0 lets long district/quest
+     text ellipsize instead of wrapping or stretching one chip wider than its neighbors. */
+  .campus-hud-row .campus-chip {
+    flex: 1 1 0;
+    min-width: 0;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .campus-minimap {
-    position: absolute;
-    top: 72px;
-    left: 14px;
-    width: 164px;
-    height: 164px;
-    border-radius: 16px;
+    position: relative;
+    width: 100%;
+    aspect-ratio: 2.35 / 1; /* wide radar strip; the canvas always fills this exactly
+                                — see the player-centered viewport logic in drawMiniMap,
+                                which adapts to whatever aspect this box has instead of
+                                letterboxing a fixed-shape map inside it. */
+    border-radius: 14px;
     overflow: hidden;
     border: 1px solid rgba(103, 205, 209, .28);
     background: rgba(8, 12, 22, .90);
-    box-shadow: 0 14px 34px rgba(0,0,0,.42), inset 0 0 0 1px rgba(255,255,255,.035);
+    box-shadow: 0 10px 26px rgba(0,0,0,.4), inset 0 0 0 1px rgba(255,255,255,.035);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     pointer-events: none;
@@ -3260,7 +3504,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    box-shadow: inset 0 0 24px rgba(103,205,209,.06);
+    box-shadow: inset 0 0 20px rgba(103,205,209,.06);
     pointer-events: none;
   }
   .campus-minimap canvas {
@@ -3269,14 +3513,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     height: 100%;
   }
   @media (max-width: 700px) {
-    .campus-minimap {
-      top: 70px;
-      left: 10px;
-      width: 132px;
-      height: 132px;
-      border-radius: 14px;
-    }
-    .campus-hud-bar { top: 10px; left: 10px; right: 10px; }
+    .campus-hud-bar { top: 10px; left: 10px; right: 10px; gap: 6px; }
+    .campus-hud-left { width: 100%; max-width: calc(100% - 76px); gap: 6px; }
+    .campus-hud-row { gap: 6px; }
+    .campus-hud-row .campus-chip { padding: 6px 8px; font-size: 9px; }
+    .campus-minimap { aspect-ratio: 2.15 / 1; border-radius: 12px; }
   }
 
   .campus-chip {
@@ -3566,17 +3807,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       padding: 18px;
       min-height: unset;
     }
-    .quest-cards,
     .shop-grid {
       grid-template-columns: 1fr;
-    }
-    .quest-card.featured {
-      grid-column: auto;
-      display: block;
-    }
-    .quest-action {
-      justify-content: start;
-      margin-top: 18px;
     }
     .page-toolbar {
       align-items: start;
@@ -5539,7 +5771,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // flavor text.
   type ChallengerStyle = 'professor' | 'researcher' | 'coach' | 'dean';
   type CampusReturnPosition = { x: number; y: number; angle: number };
-  type CampusChallenger = { id: string; name: string; area: string; statement: string; questTitle: string; lore: string; recommendedLevel: number; rewardXp: number; rewardCoins: number; districtId: CampusDistrict['id']; style: ChallengerStyle };
+  // questionIndex is only used by tier-quest districts (advanced/expert/mastery — see
+  // QUEST_TIER_QUESTIONS/buildChallengerQuestionSet below), where each NPC poses exactly
+  // one dedicated, never-repeated question rather than a shared-bank slice.
+  type CampusChallenger = { id: string; name: string; area: string; statement: string; questTitle: string; lore: string; recommendedLevel: number; rewardXp: number; rewardCoins: number; districtId: CampusDistrict['id']; style: ChallengerStyle; questionIndex?: number };
 
   // Districts: the map is divided into four non-overlapping regions (checked by simple
   // bounding-box containment, in this priority order — Citadel's gated eastern strip is
@@ -5552,6 +5787,15 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     { id: 'foundation', name: 'Foundation District', icon: '🏘️', theme: 'Basic concepts', minX: 0, maxX: 6, minY: 0, maxY: 4, ceil: [26, 18, 10], floor: [48, 34, 18] },
     { id: 'peaks', name: 'Challenge Peaks', icon: '🏔️', theme: 'Hard problems', minX: 6, maxX: 13, minY: 0, maxY: 4, ceil: [16, 22, 36], floor: [30, 40, 58] },
     { id: 'wilds', name: 'Practice Wilds', icon: '🌲', theme: 'Repeated application', minX: 0, maxX: 13, minY: 4, maxY: 14, ceil: [10, 24, 16], floor: [18, 42, 26] },
+    // Quest-tier districts: three brand-new, south-of-the-original-plaza areas, each one
+    // tier of the Foundation → Advanced → Expert → Mastery progression (Foundation is the
+    // original four-district plaza above — see QUEST_TIERS). Each is connected to the
+    // previous area by a single locked CampusGate (see CAMPUS_GATES) that only opens once
+    // every quest in the prior tier is cleared, and none of them remove or block access to
+    // any existing area.
+    { id: 'advanced', name: 'Advanced Wing', icon: '⚙️', theme: 'Advanced tier trials', minX: 0, maxX: 17, minY: 14, maxY: 19, ceil: [30, 20, 45], floor: [54, 36, 78] },
+    { id: 'expert', name: 'Expert Enclave', icon: '🧭', theme: 'Expert tier trials', minX: 0, maxX: 17, minY: 19, maxY: 24, ceil: [45, 18, 18], floor: [80, 32, 32] },
+    { id: 'mastery', name: 'Mastery Vault', icon: '👑', theme: 'Mastery tier trials', minX: 0, maxX: 17, minY: 24, maxY: 29, ceil: [50, 42, 10], floor: [92, 78, 20] },
   ];
   const getDistrictAt = (x: number, y: number) => CAMPUS_DISTRICTS.find((d) => x >= d.minX && x < d.maxX && y >= d.minY && y < d.maxY) ?? CAMPUS_DISTRICTS[3];
 
@@ -5576,6 +5820,18 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       STEM: 'Comprehensive science & math examination', ABM: 'Comprehensive business & economics examination',
       HUMSS: 'Comprehensive humanities examination', 'GENERAL KNOWLEDGE': 'Comprehensive general-knowledge examination',
     },
+    advanced: {
+      STEM: 'Advanced-tier problem sets across every core subject', ABM: 'Advanced-tier business and finance case work',
+      HUMSS: 'Advanced-tier literary and historical analysis', 'GENERAL KNOWLEDGE': 'Advanced-tier cross-topic challenges',
+    },
+    expert: {
+      STEM: 'Expert-tier science and mathematics mastery checks', ABM: 'Expert-tier finance and strategy mastery checks',
+      HUMSS: 'Expert-tier humanities mastery checks', 'GENERAL KNOWLEDGE': 'Expert-tier general-knowledge mastery checks',
+    },
+    mastery: {
+      STEM: 'Grandmaster-level comprehensive science & math trials', ABM: 'Grandmaster-level comprehensive business trials',
+      HUMSS: 'Grandmaster-level comprehensive humanities trials', 'GENERAL KNOWLEDGE': 'Grandmaster-level comprehensive trials',
+    },
   };
   const getDistrictFocus = (districtId: string, strand: string) =>
     DISTRICT_STRAND_FOCUS[districtId]?.[strand] ?? CAMPUS_DISTRICTS.find((d) => d.id === districtId)?.theme ?? '';
@@ -5599,12 +5855,41 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     [1,0,0,0,6,0,7,0,0,0,7,0,0,0,0,0,1],
     [1,0,0,0,7,0,6,0,0,0,6,0,0,0,0,0,1],
     [1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,1],
+    // Row 13 was the map's original southern boundary (all walls). It now carries a
+    // single locked gate cell (5) at column 8 — the Advanced Tier Gate — which is the
+    // sole passage from the original plaza into the new Advanced Wing appended below.
+    // Everything above this row is completely untouched from the original layout.
+    [1,1,1,1,1,1,1,1,5,1,1,1,1,1,1,1,1],
+    // --- Advanced Wing (rows 14-18): Tier 2 "Advanced" district, home to npc_5-npc_8.
+    // Opens only once every Foundation-tier quest (npc_1-npc_4) is cleared.
+    [1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    // Row 18: Advanced Wing's south wall, carrying the Expert Tier Gate at column 8.
+    [1,1,1,1,1,1,1,1,5,1,1,1,1,1,1,1,1],
+    // --- Expert Enclave (rows 19-23): Tier 3 "Expert" district, home to npc_9-npc_12.
+    // Opens only once every Advanced-tier quest (npc_5-npc_8) is cleared.
+    [1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    // Row 23: Expert Enclave's south wall, carrying the Mastery Tier Gate at column 8.
+    [1,1,1,1,1,1,1,1,5,1,1,1,1,1,1,1,1],
+    // --- Mastery Vault (rows 24-28): Tier 4 "Mastery" district, home to npc_13-npc_16.
+    // Opens only once every Expert-tier quest (npc_9-npc_12) is cleared. This is the
+    // final tier — clearing it masters the entire quest-tier progression.
+    [1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
     [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
   ];
   // Tile legend: 0 open floor, 1/2/3/4 wall variants (visual only — see canMove, which
   // treats every non-zero tile as solid), 5 = locked gate (blocks movement + sight like a
-  // wall until CAMPUS_GATE.requiredIds are all defeated, at which point the cell is opened
-  // permanently — see checkGateUnlock in CampusExplorer). 6 = door, 7 = window, 8 = lockers,
+  // wall until every id in that gate's own requiredIds is defeated, at which point the cell
+  // is opened permanently — see checkGateUnlock in CampusExplorer, and CAMPUS_GATES for the
+  // full list of gates, one per tier boundary). 6 = door, 7 = window, 8 = lockers,
   // 9 = notice board — all render as banded patterns off the same one-fillRect-per-column
   // wall pass (see the tile===6/7/8/9 branches in render()), no extra draw calls versus a
   // flat-color wall, and are all solid same as 1-4: nothing here ever actually opens, so a
@@ -5651,7 +5936,117 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       questTitle: 'Comprehensive Examination', lore: "The exam that decides whether the term's work actually stuck. Every district's material is fair game.",
       recommendedLevel: 8, rewardXp: 400, rewardCoins: 200, style: 'dean',
     },
+
+    // --- Quest-tier NPCs (Advanced/Expert/Mastery) --------------------------------------
+    // Four brand-new NPCs per tier, each in its own newly-connected district, each posing
+    // exactly one dedicated harder question (see questionIndex + QUEST_TIER_QUESTIONS)
+    // that never overlaps anything in the original QUESTION_BANK. Rewards climb with every
+    // tier. See QUEST_TIERS below for how these four-per-tier groups gate one another.
+    {
+      id: 'npc_5', x: 3.5, y: 15.5, dir: 1, districtId: 'advanced',
+      name: 'Instructor Kade Villareal', area: '⚙️ Advanced Wing: Drill Yard',
+      statement: 'Foundations are done. Now we push past comfortable.',
+      questTitle: 'The Advanced Drill', lore: "Kade runs the Wing's opening trial — the first taste of Advanced-tier pressure.",
+      recommendedLevel: 10, rewardXp: 450, rewardCoins: 220, style: 'coach', questionIndex: 0,
+    },
+    {
+      id: 'npc_6', x: 8.5, y: 16.5, dir: -1, districtId: 'advanced',
+      name: 'Dr. Lena Ibarra', area: '⚙️ Advanced Wing: Applied Research Bay',
+      statement: "Theory's easy. Let's see you apply it under pressure.",
+      questTitle: 'Applied Reasoning', lore: 'Dr. Ibarra tests whether concepts actually transfer to new problems.',
+      recommendedLevel: 11, rewardXp: 500, rewardCoins: 240, style: 'researcher', questionIndex: 1,
+    },
+    {
+      id: 'npc_7', x: 13.5, y: 15.5, dir: 1, districtId: 'advanced',
+      name: 'Professor Wilhelm Cruz', area: '⚙️ Advanced Wing: Seminar Hall',
+      statement: "One question, no room for guessing. Show me you've internalized this.",
+      questTitle: 'The Cross-Topic Seminar', lore: "Professor Cruz's seminar questions are famously unforgiving of surface-level study.",
+      recommendedLevel: 12, rewardXp: 550, rewardCoins: 270, style: 'professor', questionIndex: 2,
+    },
+    {
+      id: 'npc_8', x: 8.5, y: 17.5, dir: -1, districtId: 'advanced',
+      name: 'Assistant Dean Farrow', area: '⚙️ Advanced Wing: Review Office',
+      statement: 'Clear my review and the Wing is officially yours.',
+      questTitle: 'Advanced Wing Review', lore: "Farrow signs off on every student who's proven they belong at this level.",
+      recommendedLevel: 13, rewardXp: 600, rewardCoins: 300, style: 'dean', questionIndex: 3,
+    },
+    {
+      id: 'npc_9', x: 3.5, y: 20.5, dir: 1, districtId: 'expert',
+      name: 'Field Researcher Odessa Marsh', area: '🧭 Expert Enclave: Field Station',
+      statement: "Out here, half-answers don't survive contact with the real question.",
+      questTitle: 'The Field Trial', lore: "Odessa's field trial marks the entrance to Expert-tier territory.",
+      recommendedLevel: 15, rewardXp: 650, rewardCoins: 320, style: 'researcher', questionIndex: 0,
+    },
+    {
+      id: 'npc_10', x: 8.5, y: 21.5, dir: -1, districtId: 'expert',
+      name: 'Elite Coach Tobias Reyne', area: '🧭 Expert Enclave: Elite Training Circle',
+      statement: "Everyone who's gotten this far thought they were ready too.",
+      questTitle: 'Elite Conditioning', lore: "Tobias trains only those who've already cleared the Advanced Wing.",
+      recommendedLevel: 16, rewardXp: 700, rewardCoins: 340, style: 'coach', questionIndex: 1,
+    },
+    {
+      id: 'npc_11', x: 13.5, y: 20.5, dir: 1, districtId: 'expert',
+      name: 'Professor Selin Duarte', area: '🧭 Expert Enclave: Advanced Lecture Hall',
+      statement: 'My question has one right answer and several convincing wrong ones.',
+      questTitle: 'The Duarte Standard', lore: 'Professor Duarte sets the bar every Expert-tier candidate must clear.',
+      recommendedLevel: 17, rewardXp: 750, rewardCoins: 370, style: 'professor', questionIndex: 2,
+    },
+    {
+      id: 'npc_12', x: 8.5, y: 22.5, dir: -1, districtId: 'expert',
+      name: 'Examiner Dean Holt', area: '🧭 Expert Enclave: Examination Chamber',
+      statement: "Pass this and you've earned a shot at Mastery.",
+      questTitle: 'Expert Enclave Examination', lore: "Dean Holt's exam is the final checkpoint before the Mastery Vault opens.",
+      recommendedLevel: 18, rewardXp: 800, rewardCoins: 400, style: 'dean', questionIndex: 3,
+    },
+    {
+      id: 'npc_13', x: 3.5, y: 25.5, dir: 1, districtId: 'mastery',
+      name: 'Grandmaster Iris Calloway', area: '👑 Mastery Vault: Grandmaster Study',
+      statement: 'Few make it this far. Fewer still finish what they start.',
+      questTitle: 'The Grandmaster Study', lore: "Calloway's study opens the Mastery Vault's trial sequence.",
+      recommendedLevel: 20, rewardXp: 850, rewardCoins: 420, style: 'professor', questionIndex: 0,
+    },
+    {
+      id: 'npc_14', x: 8.5, y: 26.5, dir: -1, districtId: 'mastery',
+      name: 'Grandmaster Researcher Voss', area: '👑 Mastery Vault: Deep Archive',
+      statement: "Everything you've learned, all at once — that's the point.",
+      questTitle: 'The Deep Archive Trial', lore: 'Voss draws from the hardest material the Vault has to offer.',
+      recommendedLevel: 22, rewardXp: 950, rewardCoins: 470, style: 'researcher', questionIndex: 1,
+    },
+    {
+      id: 'npc_15', x: 13.5, y: 25.5, dir: 1, districtId: 'mastery',
+      name: 'Grandmaster Coach Renner', area: '👑 Mastery Vault: Final Circuit',
+      statement: 'This is the last drill before the Vault itself opens to you.',
+      questTitle: 'The Final Circuit', lore: "Renner's circuit is designed to be the hardest single question in the game.",
+      recommendedLevel: 24, rewardXp: 1000, rewardCoins: 500, style: 'coach', questionIndex: 2,
+    },
+    {
+      id: 'npc_16', x: 8.5, y: 27.5, dir: -1, districtId: 'mastery',
+      name: 'Dean Emeritus Castellan', area: '👑 Mastery Vault: Emeritus Chamber',
+      statement: 'Clear my verdict, and there is nothing left this campus can ask of you.',
+      questTitle: 'The Emeritus Verdict', lore: "Castellan's verdict is the capstone of the entire Mastery tier.",
+      recommendedLevel: 25, rewardXp: 1100, rewardCoins: 550, style: 'dean', questionIndex: 3,
+    },
   ];
+
+  // Quest tiers: the progressive Foundation → Advanced → Expert → Mastery structure this
+  // file adds on top of the district system above. "Foundation" is simply the original
+  // four-district plaza's four challengers — nothing about them changes. Each later tier
+  // is a brand-new four-challenger group in its own newly-connected district (see
+  // CAMPUS_MAP/CAMPUS_DISTRICTS above), gated behind the previous tier via CAMPUS_GATES.
+  // A tier is "mastered" the instant every id in its challengerIds has been defeated.
+  type QuestTierId = 'foundation' | 'advanced' | 'expert' | 'mastery';
+  type QuestTier = { id: QuestTierId; name: string; challengerIds: string[] };
+  const QUEST_TIERS: QuestTier[] = [
+    { id: 'foundation', name: 'Foundation', challengerIds: ['npc_2', 'npc_1', 'npc_3', 'npc_4'] },
+    { id: 'advanced', name: 'Advanced', challengerIds: ['npc_5', 'npc_6', 'npc_7', 'npc_8'] },
+    { id: 'expert', name: 'Expert', challengerIds: ['npc_9', 'npc_10', 'npc_11', 'npc_12'] },
+    { id: 'mastery', name: 'Mastery', challengerIds: ['npc_13', 'npc_14', 'npc_15', 'npc_16'] },
+  ];
+  const isTierMastered = (tier: QuestTier, defeatedIds: string[]) => tier.challengerIds.every((id) => defeatedIds.includes(id));
+  // Tier 0 (Foundation) is always unlocked; every later tier needs the one immediately
+  // before it fully mastered first — a strict, linear progression.
+  const isTierUnlocked = (tierIndex: number, defeatedIds: string[]) => tierIndex <= 0 || isTierMastered(QUEST_TIERS[tierIndex - 1], defeatedIds);
+  const getTierIndexForChallenger = (challengerId: string) => QUEST_TIERS.findIndex((tier) => tier.challengerIds.includes(challengerId));
 
   const hashSeed = (input: string) => {
     let hash = 0;
@@ -5686,6 +6081,93 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     return 'dean-enemy';
   };
 
+  // Dedicated question bank for the three new quest tiers (Advanced/Expert/Mastery), one
+  // strand at a time, four brand-new questions per tier — one per NPC (see questionIndex
+  // on each npc_5-npc_16 entry above). None of these duplicate anything in QUESTION_BANK,
+  // and every tier is noticeably harder than the one before it, with rewards to match.
+  const QUEST_TIER_QUESTIONS: Record<string, Record<'advanced' | 'expert' | 'mastery', Question[]>> = {
+    STEM: {
+      advanced: [
+        { subject: 'Chemistry', question: 'What type of bond involves the sharing of electron pairs between atoms?', options: ['Ionic bond', 'Covalent bond', 'Metallic bond', 'Hydrogen bond'], answer: 1, explanation: 'A covalent bond forms when two atoms share one or more pairs of electrons.' },
+        { subject: 'Statistics', question: 'In a normal distribution, approximately what percentage of data falls within one standard deviation of the mean?', options: ['50%', '68%', '95%', '99.7%'], answer: 1, explanation: 'About 68% of data in a normal distribution falls within one standard deviation of the mean (the 68-95-99.7 rule).' },
+        { subject: 'Physics', question: 'Which law states that the entropy of an isolated system never decreases?', options: ['First law of thermodynamics', 'Second law of thermodynamics', 'Third law of thermodynamics', 'Zeroth law of thermodynamics'], answer: 1, explanation: 'The second law of thermodynamics states that the total entropy of an isolated system can never decrease over time.' },
+        { subject: 'Biology', question: 'A cross between two heterozygous parents (Aa x Aa) is expected to produce what phenotype ratio in offspring?', options: ['1:1', '1:2:1', '3:1', '9:3:3:1'], answer: 2, explanation: 'A monohybrid Aa x Aa cross produces a 3:1 phenotype ratio, since AA, Aa, and aA all show the dominant trait while only aa shows the recessive one.' },
+      ],
+      expert: [
+        { subject: 'Physics', question: 'What principle explains why electrons cannot occupy the same quantum state simultaneously?', options: ['Heisenberg uncertainty principle', 'Pauli exclusion principle', 'Bohr correspondence principle', "Planck's law"], answer: 1, explanation: 'The Pauli exclusion principle states that no two electrons in an atom can share the same set of quantum numbers.' },
+        { subject: 'Calculus', question: 'What technique solves a first-order linear differential equation of the form dy/dx + P(x)y = Q(x)?', options: ['Separation of variables only', 'Integrating factor', 'Direct integration only', 'Laplace transform only'], answer: 1, explanation: 'A first-order linear differential equation is solved using an integrating factor, e^(∫P(x)dx), to make the left side an exact derivative.' },
+        { subject: 'Physics', question: 'Which set of equations describes how electric and magnetic fields are generated and altered?', options: ["Newton's laws", "Maxwell's equations", 'Schrödinger equation', 'Navier–Stokes equations'], answer: 1, explanation: "Maxwell's equations are the four fundamental equations describing classical electromagnetism." },
+        { subject: 'Biology', question: 'What process exchanges genetic material between homologous chromosomes during meiosis?', options: ['Mitosis', 'Crossing over', 'Binary fission', 'Translation'], answer: 1, explanation: 'Crossing over occurs during prophase I of meiosis, exchanging genetic material between homologous chromosomes and increasing genetic diversity.' },
+      ],
+      mastery: [
+        { subject: 'Physics', question: 'What phenomenon describes light bending around massive objects due to spacetime curvature?', options: ['Refraction', 'Gravitational lensing', 'Diffraction', 'Doppler shift'], answer: 1, explanation: 'Gravitational lensing occurs when a massive object curves spacetime enough to bend the path of light passing near it, as predicted by general relativity.' },
+        { subject: 'Mathematics', question: 'What term describes a square matrix whose determinant is zero?', options: ['Invertible', 'Singular', 'Orthogonal', 'Diagonal'], answer: 1, explanation: 'A matrix with a determinant of zero is called singular, meaning it has no inverse.' },
+        { subject: 'Chemistry', question: 'Which pairing of macromolecules underlies a cell\'s information storage and its catalytic machinery?', options: ['Nucleic acids alone', 'Proteins and nucleic acids together', 'Carbohydrates alone', 'Lipids alone'], answer: 1, explanation: 'Nucleic acids (DNA/RNA) encode instructions while proteins, built from those instructions, carry out catalysis — together they underlie cellular information and function.' },
+        { subject: 'Computer Science', question: "What principle underlies a qubit's ability to represent both 0 and 1 simultaneously?", options: ['Binary logic', 'Superposition', 'Boolean algebra', 'Recursion'], answer: 1, explanation: 'Superposition is the quantum mechanical principle that lets a qubit exist in a combination of the 0 and 1 states at once.' },
+      ],
+    },
+    ABM: {
+      advanced: [
+        { subject: 'Accounting', question: 'Which accounting principle requires expenses to be recorded in the same period as the revenues they helped generate?', options: ['Revenue recognition principle', 'Matching principle', 'Cost principle', 'Full disclosure principle'], answer: 1, explanation: 'The matching principle requires that expenses be recognized in the same period as the revenues they help produce.' },
+        { subject: 'Economics', question: 'What term describes a market structure with only a few large firms dominating an industry?', options: ['Monopoly', 'Oligopoly', 'Perfect competition', 'Monopolistic competition'], answer: 1, explanation: 'An oligopoly is a market structure dominated by a small number of large firms.' },
+        { subject: 'Finance', question: 'What does the debt-to-equity ratio measure?', options: ["A company's liquidity", "A company's leverage relative to owner equity", "A company's profitability", "A company's market share"], answer: 1, explanation: "The debt-to-equity ratio compares total liabilities to shareholders' equity, measuring financial leverage." },
+        { subject: 'Management', question: "In Porter's Five Forces framework, what does \"threat of substitutes\" refer to?", options: ['New competitors entering the market', 'Alternative products meeting the same need', 'Suppliers raising prices', 'Buyers negotiating lower prices'], answer: 1, explanation: 'Threat of substitutes refers to alternative products or services that can fulfill the same customer need.' },
+      ],
+      expert: [
+        { subject: 'Accounting', question: 'Under accrual accounting, when is revenue recognized?', options: ['When cash is received', 'When it is earned, regardless of cash receipt', 'At the end of the fiscal year only', 'When the invoice is printed'], answer: 1, explanation: 'Accrual accounting recognizes revenue when it is earned, not necessarily when cash changes hands.' },
+        { subject: 'Economics', question: 'What does the term "opportunity cost" refer to?', options: ['The total cost of production', 'The value of the next best alternative forgone', 'The fixed costs of a business', 'The price paid for a good'], answer: 1, explanation: 'Opportunity cost is the value of the best alternative you give up when making a choice.' },
+        { subject: 'Finance', question: 'What does Net Present Value (NPV) analysis help determine?', options: ["A company's tax liability", "Whether an investment's discounted future cash flows exceed its cost", 'The book value of assets', 'The interest rate on a loan'], answer: 1, explanation: "NPV compares the present value of an investment's expected cash inflows to its initial cost to judge whether it creates value." },
+        { subject: 'Management', question: 'What organizational structure groups employees by specialized function, such as marketing or finance?', options: ['Matrix structure', 'Functional structure', 'Divisional structure', 'Flat structure'], answer: 1, explanation: 'A functional structure organizes employees into departments based on specialized skills or functions.' },
+      ],
+      mastery: [
+        { subject: 'Economics', question: 'What term describes a sustained increase in the general price level of goods and services?', options: ['Deflation', 'Inflation', 'Stagnation', 'Recession'], answer: 1, explanation: 'Inflation is a sustained rise in the general price level over time, reducing purchasing power.' },
+        { subject: 'Finance', question: 'What does WACC (Weighted Average Cost of Capital) represent?', options: ["A company's total revenue", "The blended cost of a firm's debt and equity financing", 'The tax rate on corporate profits', "A company's total assets"], answer: 1, explanation: "WACC is the average rate a company is expected to pay to finance its assets, weighted by the proportion of debt and equity." },
+        { subject: 'Accounting', question: "What does a rising current ratio generally indicate about a company?", options: ['Declining profitability', 'Improving short-term liquidity', 'Increasing debt load', 'Falling revenue'], answer: 1, explanation: 'The current ratio (current assets ÷ current liabilities) reflects short-term liquidity; a rising ratio suggests improving ability to cover short-term obligations.' },
+        { subject: 'Business', question: 'What strategic approach involves a company acquiring or merging with a supplier?', options: ['Horizontal integration', 'Backward vertical integration', 'Forward vertical integration', 'Diversification'], answer: 1, explanation: 'Backward vertical integration occurs when a company acquires or merges with a business further up its supply chain, such as a supplier.' },
+      ],
+    },
+    HUMSS: {
+      advanced: [
+        { subject: 'History', question: "Which pact ended the Philippine Revolution's first phase, sending Aguinaldo into exile?", options: ['Treaty of Paris', 'Pact of Biak-na-Bato', 'Malolos Constitution', 'Cavite Mutiny agreement'], answer: 1, explanation: 'The Pact of Biak-na-Bato (1897) ended the first phase of the revolution, with Aguinaldo agreeing to exile in exchange for reforms and payment.' },
+        { subject: 'Literature', question: "What narrative technique presents a story through a character's continuous, unedited flow of thoughts?", options: ['Foreshadowing', 'Stream of consciousness', 'Flashback', 'Dramatic irony'], answer: 1, explanation: "Stream of consciousness renders a character's continuous flow of thoughts and feelings, often with little narrative filtering." },
+        { subject: 'Social Science', question: "What term describes a society's shared beliefs and practices passed down through generations?", options: ['Institution', 'Culture', 'Ideology', 'Demography'], answer: 1, explanation: 'Culture encompasses the shared beliefs, customs, and practices passed down within a society.' },
+        { subject: 'Language', question: 'What is the term for a word that sounds the same as another but differs in meaning and spelling?', options: ['Synonym', 'Homophone', 'Antonym', 'Homograph'], answer: 1, explanation: 'A homophone sounds like another word but differs in meaning and often spelling, like "flour" and "flower."' },
+      ],
+      expert: [
+        { subject: 'History', question: '1898 Manila Bay battle effectively ended what power in the Philippines?', options: ['Spanish naval power', 'American naval power', 'British naval power', 'Japanese naval power'], answer: 0, explanation: 'The Battle of Manila Bay (May 1, 1898) saw the U.S. Navy destroy the Spanish fleet, ending Spanish naval control of the islands.' },
+        { subject: 'Literature', question: 'What critical approach analyzes a text primarily through the lens of class struggle and economic systems?', options: ['Feminist criticism', 'Marxist criticism', 'Formalist criticism', 'Reader-response criticism'], answer: 1, explanation: 'Marxist literary criticism examines texts through the lens of class relations, economic power, and material conditions.' },
+        { subject: 'Social Science', question: 'What term describes the process by which individuals internalize the norms and values of their society?', options: ['Assimilation', 'Socialization', 'Stratification', 'Urbanization'], answer: 1, explanation: 'Socialization is the lifelong process through which individuals learn and internalize the norms, values, and behaviors of their society.' },
+        { subject: 'Language', question: 'What rhetorical device uses deliberate understatement, often the near-opposite of hyperbole?', options: ['Litotes', 'Anaphora', 'Chiasmus', 'Synecdoche'], answer: 0, explanation: 'Litotes is a rhetorical device using understatement, often via double negatives, to emphasize a point.' },
+      ],
+      mastery: [
+        { subject: 'History', question: 'What document, drafted in 1898, established the first Philippine Republic and its constitution?', options: ['Katipunan Charter', 'Malolos Constitution', 'Treaty of Paris', 'Biak-na-Bato Constitution'], answer: 1, explanation: 'The Malolos Constitution, ratified in January 1899, established the First Philippine Republic under Emilio Aguinaldo.' },
+        { subject: 'Social Science', question: "What term describes a society's ranked division into social classes based on wealth, power, or status?", options: ['Social mobility', 'Social stratification', 'Social deviance', 'Social capital'], answer: 1, explanation: 'Social stratification refers to the hierarchical arrangement of individuals into social classes based on factors like wealth and power.' },
+        { subject: 'Literature', question: "What term describes a recurring symbol or idea that develops a text's central meaning?", options: ['Motif', 'Genre', 'Setting', 'Diction'], answer: 0, explanation: "A motif is a recurring element — an image, idea, or symbol — that reinforces a text's central theme." },
+        { subject: 'Language', question: 'What term describes a shift in a word\'s meaning over time, as with "awful" once meaning "awe-inspiring"?', options: ['Semantic change', 'Phonetic shift', 'Grammaticalization', 'Code-switching'], answer: 0, explanation: 'Semantic change describes how a word\'s meaning evolves over time, as with "awful," which once meant "inspiring awe."' },
+      ],
+    },
+    'GENERAL KNOWLEDGE': {
+      advanced: [
+        { subject: 'Science', question: 'What process do cells use to divide into two genetically identical daughter cells?', options: ['Meiosis', 'Mitosis', 'Fertilization', 'Osmosis'], answer: 1, explanation: 'Mitosis is the process of cell division that produces two genetically identical daughter cells.' },
+        { subject: 'Geography', question: 'Which mountain range contains Mount Everest?', options: ['Andes', 'Rockies', 'Himalayas', 'Alps'], answer: 2, explanation: "Mount Everest, the world's tallest peak, is located in the Himalayas." },
+        { subject: 'History', question: 'In what year did World War II end?', options: ['1943', '1944', '1945', '1946'], answer: 2, explanation: "World War II ended in 1945, with Japan's surrender in September following Germany's surrender in May." },
+        { subject: 'Arts', question: 'Which composer wrote his Ninth Symphony while almost completely deaf?', options: ['Mozart', 'Bach', 'Beethoven', 'Chopin'], answer: 2, explanation: 'Ludwig van Beethoven composed his Ninth Symphony despite being almost completely deaf by the time he wrote it.' },
+      ],
+      expert: [
+        { subject: 'Science', question: 'What particle, confirmed at CERN in 2012, is associated with giving other particles mass?', options: ['Photon', 'Higgs boson', 'Neutrino', 'Quark'], answer: 1, explanation: 'The Higgs boson, confirmed at CERN in 2012, is associated with the field that gives fundamental particles their mass.' },
+        { subject: 'Geography', question: 'Which African river is traditionally considered the longest in the world?', options: ['Congo River', 'Niger River', 'Nile River', 'Zambezi River'], answer: 2, explanation: 'The Nile River, flowing through northeastern Africa, is traditionally considered the longest river in the world.' },
+        { subject: 'History', question: 'Which empire did Genghis Khan found and lead?', options: ['Ottoman Empire', 'Mongol Empire', 'Roman Empire', 'Byzantine Empire'], answer: 1, explanation: 'Genghis Khan founded and led the Mongol Empire, which became the largest contiguous land empire in history.' },
+        { subject: 'Arts', question: 'Which art movement, associated with Salvador Dalí, explored dream imagery and the unconscious mind?', options: ['Cubism', 'Surrealism', 'Impressionism', 'Baroque'], answer: 1, explanation: 'Surrealism, championed by artists like Salvador Dalí, explored dream imagery and the unconscious mind.' },
+      ],
+      mastery: [
+        { subject: 'Science', question: 'What is the boundary around a black hole beyond which nothing, not even light, can escape?', options: ['Photon sphere', 'Event horizon', 'Accretion disk', 'Singularity'], answer: 1, explanation: 'The event horizon is the boundary around a black hole beyond which nothing, not even light, can escape its gravity.' },
+        { subject: 'Geography', question: 'Which country has the most time zones, due largely to its overseas territories?', options: ['Russia', 'United States', 'France', 'China'], answer: 2, explanation: 'France has the most time zones of any country (12), due to its overseas territories scattered around the globe.' },
+        { subject: 'History', question: 'Which ancient civilization built the Machu Picchu complex in Peru?', options: ['Aztec', 'Maya', 'Inca', 'Olmec'], answer: 2, explanation: 'Machu Picchu was built by the Inca civilization in the 15th century high in the Andes mountains.' },
+        { subject: 'Arts', question: 'Which architect designed the still-unfinished Sagrada Família basilica in Barcelona?', options: ['Le Corbusier', 'Antoni Gaudí', 'Frank Lloyd Wright', 'Zaha Hadid'], answer: 1, explanation: 'Antoni Gaudí designed the still-unfinished Sagrada Família basilica, a landmark of Catalan modernism in Barcelona.' },
+      ],
+    },
+  };
+
   // Builds the exact shuffled question set one challenger presents, from the player's own
   // strand bank. Districts partition their strand's 8-question bank so every NPC gets a
   // genuinely different set: Foundation takes the first pair (quick basics check), Peaks
@@ -5693,7 +6175,16 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // practice) — a clean, non-overlapping split — while Citadel pulls the whole bank,
   // matching its "comprehensive exam" role. Question order and each question's own choices
   // are both shuffled (Fisher–Yates), with the correct answer's index remapped to match.
-  const buildChallengerQuestionSet = (challenger: Pick<CampusChallenger, 'districtId'>, strand: string): Question[] => {
+  // Advanced/Expert/Mastery districts (the new quest tiers) skip this shared-bank slicing
+  // entirely — each of their NPCs draws its own single dedicated question straight from
+  // QUEST_TIER_QUESTIONS via questionIndex, so tier questions never overlap district ones.
+  const buildChallengerQuestionSet = (challenger: Pick<CampusChallenger, 'districtId' | 'questionIndex'>, strand: string): Question[] => {
+    if (challenger.districtId === 'advanced' || challenger.districtId === 'expert' || challenger.districtId === 'mastery') {
+      const tierBank = (QUEST_TIER_QUESTIONS[strand] ?? QUEST_TIER_QUESTIONS['GENERAL KNOWLEDGE'])[challenger.districtId];
+      const q = tierBank[challenger.questionIndex ?? 0];
+      const shuffledOptions = shuffleArray(q.options.map((option, index) => ({ option, isCorrect: index === q.answer })));
+      return [{ subject: q.subject, question: q.question, options: shuffledOptions.map((o) => o.option), answer: shuffledOptions.findIndex((o) => o.isCorrect), explanation: q.explanation }];
+    }
     const bank = QUESTION_BANK[strand] ?? QUESTION_BANK['GENERAL KNOWLEDGE'];
     const slice = challenger.districtId === 'foundation' ? bank.slice(0, 2)
       : challenger.districtId === 'peaks' ? bank.slice(2, 5)
@@ -5754,8 +6245,35 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // Locked gate: a wall tile (5) that only opens once every id in requiredIds has been defeated.
   // It's the sole passage into the Mastery Citadel, so it gates real progress behind mastery
   // rather than just being scenery.
-  type CampusGate = { x: number; y: number; requiredIds: string[]; label: string };
-  const CAMPUS_GATE: CampusGate = { x: 13, y: 6, requiredIds: ['npc_1', 'npc_2', 'npc_3'], label: 'Mastery Citadel Gate' };
+  type CampusGate = { x: number; y: number; requiredIds: string[]; label: string; requirementLabel: string; openMessage: string };
+  const CAMPUS_GATE: CampusGate = {
+    x: 13, y: 6, requiredIds: ['npc_1', 'npc_2', 'npc_3'], label: 'Mastery Citadel Gate',
+    requirementLabel: 'Defeat all three Districts first',
+    openMessage: 'The seal breaks — all three Districts have been bested. The Mastery Citadel is open.',
+  };
+  // Every locked gate in the campus, checked and drawn identically regardless of which
+  // tier it belongs to. CAMPUS_GATE (the original Mastery Citadel gate, part of the
+  // Foundation tier's own internal progression) is unchanged and simply included here as
+  // the first entry. The other three are new: one per quest-tier boundary, each opening
+  // only once every challenger in the previous tier (see QUEST_TIERS) has been defeated.
+  const CAMPUS_GATES: CampusGate[] = [
+    CAMPUS_GATE,
+    {
+      x: 8, y: 13, requiredIds: [...QUEST_TIERS[0].challengerIds], label: 'Advanced Tier Gate',
+      requirementLabel: 'Clear the Foundation tier first',
+      openMessage: 'The seal breaks — the Foundation tier is mastered. The Advanced Wing is open.',
+    },
+    {
+      x: 8, y: 18, requiredIds: [...QUEST_TIERS[1].challengerIds], label: 'Expert Tier Gate',
+      requirementLabel: 'Clear the Advanced tier first',
+      openMessage: 'The seal breaks — the Advanced tier is mastered. The Expert Enclave is open.',
+    },
+    {
+      x: 8, y: 23, requiredIds: [...QUEST_TIERS[2].challengerIds], label: 'Mastery Tier Gate',
+      requirementLabel: 'Clear the Expert tier first',
+      openMessage: 'The seal breaks — the Expert tier is mastered. The Mastery Vault is open.',
+    },
+  ];
 
   // Environmental props — trees, planters, lamp posts (outdoors) plus themed furniture for
   // the three walk-in rooms below. Purely decorative billboards: no collision, no
@@ -5894,8 +6412,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const drawMiniMap = (now: number) => {
         if (now - lastMiniMapDrawAt < MINIMAP_REDRAW_INTERVAL_MS) return;
         lastMiniMapDrawAt = now;
-        const cssW = minimapCanvas.clientWidth || 164;
-        const cssH = minimapCanvas.clientHeight || 164;
+        const cssW = minimapCanvas.clientWidth || 300;
+        const cssH = minimapCanvas.clientHeight || 136;
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
         const pxW = Math.max(1, Math.floor(cssW * dpr));
         const pxH = Math.max(1, Math.floor(cssH * dpr));
@@ -5909,30 +6427,61 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // Premium glass panel background.
         miniCtx.fillStyle = 'rgba(8, 12, 22, 0.90)';
         miniCtx.fillRect(0, 0, cssW, cssH);
-        const pad = 10;
+
+        // Small, even padding — the map itself should fill nearly the whole panel.
+        const pad = Math.max(4, Math.min(8, cssW * 0.025));
         const innerW = cssW - pad * 2;
-        const innerH = cssH - pad * 2 - 18;
-        const scale = Math.min(innerW / mapWidth, innerH / mapHeight);
-        const ox = (cssW - mapWidth * scale) / 2;
-        const oy = pad + 16 + (innerH - mapHeight * scale) / 2;
+        const innerH = cssH - pad * 2;
+
+        // Player-centered viewport instead of fit-the-whole-map: this campus is a tall
+        // stack of districts (much taller than it is wide), so scaling it to fit a wide
+        // short panel would either squeeze it thin or leave large empty bars on either
+        // side. Instead we always show the full map WIDTH (so left/right edges are never
+        // empty) and a vertical slice around the player that exactly matches the panel's
+        // aspect ratio — so the drawn area always fills the padded box exactly, with no
+        // letterboxing, regardless of screen size.
+        const viewCols = mapWidth;
+        const scale = innerW / viewCols;
+        const viewRows = innerH / scale;
+        const maxTop = Math.max(0, mapHeight - viewRows);
+        const viewTop = mapHeight <= viewRows
+          ? (mapHeight - viewRows) / 2
+          : Math.max(0, Math.min(maxTop, playerY - viewRows / 2));
+        const ox = pad;
+        const oy = pad - viewTop * scale;
+
+        // Clip everything below to the padded inner rect so nothing bleeds into the
+        // panel's border padding.
+        miniCtx.save();
+        miniCtx.beginPath();
+        miniCtx.rect(pad, pad, innerW, innerH);
+        miniCtx.clip();
+
+        // Floor fill — the viewport is built to exactly cover this rect, so a single
+        // fillRect stands in for the old "fit-to-map" floor rectangle.
+        miniCtx.fillStyle = 'rgba(38, 48, 68, 0.72)';
+        miniCtx.fillRect(pad, pad, innerW, innerH);
+
+        // Only the rows currently in view need to be drawn.
+        const rowStart = Math.max(0, Math.floor(viewTop) - 1);
+        const rowEnd = Math.min(mapHeight, Math.ceil(viewTop + viewRows) + 1);
 
         // Subtle grid gives orientation without making it look like a cheap tile map.
         miniCtx.strokeStyle = 'rgba(148, 163, 184, 0.055)';
         miniCtx.lineWidth = 1;
         for (let x = 0; x <= mapWidth; x += 2) {
-          miniCtx.beginPath(); miniCtx.moveTo(ox + x * scale, oy); miniCtx.lineTo(ox + x * scale, oy + mapHeight * scale); miniCtx.stroke();
+          miniCtx.beginPath(); miniCtx.moveTo(ox + x * scale, oy + rowStart * scale); miniCtx.lineTo(ox + x * scale, oy + rowEnd * scale); miniCtx.stroke();
         }
-        for (let y = 0; y <= mapHeight; y += 2) {
+        for (let y = rowStart; y <= rowEnd; y += 1) {
+          if (y % 2 !== 0) continue;
           miniCtx.beginPath(); miniCtx.moveTo(ox, oy + y * scale); miniCtx.lineTo(ox + mapWidth * scale, oy + y * scale); miniCtx.stroke();
         }
 
-        // Floor + walls. Wall cells are softened so the radar reads as a designed HUD,
-        // while the corridors remain immediately understandable.
-        miniCtx.fillStyle = 'rgba(38, 48, 68, 0.72)';
-        miniCtx.fillRect(ox, oy, mapWidth * scale, mapHeight * scale);
-        for (let y = 0; y < mapHeight; y++) {
+        // Walls. Wall cells are softened so the radar reads as a designed HUD, while the
+        // corridors remain immediately understandable.
+        for (let y = rowStart; y < rowEnd; y++) {
           for (let x = 0; x < mapWidth; x++) {
-            if (map[y][x] !== 0) {
+            if (map[y]?.[x]) {
               miniCtx.fillStyle = 'rgba(104, 119, 143, 0.78)';
               miniCtx.fillRect(ox + x * scale + 0.5, oy + y * scale + 0.5, Math.max(1, scale - 1), Math.max(1, scale - 1));
             }
@@ -5954,7 +6503,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         });
         guides.forEach((g) => dot(g.x, g.y, 2.8, '#67cdd1'));
         notes.forEach((n) => { if (!collectedNotes.has(n.id)) dot(n.x, n.y, 2.1, '#d8b4fe'); });
-        if (gate) dot(gate.x, gate.y, 3.1, '#fb7185', 'rgba(255,255,255,.7)');
+        gates.forEach((g) => dot(g.x, g.y, 3.1, '#fb7185', 'rgba(255,255,255,.7)'));
 
         // Player marker — Mobile Legends-style: a glowing dot at the true (unrotated)
         // world position, with a soft directional cone/line showing facing. The heading
@@ -6018,14 +6567,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         miniCtx.lineWidth = 1.5;
         miniCtx.stroke();
 
-        // Header + compact legend.
-        miniCtx.fillStyle = '#f4f0e7';
-        miniCtx.font = '600 9px var(--app-font-mono), monospace';
-        miniCtx.textBaseline = 'top';
-        miniCtx.fillText('CAMPUS RADAR', 10, 7);
-        miniCtx.fillStyle = 'rgba(148,163,184,.75)';
-        miniCtx.font = '7px var(--app-font-mono), monospace';
-        miniCtx.fillText('● QUEST   ● GUIDE', cssW - 76, 8);
+        // No title bar and no in-canvas legend — the panel is just the live map, with
+        // the marker colors (gold quest target, teal guide, violet note, coral gate)
+        // self-evident from context, matching the cleaned-up compact HUD.
+        miniCtx.restore();
       };
       // Same deterministic per-challenger AvatarConfig used everywhere else a challenger's
       // likeness is shown (Battle, the quest briefing card) — computed once here rather
@@ -6036,7 +6581,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const guides = CAMPUS_GUIDES.map((g) => ({ ...g }));
       const props = CAMPUS_PROPS.map((p) => ({ ...p }));
       const signs = CAMPUS_SIGNS.map((s) => ({ ...s }));
-      const gate = { ...CAMPUS_GATE, open: false };
+      const gates = CAMPUS_GATES.map((g) => ({ ...g, open: false }));
       const collectedNotes = new Set<string>();
       const triggeredGuides = new Set<string>();
       const signaledIds = new Set<string>();
@@ -6057,15 +6602,17 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const totalDiscoverable = challengers.length + notes.length + guides.length;
 
       const checkGateUnlock = () => {
-        if (gate.open) return;
-        if (gate.requiredIds.every((id) => defeatedIdsRef.current.includes(id))) {
-          gate.open = true;
-          map[gate.y][gate.x] = 0;
-          notifyRef.current(gate.label, 'The seal breaks — all three Districts have been bested. The Mastery Citadel is open.');
-          // A major, rare unlock — the same fanfare cue as an achievement, not the
-          // routine quest/item reward jingle.
-          if (soundEnabledRef.current) playAchievementSfx();
-        }
+        gates.forEach((gate) => {
+          if (gate.open) return;
+          if (gate.requiredIds.every((id) => defeatedIdsRef.current.includes(id))) {
+            gate.open = true;
+            map[gate.y][gate.x] = 0;
+            notifyRef.current(gate.label, gate.openMessage);
+            // A major, rare unlock — the same fanfare cue as an achievement, not the
+            // routine quest/item reward jingle.
+            if (soundEnabledRef.current) playAchievementSfx();
+          }
+        });
       };
       checkGateUnlock();
 
@@ -6156,7 +6703,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         | { kind: 'npc'; data: (typeof challengers)[number] }
         | { kind: 'note'; data: (typeof notes)[number] }
         | { kind: 'guide'; data: (typeof guides)[number] }
-        | { kind: 'gate' };
+        | { kind: 'gate'; data: (typeof gates)[number] };
       let interactHitboxes: { target: InteractTarget; screenX: number; screenY: number; radius: number; worldX: number; worldY: number }[] = [];
       // How close (world units) the player must actually be before a tap/click on
       // something is allowed to do anything — stops a tap on a far-off but visible
@@ -6258,10 +6805,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         }
       };
 
-      const interactGate = () => {
+      const interactGate = (gate: (typeof gates)[number]) => {
         if (gate.open) return;
         const doneCount = gate.requiredIds.filter((id) => defeatedIdsRef.current.includes(id)).length;
-        pushDiscovery({ title: `🔒 ${gate.label}`, body: `SEALED. Defeat all three Districts first. (${doneCount}/${gate.requiredIds.length} mastered)`, duration: 2600 });
+        pushDiscovery({ title: `🔒 ${gate.label}`, body: `SEALED. ${gate.requirementLabel}. (${doneCount}/${gate.requiredIds.length} mastered)`, duration: 2600 });
       };
 
       // Single entry point for every tap/click interaction, whatever kind of thing was
@@ -6278,7 +6825,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           case 'npc': interactNpc(target.data); break;
           case 'note': interactNote(target.data); break;
           case 'guide': interactGuide(target.data); break;
-          case 'gate': interactGate(); break;
+          case 'gate': interactGate(target.data); break;
         }
       };
 
@@ -6510,11 +7057,19 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       function render() {
         const w = canvas!.width, h = canvas!.height;
         const now = performance.now();
-        // Wide-ish perspective per spec (~75-80°): mobile sits at the top of that range
+        // Zoomed-out, spacious perspective (~95-100°): mobile sits at the top of that range
         // since there's no mouse-look nuance to fall back on there and a narrower FOV reads
         // like navigating through a straw on a fixed touch camera; desktop sits a touch
         // narrower since free-look mouse control makes the extra width less necessary.
-        const fov = isMobile ? (88 * Math.PI) / 180 : (85 * Math.PI) / 180; // wider first-person view for better spatial awareness
+        const fov = isMobile ? (98 * Math.PI) / 180 : (95 * Math.PI) / 180; // wider first-person view for a more spacious, less cramped feel
+        // Half-width (in world units, at unit forward distance) of the projection plane —
+        // used to cast rays evenly across a flat screen-space plane (tan-based) rather than
+        // stepping evenly through angles. Angle-uniform ray stepping is what produces the
+        // classic "fisheye" bulge as FOV widens; sampling evenly along the tangent plane
+        // instead keeps straight walls looking straight at 95-100° the same way they did at
+        // the old, narrower FOV. Sprite projection below is kept in lockstep with this same
+        // plane so billboards/NPCs/items line up with the walls behind them.
+        const halfFovTan = Math.tan(fov / 2);
         const fogDistance = isMobile ? 26 : 22;
 
         // True first-person camera: the render origin is the player's position.
@@ -6557,9 +7112,15 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         if (zBuffer.length !== numRays) zBuffer = new Float32Array(numRays);
 
         for (let i = 0; i < numRays; i++) {
-          const rayAngle = playerAngle - fov / 2 + (i / numRays) * fov;
+          // Evenly-spaced point on the flat projection plane (-1 left edge .. +1 right
+          // edge), converted to an angle offset via atan. This is what keeps the image
+          // rectilinear (straight walls stay straight) at a wide FOV — stepping evenly
+          // through angle instead would bow straight lines outward near the edges.
+          const cameraX = (2 * (i + 0.5)) / numRays - 1;
+          const rayAngleOffset = Math.atan(cameraX * halfFovTan);
+          const rayAngle = playerAngle + rayAngleOffset;
           const result = castRayDDA(rayAngle, camX, camY);
-          const correctedDist = result.dist * Math.cos(rayAngle - playerAngle);
+          const correctedDist = result.dist * Math.cos(rayAngleOffset);
           zBuffer[i] = correctedDist;
           const wallHeight = h / correctedDist;
           const wallTop = (h - wallHeight) / 2 - pitchOffsetPx;
@@ -6630,7 +7191,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           const transformX = Math.cos(playerAngle) * spriteX + Math.sin(playerAngle) * spriteY;
           const transformY = -Math.sin(playerAngle) * spriteX + Math.cos(playerAngle) * spriteY;
           if (transformX <= 0.1 || transformX > maxDist) return null;
-          const screenX = (w / 2) * (1 + transformY / transformX);
+          // Same tangent-plane mapping as the wall rays (see halfFovTan above) — keeps
+          // sprites locked to the walls/geometry behind them instead of drifting toward
+          // the edges as FOV widens.
+          const screenX = (w / 2) * (1 + (transformY / transformX) / halfFovTan);
           const size = Math.abs(h / transformX);
           const drawY = (h - size) / 2 - pitchOffsetPx;
           const halfWidthPx = Math.max(1, size * 0.28);
@@ -7051,15 +7615,16 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // always runs, independent of any interaction UI.
         checkGateUnlock();
 
-        // Register the sealed gate as a tap target too (only while still sealed and
+        // Register every still-sealed gate as a tap target too (only while still sealed and
         // actually on screen), so checking its status now takes the same deliberate
         // tap/click as everything else, instead of appearing just from walking up to it.
-        if (!gate.open) {
+        gates.forEach((gate) => {
+          if (gate.open) return;
           const gateProj = projectSprite(gate.x + 0.5, gate.y + 0.5);
           if (gateProj) {
-            interactHitboxes.push({ target: { kind: 'gate' }, screenX: gateProj.screenX, screenY: gateProj.drawY + gateProj.size * 0.5, radius: Math.max(30, gateProj.size * 0.4), worldX: gate.x + 0.5, worldY: gate.y + 0.5 });
+            interactHitboxes.push({ target: { kind: 'gate', data: gate }, screenX: gateProj.screenX, screenY: gateProj.drawY + gateProj.size * 0.5, radius: Math.max(30, gateProj.size * 0.4), worldX: gate.x + 0.5, worldY: gate.y + 0.5 });
           }
-        }
+        });
 
         // The bottom prompt bar and floating badge have no proximity-driven auto-trigger
         // left at all — every hint they could show now only ever goes through
@@ -7189,15 +7754,17 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         <div ref={worldRef} className="campus-world">
           <canvas ref={canvasRef} className="campus-canvas" />
           <div className="campus-hud-bar">
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <div className="campus-chip">LVL {level} · {strand}</div>
-              <div className="campus-chip" ref={districtChipRef} />
-              <div className="campus-chip" ref={progressChipRef} />
+            <div className="campus-hud-left">
+              <div className="campus-hud-row">
+                <div className="campus-chip">LVL {level} · {strand}</div>
+                <div className="campus-chip" ref={districtChipRef} />
+                <div className="campus-chip" ref={progressChipRef} />
+              </div>
+              <div className="campus-minimap" aria-label="Campus mini-map">
+                <canvas ref={minimapRef} />
+              </div>
             </div>
             <button className="campus-exit-btn" onClick={onExit}><X size={12} /> Exit </button>
-          </div>
-          <div className="campus-minimap" aria-label="Campus mini-map">
-            <canvas ref={minimapRef} />
           </div>
           <div ref={promptRef} className="campus-prompt" />
           <div className="holo-discovery-card" ref={discoveryCardRef}>
@@ -7285,8 +7852,16 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     );
   }
 
-  function Quests({ quests, claimQuest, onBattle, questionHistory }: { quests: Quest[]; claimQuest: (id: string) => void; onBattle: () => void; questionHistory: QuestionHistoryEntry[] }) {
+  function Quests({ quests, claimQuest, onBattle, questionHistory, defeatedChallengerIds }: { quests: Quest[]; claimQuest: (id: string) => void; onBattle: () => void; questionHistory: QuestionHistoryEntry[]; defeatedChallengerIds: string[] }) {
     const [reviewOpen, setReviewOpen] = useState(false);
+    // Only ever show challengers from tiers the player has actually unlocked — a locked
+    // tier's NPCs stay a surprise rather than spoiling difficulty/rewards ahead of time.
+    const unlockedChallengers = QUEST_TIERS.flatMap((tier, i) =>
+      isTierUnlocked(i, defeatedChallengerIds) ? CAMPUS_CHALLENGERS.filter((c) => tier.challengerIds.includes(c.id)) : []
+    );
+    const openQuestCount = unlockedChallengers.filter((c) => !defeatedChallengerIds.includes(c.id)).length;
+
+    const openQuests = quests.filter((quest) => !quest.done);
 
     return (
       <div className="page-wrap">
@@ -7300,19 +7875,21 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             <RotateCcw size={14} /> Refresh board
           </button>
         </div>
-        <div className="quest-cards">
-          <div className="panel quest-card featured animate-rise">
+
+        <div className="quest-page">
+          <div className="panel quest-card quest-panel quest-hero animate-rise">
             <div>
               <div className="quest-type">Campus exploration · live signals</div>
-              <h3>Four quests are out there, waiting to be found.</h3>
-              <p>Walk the halls, follow the pulsing signal when one's nearby, and investigate to reveal what it is before you commit. Rewards — and the subjects tested — scale with each district's difficulty.</p>
+              <h3>{openQuestCount} quest{openQuestCount === 1 ? '' : 's'} {openQuestCount === 1 ? 'is' : 'are'} out there, waiting to be found.</h3>
+              <p>Walk the halls, follow the pulsing signal when one's nearby, and investigate to reveal what it is before you commit. Rewards — and the subjects tested — scale with each district's difficulty and quest tier.</p>
               {/* Read straight off CAMPUS_CHALLENGERS/CAMPUS_DISTRICTS (the same data the
                   map, briefing, and battle itself use) instead of a hand-kept duplicate
                   list — so this can't drift out of sync with what's actually out there. */}
               <div className="quest-tags">
-                {[...CAMPUS_CHALLENGERS].sort((a, b) => a.recommendedLevel - b.recommendedLevel).map((challenger) => {
+                {[...unlockedChallengers].sort((a, b) => a.recommendedLevel - b.recommendedLevel).map((challenger) => {
                   const district = CAMPUS_DISTRICTS.find((d) => d.id === challenger.districtId);
-                  return <span className="tag" key={challenger.id}>{district?.icon} {district?.name} · Lv {challenger.recommendedLevel}+</span>;
+                  const done = defeatedChallengerIds.includes(challenger.id);
+                  return <span className="tag" key={challenger.id}>{done ? '✓' : district?.icon} {district?.name} · Lv {challenger.recommendedLevel}+</span>;
                 })}
               </div>
             </div>
@@ -7323,42 +7900,79 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             </div>
           </div>
 
-          {quests.filter((quest) => !quest.done).map((quest, index) => (
-            <div 
-              className="panel quest-card animate-rise" 
-              style={{ animationDelay: `${(index + 1) * 0.1}s` }} 
-              key={quest.id}
-            >
-              <div className="quest-type">Side quest · {index + 1} of {quests.filter((q) => !q.done).length}</div>
-              <h3>{quest.title}</h3>
-              <p>{quest.meta}. A short clear is still a clear.</p>
-              <div className="quest-tags">
-                <span className="tag">+{quest.rewardXp} XP</span>
-                <span className="tag">+{quest.rewardCoins} credits</span>
-              </div>
-              <button className="btn-secondary mt-5" onClick={() => claimQuest(quest.id)}>
-                Claim quest <ChevronRight size={14} />
-              </button>
+          {/* Quest tier progression: Foundation → Advanced → Expert → Mastery. Each tier
+              is exactly 4 quests (see QUEST_TIERS); a tier is Mastered once every one of
+              its 4 challengers has been defeated, at which point the next tier's gate
+              opens in the campus itself (see CAMPUS_GATES / completeBattle's tier-mastery
+              notification). Locked tiers are shown, dimmed, so the progression is visible
+              without spoiling their content. */}
+          <div className="panel quest-panel animate-rise">
+            <div className="panel-title">Quest tiers</div>
+            <p className="muted text-sm mt-1">Foundation → Advanced → Expert → Mastery. Clear every quest in a tier to unlock the next.</p>
+            <div className="tier-list">
+              {QUEST_TIERS.map((tier, i) => {
+                const unlocked = isTierUnlocked(i, defeatedChallengerIds);
+                const doneCount = tier.challengerIds.filter((id) => defeatedChallengerIds.includes(id)).length;
+                const mastered = doneCount === tier.challengerIds.length;
+                const pct = Math.round((doneCount / tier.challengerIds.length) * 100);
+                return (
+                  <div key={tier.id} className={`tier-card${unlocked ? '' : ' locked'}`}>
+                    <div className="tier-card-head">
+                      <div className="tier-card-name">{mastered ? '🏆' : unlocked ? '⚔️' : '🔒'} {tier.name} tier</div>
+                      <span className="tag">{unlocked ? `${doneCount}/${tier.challengerIds.length} cleared` : 'Locked'}</span>
+                    </div>
+                    {unlocked && (
+                      <div className="tier-progress-track">
+                        <div className="tier-progress-fill" style={{ width: `${pct}%` }} />
+                      </div>
+                    )}
+                    {!unlocked && <p className="tier-card-note">Clear the {QUEST_TIERS[i - 1]?.name} tier first to unlock this one.</p>}
+                    {unlocked && mastered && <p className="tier-card-note">Tier mastered — every reward already claimed.</p>}
+                  </div>
+                );
+              })}
             </div>
-          ))}
-
-          <div className="panel mt-4" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <div>
-              <div className="panel-title">Quest history</div>
-              <p className="muted text-sm mt-1">Reopen completed quests and review every answer.</p>
-            </div>
-            <button className="btn-secondary" onClick={() => setReviewOpen((open) => !open)}>
-              {reviewOpen ? 'Hide review' : 'Review completed quests'}
-            </button>
           </div>
 
-          {reviewOpen && (
-            <div className="panel mt-4 p-5">
-              <div className="panel-title">Completed quest review</div>
-              {questionHistory.length === 0 ? (
+          {openQuests.length > 0 && (
+            <div className="quest-grid">
+              {openQuests.map((quest, index) => (
+                <div
+                  className="panel quest-card animate-rise"
+                  style={{ animationDelay: `${(index + 1) * 0.1}s` }}
+                  key={quest.id}
+                >
+                  <div className="quest-type">Side quest · {index + 1} of {openQuests.length}</div>
+                  <h3>{quest.title}</h3>
+                  <p>{quest.meta}. A short clear is still a clear.</p>
+                  <div className="quest-tags">
+                    <span className="tag">+{quest.rewardXp} XP</span>
+                    <span className="tag">+{quest.rewardCoins} credits</span>
+                  </div>
+                  <button className="btn-secondary mt-5" onClick={() => claimQuest(quest.id)}>
+                    Claim quest <ChevronRight size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="panel quest-panel animate-rise">
+            <div className="quest-history-head">
+              <div>
+                <div className="panel-title">Quest history</div>
+                <p className="muted text-sm mt-1">Reopen completed quests and review every answer.</p>
+              </div>
+              <button className="btn-secondary" onClick={() => setReviewOpen((open) => !open)}>
+                {reviewOpen ? 'Hide review' : 'Review completed quests'}
+              </button>
+            </div>
+
+            {reviewOpen && (
+              questionHistory.length === 0 ? (
                 <p className="muted text-sm mt-3">No completed quest answers have been recorded yet.</p>
               ) : (
-                <div className="mt-4" style={{ display: 'grid', gap: 12, maxHeight: 520, overflowY: 'auto' }}>
+                <div className="quest-review-list">
                   {Object.entries(
                     questionHistory.reduce((groups, entry) => {
                       const key = `${entry.questId}::${entry.questTitle}`;
@@ -7369,19 +7983,20 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                   ).reverse().map(([key, entries]) => {
                     const correctCount = entries.filter((entry) => entry.correct).length;
                     return (
-                      <details key={key} className="panel" style={{ padding: 14 }}>
-                        <summary style={{ cursor: 'pointer', fontWeight: 700 }}>
-                          {entries[0].questTitle} · {correctCount}/{entries.length} correct
+                      <details key={key} className="quest-review-group">
+                        <summary className="quest-review-summary">
+                          <span>{entries[0].questTitle} · {correctCount}/{entries.length} correct</span>
+                          <ChevronRight size={16} className="chevron" />
                         </summary>
-                        <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+                        <div className="quest-review-entries">
                           {entries.map((entry, index) => (
-                            <div key={entry.id} className="panel" style={{ padding: 12 }}>
+                            <div key={entry.id} className="quest-review-entry">
                               <div className="quest-tags">
                                 <span className="tag">Question {index + 1}</span>
                                 <span className="tag">{entry.subject}</span>
                                 <span className="tag">{entry.correct ? '✓ Correct' : '✕ Wrong'}</span>
                               </div>
-                              <strong style={{ display: 'block', marginTop: 8 }}>{entry.question}</strong>
+                              <strong className="quest-review-entry-question">{entry.question}</strong>
                               <div className="muted text-sm mt-2">
                                 Your answer: <b>{entry.selectedAnswer}</b>
                               </div>
@@ -7398,12 +8013,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                     );
                   })}
                 </div>
-              )}
-            </div>
-          )}
+              )
+            )}
+          </div>
 
-          {quests.every((quest) => quest.done) && (
-            <div className="panel mt-4 p-8 text-center">
+          {openQuests.length === 0 && (
+            <div className="panel quest-panel quest-empty animate-rise">
               <Trophy className="mx-auto mb-3 text-amber-300" />
               <div className="panel-title">Board cleared.</div>
               <p className="muted text-sm mt-2">The next wave arrives at midnight.</p>
@@ -8663,8 +9278,22 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
     const completeBattle = (payload: { results: { subject: string; correct: boolean }[]; history: QuestionHistoryEntry[] }) => {
       const { results, history } = payload;
-      const xpReward = foundChallenger?.rewardXp ?? 300;
-      const coinReward = foundChallenger?.rewardCoins ?? 150;
+      // Rewards scale strictly with how well this encounter actually went — never a flat
+      // payout regardless of performance. `accuracy` is the real fraction of questions
+      // answered correctly this battle (not lifetime subjectMastery, which is a separate,
+      // cumulative stat used only for the mastery-tier notification below). A perfect run
+      // (accuracy === 1) earns exactly the challenger's full listed rewardXp/rewardCoins —
+      // its maximum — and every score under that earns proportionally less, down to 0 XP/
+      // coins for a run with no correct answers at all. Rounded once at the end so partial
+      // credit still lands on a whole number instead of e.g. "+37.5 XP".
+      const totalQuestions = results.length;
+      const correctCount = results.filter((r) => r.correct).length;
+      const accuracy = totalQuestions > 0 ? correctCount / totalQuestions : 0;
+      const baseXp = foundChallenger?.rewardXp ?? 300;
+      const baseCoins = foundChallenger?.rewardCoins ?? 150;
+      const xpReward = Math.round(baseXp * accuracy);
+      const coinReward = Math.round(baseCoins * accuracy);
+      const scorePct = Math.round(accuracy * 100);
 
       // Merge this battle's results into subject mastery here (not inside updateAccountData's
       // updater) so we have one clean before/after snapshot to diff for genuine tier
@@ -8682,6 +9311,19 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         const tier = masteryTierOf(pct);
         if (prevTier === null || MASTERY_TIER_RANK[tier] > MASTERY_TIER_RANK[prevTier]) improvedSubjects.push({ subject, tier, pct });
       }
+
+      // Quest-tier mastery check, computed against the same pre-update snapshot as
+      // improvedSubjects above (and for the same reason — one clean before/after diff,
+      // notified exactly once). A tier "completes" the instant its 4th and final
+      // challenger is defeated for the very first time; nextDefeatedIds mirrors exactly
+      // what updateAccountData is about to persist below.
+      const alreadyDefeatedBeforeThisBattle = foundChallenger ? game.defeatedChallengerIds.includes(foundChallenger.id) : true;
+      const nextDefeatedIds = foundChallenger && !alreadyDefeatedBeforeThisBattle
+        ? [...game.defeatedChallengerIds, foundChallenger.id]
+        : game.defeatedChallengerIds;
+      const newlyMasteredTierIndex = !alreadyDefeatedBeforeThisBattle && foundChallenger
+        ? QUEST_TIERS.findIndex((tier) => tier.challengerIds.includes(foundChallenger.id) && isTierMastered(tier, nextDefeatedIds))
+        : -1;
 
       // This is the moment a quest actually finishes — the battle has run its full
       // course (see Battle's onComplete calls) and either fighter's HP hit zero, or the
@@ -8705,12 +9347,27 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           },
         };
       });
-      notify('Quest cleared', `Received +${xpReward} XP and +${coinReward} credits.`);
+      notify(
+        'Quest cleared',
+        `Scored ${correctCount}/${totalQuestions} (${scorePct}%) — received +${xpReward} XP and +${coinReward} credits.${accuracy < 1 ? ` (Max was +${baseXp} XP / +${baseCoins} credits for a perfect score.)` : ''}`
+      );
       if (game.preferences.sound) playRewardSfx();
       // Academic improvement: only fires when a subject actually crosses into a better
       // mastery tier, not on every battle — keeps it meaningful instead of routine.
       for (const improvement of improvedSubjects) {
         notify(`📈 ${improvement.subject} improving`, `Now ${improvement.tier} — ${improvement.pct}% accuracy.`);
+      }
+      // Tier-mastered banner: all 4 quests in this tier are now done. Say so briefly, and
+      // name whichever tier — if any — just unlocked as a result (the corresponding
+      // CAMPUS_GATES entry opens itself the moment the player next steps near it).
+      if (newlyMasteredTierIndex >= 0) {
+        const masteredTier = QUEST_TIERS[newlyMasteredTierIndex];
+        const nextTier = QUEST_TIERS[newlyMasteredTierIndex + 1];
+        notify(
+          `🏆 ${masteredTier.name} tier mastered!`,
+          nextTier ? `All 4 quests cleared. The ${nextTier.name} tier is now unlocked.` : `All 4 quests cleared. You've mastered every tier the campus has to offer.`
+        );
+        if (game.preferences.sound) playAchievementSfx();
       }
       setFoundChallenger(null);
       // CampusExplorer remounts with questReturnPosition, placing the player exactly where
@@ -8823,7 +9480,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                 />
               )}
               {screen === 'quests' && questStage === 'list' && (
-                <Quests quests={game.quests} questionHistory={game.questionHistory ?? []} claimQuest={claimQuest} onBattle={() => { setQuestReturnPosition(null); enterImmersiveBattle(); setQuestStage('roaming'); }} />
+                <Quests quests={game.quests} questionHistory={game.questionHistory ?? []} claimQuest={claimQuest} defeatedChallengerIds={game.defeatedChallengerIds ?? []} onBattle={() => { setQuestReturnPosition(null); enterImmersiveBattle(); setQuestStage('roaming'); }} />
               )}
               {screen === 'quests' && questStage === 'roaming' && (
                 <CampusExplorer
