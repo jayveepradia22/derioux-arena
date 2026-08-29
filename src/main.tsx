@@ -3453,30 +3453,44 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    gap: 10px;
+    gap: 8px;
     pointer-events: none;
     z-index: 10;
   }
   /* Single stacked panel: the 3 status chips and the mini-map share this container's
-     width, so they're always edge-aligned with each other with no manual syncing. */
+     width, so they're always edge-aligned with each other with no manual syncing.
+     Narrowed from the old 300px — the mini-map only needs to read as a small compact
+     HUD element, not a wide strip. */
   .campus-hud-left {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    width: 300px;
-    max-width: calc(100% - 96px); /* leaves room for the exit button at every width */
+    gap: 8px;
+    width: 150px;
+    max-width: calc(100% - 78px); /* leaves room for the now-compact exit button */
+    min-width: 0;
   }
+  /* flex-wrap: nowrap + justify-content: space-between keeps the 3 chips locked to a
+     single row at every width, evenly spread across the row instead of ever dropping
+     onto a second line — each chip below is an equal flexible share of that row
+     (flex: 1 1 0), so they land evenly aligned rather than sized purely by content. */
   .campus-hud-row {
     display: flex;
     align-items: stretch;
-    gap: 8px;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    gap: 6px;
     width: 100%;
   }
-  /* Equal-width, equal-height chips: flex:1 with min-width:0 lets long district/quest
-     text ellipsize instead of wrapping or stretching one chip wider than its neighbors. */
+  /* Equal-width chips (flex: 1 1 0) is what makes the row read as evenly aligned;
+     min-width: 0 lets a chip actually shrink below its content's natural width when
+     the row is tight, and the ellipsis is the graceful fallback for when a chip's
+     text genuinely doesn't fit its share of the row, instead of wrapping or
+     overflowing into its neighbor. */
   .campus-hud-row .campus-chip {
     flex: 1 1 0;
+    width: auto;
     min-width: 0;
+    max-width: 100%;
     text-align: center;
     white-space: nowrap;
     overflow: hidden;
@@ -3485,68 +3499,76 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   .campus-minimap {
     position: relative;
     width: 100%;
-    aspect-ratio: 2.35 / 1; /* wide radar strip; the canvas always fills this exactly
-                                — see the player-centered viewport logic in drawMiniMap,
-                                which adapts to whatever aspect this box has instead of
-                                letterboxing a fixed-shape map inside it. */
-    border-radius: 14px;
+    aspect-ratio: 2.3 / 1; /* short, wide strip — never stretches tall — the canvas
+                               always fills this exactly; see the player-tracked
+                               vertical viewport in drawMiniMap, which scrolls to
+                               follow the player through the taller-than-wide campus
+                               without ever needing to letterbox this shape. */
+    border-radius: 9px;
     overflow: hidden;
     border: 1px solid rgba(103, 205, 209, .28);
     background: rgba(8, 12, 22, .90);
-    box-shadow: 0 10px 26px rgba(0,0,0,.4), inset 0 0 0 1px rgba(255,255,255,.035);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 6px 16px rgba(0,0,0,.35);
     pointer-events: none;
     z-index: 9;
-  }
-  .campus-minimap::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    box-shadow: inset 0 0 20px rgba(103,205,209,.06);
-    pointer-events: none;
   }
   .campus-minimap canvas {
     display: block;
     width: 100%;
     height: 100%;
   }
-  @media (max-width: 700px) {
-    .campus-hud-bar { top: 10px; left: 10px; right: 10px; gap: 6px; }
-    .campus-hud-left { width: 100%; max-width: calc(100% - 76px); gap: 6px; }
-    .campus-hud-row { gap: 6px; }
-    .campus-hud-row .campus-chip { padding: 6px 8px; font-size: 9px; }
-    .campus-minimap { aspect-ratio: 2.15 / 1; border-radius: 12px; }
-  }
 
-  .campus-chip {
+  /* Chip and exit-button share one minimal visual language: no border, small
+     translucent panel, same padding/radius scale at every breakpoint below — so the
+     exit button reads as the 4th member of the HUD row group, not a different kind
+     of control. This base block must come BEFORE the media queries below: they share
+     the same selector specificity, so source order is what lets the breakpoints'
+     smaller padding/font-size actually win on narrow screens. */
+  .campus-chip,
+  .campus-exit-btn {
     background: rgba(15, 20, 36, .88);
-    border: 1px solid rgba(248, 184, 78, .35);
-    color: var(--amber);
-    padding: 7px 13px;
-    border-radius: 7px;
-    font: 10px var(--app-font-mono);
-    letter-spacing: .08em;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, .4);
+    border: none;
+    padding: 5px 9px;
+    border-radius: 6px;
+    font: 9px var(--app-font-mono);
+    letter-spacing: .06em;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, .35);
     backdrop-filter: blur(8px);
     pointer-events: auto;
+  }
+  .campus-chip {
+    color: var(--amber);
   }
   .campus-exit-btn {
-    pointer-events: auto;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    background: rgba(239, 117, 103, .14);
+    gap: 5px;
     color: var(--coral);
-    border: 1px solid rgba(239, 117, 103, .4);
-    padding: 7px 12px;
-    border-radius: 7px;
-    font-size: 10px;
     font-weight: 600;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, .4);
-    backdrop-filter: blur(8px);
+    white-space: nowrap;
+    flex: 0 0 auto;
   }
+  @media (max-width: 700px) {
+    .campus-hud-bar { top: 8px; left: 8px; right: 8px; gap: 5px; }
+    .campus-hud-left { width: 100%; max-width: calc(100% - 58px); gap: 4px; }
+    .campus-hud-row { gap: 4px; }
+    .campus-hud-row .campus-chip { padding: 3px 5px; font-size: 7px; border-radius: 5px; }
+    /* Small fixed-width strip, aligned to the left edge instead of stretching to
+       match the chip row's width — keeps the same short, wide proportions as
+       desktop (never a tall square) so it stays a tight, unobtrusive HUD element
+       that takes up very little screen space. */
+    .campus-minimap { width: 84px; max-width: 84px; aspect-ratio: 2.3 / 1; border-radius: 7px; align-self: flex-start; }
+    .campus-exit-btn { padding: 4px 6px; font-size: 8px; border-radius: 5px; gap: 3px; }
+  }
+  @media (max-width: 430px) {
+    .campus-hud-bar { top: 6px; left: 6px; right: 6px; gap: 4px; }
+    .campus-hud-left { max-width: calc(100% - 48px); gap: 3px; }
+    .campus-hud-row { gap: 3px; }
+    .campus-hud-row .campus-chip { padding: 2px 4px; font-size: 6px; border-radius: 4px; }
+    .campus-minimap { width: 68px; max-width: 68px; aspect-ratio: 2.3 / 1; border-radius: 6px; align-self: flex-start; }
+    .campus-exit-btn { padding: 3px 5px; font-size: 7px; border-radius: 4px; gap: 2px; }
+  }
+
   .campus-prompt {
     position: absolute;
     top: 18%;
@@ -3555,18 +3577,24 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     background: rgba(15, 20, 36, .92);
     border: 1px solid var(--cyan);
     color: #f4f0e7;
-    padding: 11px 22px;
-    border-radius: 8px;
-    font: 11px var(--app-font-mono);
+    padding: 7px 14px;
+    border-radius: 7px;
+    font: 10px var(--app-font-mono);
     text-align: center;
     display: none;
     pointer-events: auto;
     cursor: pointer;
     touch-action: manipulation;
     text-shadow: 0 0 8px rgba(103, 205, 209, .6);
-    box-shadow: 0 0 25px rgba(103, 205, 209, .22);
+    box-shadow: 0 0 18px rgba(103, 205, 209, .2);
     z-index: 10;
     backdrop-filter: blur(10px);
+  }
+  @media (max-width: 700px) {
+    .campus-prompt { padding: 6px 12px; font-size: 9px; border-radius: 6px; max-width: calc(100% - 24px); }
+  }
+  @media (max-width: 430px) {
+    .campus-prompt { padding: 5px 10px; font-size: 8px; border-radius: 5px; }
   }
   .campus-tap-start {
     position: absolute;
@@ -4692,6 +4720,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   };
   type Profile = { name: string; email: string; strand: string; avatar: AvatarConfig };
   type Quest = { id: string; title: string; meta: string; rewardXp: number; rewardCoins: number; done: boolean };
+  // Per-challenger best-score record. Retries are unlimited (see interactNpc in
+  // CampusExplorer), but rewards and the displayed score only ever reflect the single
+  // best run — bestCorrect/bestTotal snapshot the exact attempt that set bestAccuracy,
+  // so "82%" and "9/11" always describe the same run instead of two different ones.
+  // attempts counts every completed run, including ones that didn't beat the record.
+  type ChallengerScore = { bestAccuracy: number; bestCorrect: number; bestTotal: number; attempts: number };
   type QuestionHistoryEntry = {
     id: string;
     questId: string;
@@ -4708,7 +4742,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   };
   type ShopItem = { id: string; name: string; copy: string; price: number; icon: typeof Crosshair; category: 'Gear' | 'Consumables' | 'Cosmetics'; requiredQuestId?: string };
   type PlayerPreferences = { sound: boolean; encounterFeedback: boolean };
-  type GameState = { coins: number; xp: number; quests: Quest[]; owned: string[]; equipped: string | null; studyMinutes: number; activityDates: string[]; subjectMastery: Record<string, { correct: number; total: number }>; defeatedChallengerIds: string[]; preferences: PlayerPreferences; questionHistory: QuestionHistoryEntry[] };
+  type GameState = { coins: number; xp: number; quests: Quest[]; owned: string[]; equipped: string | null; studyMinutes: number; activityDates: string[]; subjectMastery: Record<string, { correct: number; total: number }>; defeatedChallengerIds: string[]; challengerScores: Record<string, ChallengerScore>; preferences: PlayerPreferences; questionHistory: QuestionHistoryEntry[] };
   // No `password` field anymore — Firebase Auth owns credentials entirely; this is now
   // purely the Firestore document shape for `players/{uid}`.
   type StoredAccount = { profile: Profile; game: GameState };
@@ -4895,7 +4929,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     const derivedName = authUser?.displayName?.trim() || authUser?.email?.split('@')[0] || 'Player';
     return { name: derivedName, email: authUser?.email ?? '', strand: 'STEM', avatar: makeDefaultAvatar() };
   };
-  const makeFreshGameState = (): GameState => ({ coins: 0, xp: 0, quests: initialQuests.map((quest) => ({ ...quest })), owned: [], equipped: null, studyMinutes: 0, activityDates: [], subjectMastery: {}, defeatedChallengerIds: [], preferences: { sound: true, encounterFeedback: true }, questionHistory: [] });
+  const makeFreshGameState = (): GameState => ({ coins: 0, xp: 0, quests: initialQuests.map((quest) => ({ ...quest })), owned: [], equipped: null, studyMinutes: 0, activityDates: [], subjectMastery: {}, defeatedChallengerIds: [], challengerScores: {}, preferences: { sound: true, encounterFeedback: true }, questionHistory: [] });
   const getInitials = (name: string) => name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'PL';
 
   const toISODate = (date: Date) => {
@@ -4935,6 +4969,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       ...data.game,
       subjectMastery: data.game.subjectMastery ?? {},
       defeatedChallengerIds: data.game.defeatedChallengerIds ?? [],
+      challengerScores: data.game.challengerScores ?? {},
       preferences: { sound: data.game.preferences?.sound ?? true, encounterFeedback: data.game.preferences?.encounterFeedback ?? true },
       questionHistory: data.game.questionHistory ?? [],
     },
@@ -5128,6 +5163,31 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
   // Yes/No confirmation used before signing the player out — see the `logout` flow in
   // App, which only actually calls Firebase's signOut once the user confirms here.
+  // Fires once, the moment a tier's 4th and final quest is cleared for the first time
+  // (see completeBattle / tierCompletePrompt) — a clean, explicit prompt rather than a
+  // toast the player might not notice, since progressing is a real choice: keep
+  // exploring the current tier, or head straight into the next one. nextTier is null
+  // only for the last tier (Mastery), where there's no further map to proceed to, so
+  // that case drops the "proceed" choice for a plain acknowledgement instead.
+  function TierCompleteModal({ masteredTier, nextTier, onProceed, onDismiss }: { masteredTier: QuestTier; nextTier: QuestTier | null; onProceed: () => void; onDismiss: () => void }) {
+    return (
+      <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="tier-complete-title">
+        <div className="modal-card">
+          <h2 id="tier-complete-title" className="modal-title">🏆 {masteredTier.name} tier mastered!</h2>
+          <p className="modal-copy">
+            {nextTier
+              ? `All 4 quests cleared. The ${nextTier.name} tier is now open — head there now, or keep exploring ${masteredTier.name} first.`
+              : `All 4 quests cleared. You've mastered every tier the campus has to offer.`}
+          </p>
+          <div className="modal-actions">
+            <button type="button" className="btn-secondary" onClick={onDismiss}>{nextTier ? 'Not yet' : 'Nice!'}</button>
+            {nextTier && <button type="button" className="btn-primary" onClick={onProceed}>Proceed to {nextTier.name} <ChevronRight size={14} /></button>}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   function LogoutConfirmModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
     return (
       <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="logout-confirm-title">
@@ -5783,6 +5843,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // visibly changes how the space feels, not just what it's labeled.
   type CampusDistrict = { id: string; name: string; icon: string; theme: string; minX: number; maxX: number; minY: number; maxY: number; ceil: [number, number, number]; floor: [number, number, number] };
   const CAMPUS_DISTRICTS: CampusDistrict[] = [
+    // Compact 17-wide campus: the eastern strip that used to widen this to a square
+    // 29x29 arena was pure dead floor (no NPCs, props, or signs ever sat past column
+    // 16), so it's been removed entirely — see CAMPUS_MAP. Citadel's bounds are back
+    // to their original, tighter footprint.
     { id: 'citadel', name: 'Mastery Citadel', icon: '🏰', theme: 'Boss assessments', minX: 13, maxX: 17, minY: 0, maxY: 14, ceil: [26, 12, 30], floor: [46, 20, 48] },
     { id: 'foundation', name: 'Foundation District', icon: '🏘️', theme: 'Basic concepts', minX: 0, maxX: 6, minY: 0, maxY: 4, ceil: [26, 18, 10], floor: [48, 34, 18] },
     { id: 'peaks', name: 'Challenge Peaks', icon: '🏔️', theme: 'Hard problems', minX: 6, maxX: 13, minY: 0, maxY: 4, ceil: [16, 22, 36], floor: [30, 40, 58] },
@@ -5793,6 +5857,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // previous area by a single locked CampusGate (see CAMPUS_GATES) that only opens once
     // every quest in the prior tier is cleared, and none of them remove or block access to
     // any existing area.
+    // All three tier wings span the full compact width (17 cols) — every NPC in them
+    // sits at x=13.5 or less, so nothing here was ever using the old extra columns.
     { id: 'advanced', name: 'Advanced Wing', icon: '⚙️', theme: 'Advanced tier trials', minX: 0, maxX: 17, minY: 14, maxY: 19, ceil: [30, 20, 45], floor: [54, 36, 78] },
     { id: 'expert', name: 'Expert Enclave', icon: '🧭', theme: 'Expert tier trials', minX: 0, maxX: 17, minY: 19, maxY: 24, ceil: [45, 18, 18], floor: [80, 32, 32] },
     { id: 'mastery', name: 'Mastery Vault', icon: '👑', theme: 'Mastery tier trials', minX: 0, maxX: 17, minY: 24, maxY: 29, ceil: [50, 42, 10], floor: [92, 78, 20] },
@@ -5837,24 +5903,32 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     DISTRICT_STRAND_FOCUS[districtId]?.[strand] ?? CAMPUS_DISTRICTS.find((d) => d.id === districtId)?.theme ?? '';
 
 
-  // Compact 17x14 campus (down from the original 25x20): the open plazas around and
-  // between structures have been cut way down and every wall/NPC/prop pulled inward to
-  // match, rather than scaling the old layout — walk speed, camera and every visual are
-  // untouched, there's just far less empty ground to cross between points of interest.
+  // Compact 17x29 campus. This was previously widened to a square 29x29 by tacking on
+  // 12 extra columns of pure dead floor along the eastern edge — no NPC, prop, sign, or
+  // gate ever sat past column 16, so that strip was just empty ground padding out the
+  // Citadel and all three tier wings for no gameplay reason. It's been removed: every
+  // row below is back to its original 17 columns, and every existing wall, room, NPC,
+  // prop, gate, and coordinate is untouched (none of them ever referenced a column past
+  // 16), so nothing moved or changed meaning — this just cuts the unused floor around
+  // it. mapWidth/mapHeight (used by rendering, the minimap, and collision) are read
+  // directly from this array's dimensions, and any position beyond the map's edge is
+  // already treated as solid by both the raycaster and canMove, so the map's boundary
+  // is still fully sealed on every side with no explicit wall column required at the
+  // new eastern edge.
   const CAMPUS_MAP = [
     [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-    [1,4,4,4,4,4,0,0,0,0,0,0,0,0,0,0,1],
-    [1,7,0,0,0,7,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,4,4,4,4,4,0,0,0,0,0,0,0,0,0,0,0],
+    [1,7,0,0,0,7,0,0,0,0,0,0,0,0,0,0,0],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
     [1,8,2,1,0,0,1,2,1,6,0,0,6,1,9,2,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,5,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,5,0,0,0],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0],
     [1,2,1,6,0,0,6,1,2,1,6,0,1,1,1,1,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,6,0,7,0,0,0,7,0,0,0,0,0,1],
-    [1,0,0,0,7,0,6,0,0,0,6,0,0,0,0,0,1],
-    [1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [1,0,0,0,6,0,7,0,0,0,7,0,0,0,0,0,0],
+    [1,0,0,0,7,0,6,0,0,0,6,0,0,0,0,0,0],
+    [1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0],
     // Row 13 was the map's original southern boundary (all walls). It now carries a
     // single locked gate cell (5) at column 8 — the Advanced Tier Gate — which is the
     // sole passage from the original plaza into the new Advanced Wing appended below.
@@ -5863,26 +5937,26 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // --- Advanced Wing (rows 14-18): Tier 2 "Advanced" district, home to npc_5-npc_8.
     // Opens only once every Foundation-tier quest (npc_1-npc_4) is cleared.
     [1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
     // Row 18: Advanced Wing's south wall, carrying the Expert Tier Gate at column 8.
     [1,1,1,1,1,1,1,1,5,1,1,1,1,1,1,1,1],
     // --- Expert Enclave (rows 19-23): Tier 3 "Expert" district, home to npc_9-npc_12.
     // Opens only once every Advanced-tier quest (npc_5-npc_8) is cleared.
     [1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
     // Row 23: Expert Enclave's south wall, carrying the Mastery Tier Gate at column 8.
     [1,1,1,1,1,1,1,1,5,1,1,1,1,1,1,1,1],
     // --- Mastery Vault (rows 24-28): Tier 4 "Mastery" district, home to npc_13-npc_16.
     // Opens only once every Expert-tier quest (npc_9-npc_12) is cleared. This is the
     // final tier — clearing it masters the entire quest-tier progression.
     [1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
     [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
   ];
   // Tile legend: 0 open floor, 1/2/3/4 wall variants (visual only — see canMove, which
@@ -6295,6 +6369,16 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     { id: 'prop_6', x: 9.5, y: 9.3, glyph: '🌳', sway: true },
     { id: 'prop_9', x: 6.5, y: 9.3, glyph: '🪴', sway: true },
     { id: 'prop_11', x: 6.5, y: 3.5, glyph: '🌳', sway: true },
+    // Extra dressing for the Peaks/Citadel shared plaza (rows 1-3) and the open
+    // corridor along row 12 — both were left almost entirely bare once the dead
+    // eastern columns were trimmed off the map, so a few more trees/lamps/planters
+    // keep the now-tighter floor from reading as empty without touching any wall or
+    // collision tile.
+    { id: 'prop_12', x: 12.5, y: 1.6, glyph: '🌳', sway: true },
+    { id: 'prop_13', x: 14.5, y: 2.6, glyph: '💡' },
+    { id: 'prop_14', x: 11.5, y: 3.4, glyph: '🪴', sway: true },
+    { id: 'prop_15', x: 13.5, y: 12.5, glyph: '🌳', sway: true },
+    { id: 'prop_16', x: 15.5, y: 12.5, glyph: '💡' },
     // Laboratory interior (row 2) — equipment along the back wall, walking space kept
     // clear between it and the open south entrance.
     { id: 'prop_lab_1', x: 2.5, y: 2.4, glyph: '🧪' },
@@ -6424,30 +6508,32 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         miniCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
         miniCtx.clearRect(0, 0, cssW, cssH);
 
-        // Premium glass panel background.
+        // Flat panel background (kept simple/minimal — no glass blur).
         miniCtx.fillStyle = 'rgba(8, 12, 22, 0.90)';
         miniCtx.fillRect(0, 0, cssW, cssH);
 
-        // Small, even padding — the map itself should fill nearly the whole panel.
-        const pad = Math.max(4, Math.min(8, cssW * 0.025));
+        // Tight, minimal padding — the map should fill essentially the whole panel with
+        // no wasted chrome. Floor/cap are both small since the panel itself is now a
+        // compact widget, not a large HUD strip.
+        const pad = Math.max(2, Math.min(6, cssW * 0.035));
         const innerW = cssW - pad * 2;
         const innerH = cssH - pad * 2;
 
-        // Player-centered viewport instead of fit-the-whole-map: this campus is a tall
-        // stack of districts (much taller than it is wide), so scaling it to fit a wide
-        // short panel would either squeeze it thin or leave large empty bars on either
-        // side. Instead we always show the full map WIDTH (so left/right edges are never
-        // empty) and a vertical slice around the player that exactly matches the panel's
-        // aspect ratio — so the drawn area always fills the padded box exactly, with no
-        // letterboxing, regardless of screen size.
+        // Always show the full map WIDTH edge-to-edge (viewCols === mapWidth), so there
+        // is never any empty letterbox space on the left/right — tile size is controlled
+        // purely by the panel's own physical CSS footprint (a smaller panel means
+        // smaller tiles), not by an artificial zoom factor. Only the vertical axis needs
+        // a viewport: the campus is much taller than it is wide, so a slice around the
+        // player scrolls vertically, always filling the panel completely (mapHeight is
+        // never smaller than viewRows in practice, so this never letterboxes either).
         const viewCols = mapWidth;
         const scale = innerW / viewCols;
         const viewRows = innerH / scale;
+        const ox = pad;
         const maxTop = Math.max(0, mapHeight - viewRows);
         const viewTop = mapHeight <= viewRows
           ? (mapHeight - viewRows) / 2
           : Math.max(0, Math.min(maxTop, playerY - viewRows / 2));
-        const ox = pad;
         const oy = pad - viewTop * scale;
 
         // Clip everything below to the padded inner rect so nothing bleeds into the
@@ -6478,12 +6564,17 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         }
 
         // Walls. Wall cells are softened so the radar reads as a designed HUD, while the
-        // corridors remain immediately understandable.
+        // corridors remain immediately understandable. Inset is a proportion of the tile
+        // pitch (not a fixed pixel gap) so cells stay crisp little squares — with a
+        // visible gap between them — at any zoom level, including the smaller pitch now
+        // used here.
+        const wallInset = Math.max(0.5, scale * 0.12);
+        const wallSize = Math.max(1, scale - wallInset);
         for (let y = rowStart; y < rowEnd; y++) {
           for (let x = 0; x < mapWidth; x++) {
             if (map[y]?.[x]) {
               miniCtx.fillStyle = 'rgba(104, 119, 143, 0.78)';
-              miniCtx.fillRect(ox + x * scale + 0.5, oy + y * scale + 0.5, Math.max(1, scale - 1), Math.max(1, scale - 1));
+              miniCtx.fillRect(ox + x * scale + wallInset / 2, oy + y * scale + wallInset / 2, wallSize, wallSize);
             }
           }
         }
@@ -6505,60 +6596,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         notes.forEach((n) => { if (!collectedNotes.has(n.id)) dot(n.x, n.y, 2.1, '#d8b4fe'); });
         gates.forEach((g) => dot(g.x, g.y, 3.1, '#fb7185', 'rgba(255,255,255,.7)'));
 
-        // Player marker — Mobile Legends-style: a glowing dot at the true (unrotated)
-        // world position, with a soft directional cone/line showing facing. The heading
-        // is eased (see displayedHeading above) so it turns smoothly between the radar's
-        // own throttled redraws instead of snapping; the cone/line vector below is plain
-        // (cos, sin) in the same, un-rotated world axes as the map grid itself — the
-        // exact vector movement/the raycaster use — so North/South/East/West on this
-        // panel always match the real compass direction, never the camera's rotation.
+        // Player marker — a small, clean circle at the true world position. No facing
+        // cone, direction line, or glow bloom: just a simple dot, deliberately not
+        // rotated or otherwise tied to playerAngle, matching the flat, minimalist style
+        // of the rest of the radar.
         const px = ox + playerX * scale;
         const py = oy + playerY * scale;
-        if (displayedHeading === null) {
-          displayedHeading = playerAngle;
-        } else {
-          let delta = playerAngle - displayedHeading;
-          delta = ((delta + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
-          displayedHeading += delta * 0.45;
-        }
-        const facingX = Math.cos(displayedHeading);
-        const facingY = Math.sin(displayedHeading);
-
-        // Soft facing cone: a narrow, fading gradient wedge — reads as "this is roughly
-        // where you're looking" without the harshness of a hard-edged arrow.
-        const coneLength = 17;
-        const coneHalfAngle = 0.5;
-        const coneAngle = Math.atan2(facingY, facingX);
-        const coneGrad = miniCtx.createRadialGradient(px, py, 0, px, py, coneLength);
-        coneGrad.addColorStop(0, 'rgba(103, 205, 209, 0.32)');
-        coneGrad.addColorStop(1, 'rgba(103, 205, 209, 0)');
-        miniCtx.beginPath();
-        miniCtx.moveTo(px, py);
-        miniCtx.arc(px, py, coneLength, coneAngle - coneHalfAngle, coneAngle + coneHalfAngle);
-        miniCtx.closePath();
-        miniCtx.fillStyle = coneGrad;
-        miniCtx.fill();
-
-        // Thin heading line down the cone's centerline for a precise read at a glance.
-        miniCtx.strokeStyle = 'rgba(103, 205, 209, 0.55)';
-        miniCtx.lineWidth = 1.25;
-        miniCtx.beginPath();
-        miniCtx.moveTo(px, py);
-        miniCtx.lineTo(px + facingX * coneLength, py + facingY * coneLength);
-        miniCtx.stroke();
-
-        // Glowing player dot: outer soft bloom + solid core. Deliberately never rotated —
-        // it's the facing cone above that carries direction, so the dot itself always
-        // looks the same regardless of which way the player is turned.
-        const glowRadius = 8;
-        const glowGrad = miniCtx.createRadialGradient(px, py, 0, px, py, glowRadius);
-        glowGrad.addColorStop(0, 'rgba(244, 240, 231, 0.85)');
-        glowGrad.addColorStop(0.45, 'rgba(103, 205, 209, 0.5)');
-        glowGrad.addColorStop(1, 'rgba(103, 205, 209, 0)');
-        miniCtx.beginPath();
-        miniCtx.arc(px, py, glowRadius, 0, Math.PI * 2);
-        miniCtx.fillStyle = glowGrad;
-        miniCtx.fill();
         miniCtx.beginPath();
         miniCtx.arc(px, py, 3.2, 0, Math.PI * 2);
         miniCtx.fillStyle = '#f4f0e7';
@@ -6587,16 +6630,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const signaledIds = new Set<string>();
       let currentDistrictId: string | null = null;
       let lastProgressCount = -1;
-      // Minimap redraw throttle + heading smoothing. The radar is a HUD element, not the
-      // main raycast view, so it doesn't need to redraw every single animation frame —
-      // capping it to ~30fps halves its (otherwise per-frame) full grid/wall repaint cost
-      // with no visible difference, which matters most on mobile GPUs. The displayed
-      // heading is separately smoothed (eased toward the real playerAngle each redraw)
-      // purely so the facing cone doesn't visibly snap on the lower-frequency redraw —
-      // movement/collision/the raycaster all keep reading the real, unsmoothed angle.
+      // Minimap redraw throttle. The radar is a HUD element, not the main raycast view,
+      // so it doesn't need to redraw every single animation frame — capping it to ~30fps
+      // halves its (otherwise per-frame) full grid/wall repaint cost with no visible
+      // difference, which matters most on mobile GPUs.
       let lastMiniMapDrawAt = 0;
       const MINIMAP_REDRAW_INTERVAL_MS = 33;
-      let displayedHeading: number | null = null;
       // "Discovered" = every signal pinged, note picked up, guide met — a simple, honest
       // count of how much of this run's world the player has actually found so far.
       const totalDiscoverable = challengers.length + notes.length + guides.length;
@@ -6754,10 +6793,18 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const interactNpc = (target: (typeof challengers)[number]) => {
         if (!target.active) return;
         if (defeatedIdsRef.current.includes(target.id)) {
-          // Tapping/clicking a finished quest-giver still deserves feedback — it just
-          // comes through the same one-shot discovery popup notes/guides already use,
-          // rather than the old proximity-driven bottom prompt bar.
-          pushDiscovery({ title: `[${target.area}]`, body: `${target.name} — QUEST ALREADY COMPLETED`, duration: 2200 });
+          // Quests have unlimited retries — a cleared quest-giver never blocks the
+          // player from fighting again. Only the score record changes: the run's result
+          // is kept solely if it beats the existing best (see completeBattle), so
+          // replaying can only ever help, never hurt, and never double-pays a reward
+          // already collected. Route straight into the same briefing/battle flow a
+          // fresh discovery uses, via onFoundRef, instead of the old hard stop here.
+          pushDiscovery({
+            title: `[${target.area}]`,
+            body: `${target.name} — QUEST CLEARED. Tap to retry and try to beat your best score.`,
+            onTap: () => onFoundRef.current(target, { x: playerX, y: playerY, angle: playerAngle }),
+            duration: 0,
+          });
           return;
         }
 
@@ -7790,7 +7837,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     );
   }
 
-  function QuestBriefing({ challenger, playerLevel, strand, onAccept, onLeave }: { challenger: CampusChallenger; playerLevel: number; strand: string; onAccept: () => void; onLeave: () => void }) {
+  function QuestBriefing({ challenger, playerLevel, strand, bestScore, onAccept, onLeave }: { challenger: CampusChallenger; playerLevel: number; strand: string; bestScore?: ChallengerScore; onAccept: () => void; onLeave: () => void }) {
     const underleveled = playerLevel < challenger.recommendedLevel;
     // Same district-to-strand mapping the campus itself uses when you enter a district
     // (see CampusExplorer) — so the briefing tells you what you're actually about to be
@@ -7840,6 +7887,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
               <span className="tag quest-briefing-reward"><Gem size={10} className="inline mr-1" />+{challenger.rewardXp} XP</span>
               <span className="tag quest-briefing-reward"><Coins size={10} className="inline mr-1" />+{challenger.rewardCoins} credits</span>
             </div>
+            {/* Unlimited retries means this screen can also open on an already-cleared
+                quest — showing the standing best score gives the player something
+                concrete to beat, and makes clear a repeat of it earns nothing new. */}
+            {bestScore && (
+              <p className="muted text-sm mt-3">
+                Best so far: {bestScore.bestCorrect}/{bestScore.bestTotal} ({Math.round(bestScore.bestAccuracy * 100)}%) across {bestScore.attempts} attempt{bestScore.attempts === 1 ? '' : 's'}. Only a better run earns more.
+              </p>
+            )}
           </div>
 
           {/* Skip, then Accept quest. */}
@@ -7852,7 +7907,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     );
   }
 
-  function Quests({ quests, claimQuest, onBattle, questionHistory, defeatedChallengerIds }: { quests: Quest[]; claimQuest: (id: string) => void; onBattle: () => void; questionHistory: QuestionHistoryEntry[]; defeatedChallengerIds: string[] }) {
+  function Quests({ quests, claimQuest, onBattle, questionHistory, defeatedChallengerIds, challengerScores }: { quests: Quest[]; claimQuest: (id: string) => void; onBattle: () => void; questionHistory: QuestionHistoryEntry[]; defeatedChallengerIds: string[]; challengerScores: Record<string, ChallengerScore> }) {
     const [reviewOpen, setReviewOpen] = useState(false);
     // Only ever show challengers from tiers the player has actually unlocked — a locked
     // tier's NPCs stay a surprise rather than spoiling difficulty/rewards ahead of time.
@@ -7889,7 +7944,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                 {[...unlockedChallengers].sort((a, b) => a.recommendedLevel - b.recommendedLevel).map((challenger) => {
                   const district = CAMPUS_DISTRICTS.find((d) => d.id === challenger.districtId);
                   const done = defeatedChallengerIds.includes(challenger.id);
-                  return <span className="tag" key={challenger.id}>{done ? '✓' : district?.icon} {district?.name} · Lv {challenger.recommendedLevel}+</span>;
+                  // Cleared quests show their recorded best score, not just a bare
+                  // checkmark — retries are unlimited, so this is the number a retry is
+                  // actually trying to beat.
+                  const bestPct = done ? Math.round((challengerScores[challenger.id]?.bestAccuracy ?? 0) * 100) : null;
+                  return <span className="tag" key={challenger.id}>{done ? `✓ ${bestPct}%` : district?.icon} {district?.name} · Lv {challenger.recommendedLevel}+</span>;
                 })}
               </div>
             </div>
@@ -7927,7 +7986,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                       </div>
                     )}
                     {!unlocked && <p className="tier-card-note">Clear the {QUEST_TIERS[i - 1]?.name} tier first to unlock this one.</p>}
-                    {unlocked && mastered && <p className="tier-card-note">Tier mastered — every reward already claimed.</p>}
+                    {unlocked && mastered && <p className="tier-card-note">Tier mastered — every reward already claimed. Retry any quest anytime to push its best score higher.</p>}
                   </div>
                 );
               })}
@@ -8970,6 +9029,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     }, [screen, questStage]);
     const [foundChallenger, setFoundChallenger] = useState<CampusChallenger | null>(null);
     const [questReturnPosition, setQuestReturnPosition] = useState<CampusReturnPosition | null>(null);
+    // Set the instant a tier's 4th and final quest is cleared for the first time (see
+    // completeBattle's newlyMasteredTierIndex) — drives the TierCompleteModal prompt
+    // below. nextTier is null only for the last tier (Mastery), where there's nothing
+    // further to proceed to, so that modal shows a congratulations instead of a choice.
+    const [tierCompletePrompt, setTierCompletePrompt] = useState<{ masteredTier: QuestTier; nextTier: QuestTier | null } | null>(null);
     // Defeated-challenger state itself now lives in `accountData.game.defeatedChallengerIds`
     // (see the `defeatedChallengerIds` const derived below, right after `game` comes into
     // scope) so it's saved to Firestore the same way coins/xp/subjectMastery are, instead
@@ -9295,6 +9359,29 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const coinReward = Math.round(baseCoins * accuracy);
       const scorePct = Math.round(accuracy * 100);
 
+      // Quests can be retried without limit (see interactNpc), but only the single best
+      // run for a given quest ever counts — retries never stack rewards on top of each
+      // other. previousBest reads whatever was on record BEFORE this run; isNewBest
+      // compares this run's accuracy against it. The player is only ever paid the
+      // difference between what the old best earned and what the new best earns, so the
+      // total XP/coins ever received for a quest always matches its single highest score,
+      // exactly as if that best run were the only one that ever happened.
+      const prevScore = foundChallenger ? game.challengerScores?.[foundChallenger.id] : undefined;
+      const previousBestAccuracy = prevScore?.bestAccuracy ?? 0;
+      const isNewBest = accuracy > previousBestAccuracy;
+      const previousXpReward = Math.round(baseXp * previousBestAccuracy);
+      const previousCoinReward = Math.round(baseCoins * previousBestAccuracy);
+      const xpGained = isNewBest ? Math.max(0, xpReward - previousXpReward) : 0;
+      const coinGained = isNewBest ? Math.max(0, coinReward - previousCoinReward) : 0;
+      const nextChallengerScore: ChallengerScore | null = foundChallenger
+        ? {
+            bestAccuracy: isNewBest ? accuracy : previousBestAccuracy,
+            bestCorrect: isNewBest ? correctCount : prevScore?.bestCorrect ?? correctCount,
+            bestTotal: isNewBest ? totalQuestions : prevScore?.bestTotal ?? totalQuestions,
+            attempts: (prevScore?.attempts ?? 0) + 1,
+          }
+        : null;
+
       // Merge this battle's results into subject mastery here (not inside updateAccountData's
       // updater) so we have one clean before/after snapshot to diff for genuine tier
       // improvements — an updater can in principle run more than once, and we only want to
@@ -9337,19 +9424,24 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           ...acc,
           game: {
             ...acc.game,
-            xp: acc.game.xp + xpReward,
-            coins: acc.game.coins + coinReward,
+            xp: acc.game.xp + xpGained,
+            coins: acc.game.coins + coinGained,
             subjectMastery,
             questionHistory: [...(acc.game.questionHistory ?? []), ...history].slice(-500),
             defeatedChallengerIds: foundChallenger && !alreadyDefeated
               ? [...acc.game.defeatedChallengerIds, foundChallenger.id]
               : acc.game.defeatedChallengerIds,
+            challengerScores: foundChallenger && nextChallengerScore
+              ? { ...(acc.game.challengerScores ?? {}), [foundChallenger.id]: nextChallengerScore }
+              : acc.game.challengerScores ?? {},
           },
         };
       });
       notify(
         'Quest cleared',
-        `Scored ${correctCount}/${totalQuestions} (${scorePct}%) — received +${xpReward} XP and +${coinReward} credits.${accuracy < 1 ? ` (Max was +${baseXp} XP / +${baseCoins} credits for a perfect score.)` : ''}`
+        isNewBest
+          ? `New best: ${correctCount}/${totalQuestions} (${scorePct}%) — received +${xpGained} XP and +${coinGained} credits.${accuracy < 1 ? ` (Max is +${baseXp} XP / +${baseCoins} credits for a perfect score.)` : ''}`
+          : `Scored ${correctCount}/${totalQuestions} (${scorePct}%) — your best score is still ${Math.round(previousBestAccuracy * 100)}%, so no additional reward this time. Retry anytime to beat it.`
       );
       if (game.preferences.sound) playRewardSfx();
       // Academic improvement: only fires when a subject actually crosses into a better
@@ -9357,17 +9449,20 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       for (const improvement of improvedSubjects) {
         notify(`📈 ${improvement.subject} improving`, `Now ${improvement.tier} — ${improvement.pct}% accuracy.`);
       }
-      // Tier-mastered banner: all 4 quests in this tier are now done. Say so briefly, and
-      // name whichever tier — if any — just unlocked as a result (the corresponding
-      // CAMPUS_GATES entry opens itself the moment the player next steps near it).
+      // Tier-mastered: all 4 quests in this tier are now done for the first time. Log it
+      // to the notification bell as usual, but — since "keep going or move on" is a real
+      // decision, not just something to glance at — also surface a clean, explicit
+      // prompt (TierCompleteModal) asking whether to proceed into the next tier/map
+      // right now (the corresponding CAMPUS_GATES entry has already opened itself).
       if (newlyMasteredTierIndex >= 0) {
         const masteredTier = QUEST_TIERS[newlyMasteredTierIndex];
-        const nextTier = QUEST_TIERS[newlyMasteredTierIndex + 1];
+        const nextTier = QUEST_TIERS[newlyMasteredTierIndex + 1] ?? null;
         notify(
           `🏆 ${masteredTier.name} tier mastered!`,
           nextTier ? `All 4 quests cleared. The ${nextTier.name} tier is now unlocked.` : `All 4 quests cleared. You've mastered every tier the campus has to offer.`
         );
         if (game.preferences.sound) playAchievementSfx();
+        setTierCompletePrompt({ masteredTier, nextTier });
       }
       setFoundChallenger(null);
       // CampusExplorer remounts with questReturnPosition, placing the player exactly where
@@ -9480,7 +9575,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                 />
               )}
               {screen === 'quests' && questStage === 'list' && (
-                <Quests quests={game.quests} questionHistory={game.questionHistory ?? []} claimQuest={claimQuest} defeatedChallengerIds={game.defeatedChallengerIds ?? []} onBattle={() => { setQuestReturnPosition(null); enterImmersiveBattle(); setQuestStage('roaming'); }} />
+                <Quests quests={game.quests} questionHistory={game.questionHistory ?? []} claimQuest={claimQuest} defeatedChallengerIds={game.defeatedChallengerIds ?? []} challengerScores={game.challengerScores ?? {}} onBattle={() => { setQuestReturnPosition(null); enterImmersiveBattle(); setQuestStage('roaming'); }} />
               )}
               {screen === 'quests' && questStage === 'roaming' && (
                 <CampusExplorer
@@ -9497,7 +9592,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                 />
               )}
               {screen === 'quests' && questStage === 'briefing' && foundChallenger && (
-                <QuestBriefing challenger={foundChallenger} playerLevel={getLevelInfo(game.xp).level} strand={profile.strand} onAccept={() => setQuestStage('battle')} onLeave={() => { setFoundChallenger(null); setQuestStage('roaming'); }} />
+                <QuestBriefing challenger={foundChallenger} playerLevel={getLevelInfo(game.xp).level} strand={profile.strand} bestScore={(game.challengerScores ?? {})[foundChallenger.id]} onAccept={() => setQuestStage('battle')} onLeave={() => { setFoundChallenger(null); setQuestStage('roaming'); }} />
               )}
               {screen === 'quests' && questStage === 'battle' && (
                 <Battle profile={profile} opponent={foundChallenger} soundEnabled={game.preferences.sound} onExit={() => { setFoundChallenger(null); setQuestStage('roaming'); }} onComplete={completeBattle} />
@@ -9530,6 +9625,24 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           <Toasts items={toasts} onDismiss={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} onClearAll={() => setToasts([])} />
           {logoutConfirmOpen && (
             <LogoutConfirmModal onConfirm={logout} onCancel={() => setLogoutConfirmOpen(false)} />
+          )}
+          {tierCompletePrompt && (
+            <TierCompleteModal
+              masteredTier={tierCompletePrompt.masteredTier}
+              nextTier={tierCompletePrompt.nextTier}
+              onDismiss={() => setTierCompletePrompt(null)}
+              onProceed={() => {
+                // Drop the player straight back into the campus, un-anchored from
+                // wherever this quest was accepted, so they walk toward the tier's gate
+                // — which has already opened itself — instead of staying parked exactly
+                // where the final quest of the old tier was fought.
+                setTierCompletePrompt(null);
+                setQuestReturnPosition(null);
+                setScreen('quests');
+                enterImmersiveBattle();
+                setQuestStage('roaming');
+              }}
+            />
           )}
         </div>
       </ErrorBoundary>
