@@ -56,6 +56,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   * { box-sizing: border-box; }
   html {
     background: #0e111f;
+    overflow-x: hidden;
+    width: 100%;
   }
 
   body {
@@ -1277,42 +1279,55 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     margin-top: 14px;
   }
 
-  /* Toast Notifications */
+  /* Toast Notifications — mobile-first: small, unobtrusive strip in the corner,
+     never a big card. Sized up slightly for desktop below, but stays compact there
+     too — these are transient in-game notices, not content the player reads for long. */
   .toast-stack {
     position: fixed;
     z-index: 30;
-    right: 16px;
-    top: 16px;
-    left: 16px;
+    right: 8px;
+    top: 8px;
+    left: 8px;
     width: auto;
     display: grid;
-    gap: 10px;
+    gap: 6px;
     justify-items: end;
   }
 
   .toast {
     display: flex;
-    gap: 11px;
+    gap: 6px;
     align-items: flex-start;
-    padding: 13px 14px;
+    padding: 6px 8px;
     border: 1px solid rgba(248, 184, 78, .3);
-    border-radius: 9px;
+    border-radius: 7px;
     background: #1b2138;
-    box-shadow: 0 14px 30px rgba(0, 0, 0, .32);
-    animation: rise .35s both;
-    font-size: 12px;
-    width: min(330px, 100%);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, .32);
+    animation: rise .3s both;
+    font-size: 9px;
+    line-height: 1.35;
+    width: min(230px, 100%);
   }
 
   .toast svg {
     color: var(--amber);
     flex: 0 0 auto;
+    width: 12px;
+    height: 12px;
     margin-top: 1px;
   }
 
   .toast > div {
     min-width: 0;
     overflow-wrap: break-word;
+  }
+
+  .toast > div strong {
+    font-size: 9px;
+  }
+
+  .toast > div .muted {
+    font-size: 8px;
   }
 
   .toast-close {
@@ -1323,9 +1338,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     justify-content: center;
     background: transparent;
     border: 0;
-    border-radius: 6px;
+    border-radius: 5px;
     padding: 2px;
     color: #64748b;
+  }
+
+  .toast-close svg {
+    width: 11px;
+    height: 11px;
   }
 
   .toast-close:hover {
@@ -1340,12 +1360,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   .toast-queue-bar {
     display: flex;
     align-items: center;
-    gap: 10px;
-    width: min(330px, 100%);
+    gap: 6px;
+    width: min(230px, 100%);
   }
 
   .toast-queue-count {
-    font: 10px var(--app-font-mono);
+    font: 8px var(--app-font-mono);
     color: #7c87a2;
   }
 
@@ -1353,15 +1373,26 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     margin-left: auto;
     background: transparent;
     border: 1px solid rgba(248, 184, 78, .3);
-    border-radius: 7px;
+    border-radius: 6px;
     color: var(--amber);
-    font-size: 11px;
+    font-size: 8px;
     font-weight: 600;
-    padding: 5px 10px;
+    padding: 3px 7px;
   }
 
   .toast-clear-all:hover {
     background: rgba(248, 184, 78, .12);
+  }
+
+  /* Desktop: a little more breathing room, still a compact strip — not a scaled-up
+     mobile card. */
+  @media (min-width: 641px) {
+    .toast-stack { right: 14px; top: 14px; left: 14px; gap: 8px; }
+    .toast { padding: 8px 10px; font-size: 10px; gap: 8px; width: min(280px, 100%); border-radius: 8px; }
+    .toast svg { width: 13px; height: 13px; }
+    .toast > div strong { font-size: 10px; }
+    .toast > div .muted { font-size: 9px; }
+    .toast-queue-bar { width: min(280px, 100%); }
   }
 
   /* Logout confirmation (and other Yes/No) modal */
@@ -1400,6 +1431,39 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     display: flex;
     justify-content: flex-end;
     gap: 10px;
+  }
+
+  /* Tier-complete is an in-game quest notification, not an account-level dialog
+     like the logout confirm above (which shares .modal-card but stays at its
+     normal, more deliberate size) — so it gets its own compact, mobile-first sizing
+     that never dominates the screen. */
+  .modal-card.tier-complete-card {
+    width: min(280px, 100%);
+    padding: 12px;
+    border-radius: 10px;
+  }
+  .tier-complete-card .modal-title {
+    font-size: 12px;
+    margin: 0 0 5px;
+    line-height: 1.35;
+  }
+  .tier-complete-card .modal-copy {
+    font-size: 9px;
+    line-height: 1.4;
+    margin: 0 0 10px;
+  }
+  .tier-complete-card .modal-actions {
+    gap: 6px;
+  }
+  .tier-complete-card .modal-actions button {
+    padding: 6px 9px;
+    font-size: 9px;
+  }
+  @media (min-width: 641px) {
+    .modal-card.tier-complete-card { width: min(340px, 100%); padding: 16px; }
+    .tier-complete-card .modal-title { font-size: 14px; margin-bottom: 6px; }
+    .tier-complete-card .modal-copy { font-size: 10px; margin-bottom: 12px; }
+    .tier-complete-card .modal-actions button { padding: 7px 11px; font-size: 10px; }
   }
 
   /* Quest Cards & Layouts */
@@ -1778,24 +1842,25 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
   /* Holographic discovery card — shown inside the campus world itself (top-center,
      never the corner toast stack) the moment a quest signal or a hint/note/guide is
-     found. Deliberately compact: a couple of lines and one button, so it never blocks
-     the character or interrupts movement underneath it. */
+     found. Mobile-first: this is a transient in-game prompt, not a page, so it stays
+     small — a line or two and one small button — never blocking the character or
+     eating meaningful screen space. Sized up slightly for desktop below. */
   .holo-discovery-card {
     position: absolute;
-    top: 64px;
+    top: 54px;
     left: 50%;
     transform: translateX(-50%);
     display: none;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
-    width: min(340px, calc(100% - 32px));
-    padding: 14px 18px;
+    gap: 4px;
+    width: min(240px, calc(100% - 24px));
+    padding: 7px 10px;
     text-align: center;
     background: linear-gradient(180deg, rgba(15, 26, 36, .88), rgba(10, 18, 26, .82));
     border: 1px solid rgba(103, 205, 209, .55);
-    border-radius: 12px;
-    box-shadow: 0 0 0 1px rgba(103, 205, 209, .12), 0 0 30px rgba(103, 205, 209, .22), 0 14px 34px rgba(0, 0, 0, .5);
+    border-radius: 9px;
+    box-shadow: 0 0 0 1px rgba(103, 205, 209, .12), 0 0 20px rgba(103, 205, 209, .2), 0 8px 20px rgba(0, 0, 0, .5);
     backdrop-filter: blur(10px);
     pointer-events: auto;
     z-index: 12;
@@ -1806,37 +1871,45 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
   }
   @keyframes holo-discovery-flicker {
-    0%, 100% { box-shadow: 0 0 0 1px rgba(103, 205, 209, .12), 0 0 30px rgba(103, 205, 209, .22), 0 14px 34px rgba(0, 0, 0, .5); }
-    50% { box-shadow: 0 0 0 1px rgba(103, 205, 209, .18), 0 0 42px rgba(103, 205, 209, .32), 0 14px 34px rgba(0, 0, 0, .5); }
+    0%, 100% { box-shadow: 0 0 0 1px rgba(103, 205, 209, .12), 0 0 20px rgba(103, 205, 209, .2), 0 8px 20px rgba(0, 0, 0, .5); }
+    50% { box-shadow: 0 0 0 1px rgba(103, 205, 209, .18), 0 0 28px rgba(103, 205, 209, .3), 0 8px 20px rgba(0, 0, 0, .5); }
   }
   .holo-discovery-eyebrow {
     color: var(--cyan);
-    font: 10px var(--app-font-mono);
-    letter-spacing: .18em;
-    text-shadow: 0 0 10px rgba(103, 205, 209, .7);
+    font: 8px var(--app-font-mono);
+    letter-spacing: .14em;
+    text-shadow: 0 0 8px rgba(103, 205, 209, .7);
   }
   .holo-discovery-body {
     color: #eaf6f5;
-    font-size: 12px;
-    line-height: 1.5;
+    font-size: 9px;
+    line-height: 1.4;
     font-style: italic;
   }
   .holo-discovery-btn {
     display: none;
     align-items: center;
-    gap: 6px;
-    margin-top: 2px;
-    padding: 7px 14px;
+    gap: 4px;
+    margin-top: 1px;
+    padding: 4px 10px;
     border: 1px solid var(--cyan);
-    border-radius: 20px;
+    border-radius: 16px;
     background: rgba(103, 205, 209, .12);
     color: var(--cyan);
-    font: 10px var(--app-font-mono);
-    letter-spacing: .1em;
+    font: 8px var(--app-font-mono);
+    letter-spacing: .08em;
     touch-action: manipulation;
   }
   .holo-discovery-btn:hover {
     background: rgba(103, 205, 209, .22);
+  }
+  /* Desktop: a touch roomier, still compact — this stays a quick in-world notice,
+     not a card the player is meant to linger on. */
+  @media (min-width: 641px) {
+    .holo-discovery-card { top: 64px; width: min(320px, calc(100% - 32px)); padding: 10px 14px; gap: 6px; border-radius: 11px; }
+    .holo-discovery-eyebrow { font-size: 9px; letter-spacing: .16em; }
+    .holo-discovery-body { font-size: 10px; line-height: 1.45; }
+    .holo-discovery-btn { padding: 6px 12px; font-size: 9px; }
   }
 
   /* Quest Briefing, redressed as a cinematic holographic dialogue panel rather than a
@@ -1922,7 +1995,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
      on its own center plate between them, same band, same wall. */
   .arena-wall {
     display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: flex-start;
     gap: 10px;
     padding: 14px 18px 12px;
@@ -3457,54 +3530,75 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     pointer-events: none;
     z-index: 10;
   }
-  /* Single stacked panel: the 3 status chips and the mini-map share this container's
-     width, so they're always edge-aligned with each other with no manual syncing.
-     Narrowed from the old 300px — the mini-map only needs to read as a small compact
-     HUD element, not a wide strip. */
+  /* Single stacked panel: the 3 status chips sit above the mini-map, both left-aligned
+     in this column, but the mini-map has its own small fixed width now (see
+     .campus-minimap) — it no longer stretches to match the chip row's width. */
   .campus-hud-left {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    width: 150px;
+    width: auto;
     max-width: calc(100% - 78px); /* leaves room for the now-compact exit button */
     min-width: 0;
   }
-  /* flex-wrap: nowrap + justify-content: space-between keeps the 3 chips locked to a
-     single row at every width, evenly spread across the row instead of ever dropping
-     onto a second line — each chip below is an equal flexible share of that row
-     (flex: 1 1 0), so they land evenly aligned rather than sized purely by content. */
+  /* flex-wrap: wrap lets the 3 chips sit on a single row whenever there's room
+     (the common case), and drop gracefully onto additional lines when the row is
+     too narrow to fit all of them — never cutting or ellipsizing any chip's text.
+     Each chip below is sized to its own content (flex: 0 1 auto) rather than an
+     equal forced share of the row, so short chips stay small and long chips can
+     take the space their text actually needs. */
   .campus-hud-row {
     display: flex;
     align-items: stretch;
-    flex-wrap: nowrap;
-    justify-content: space-between;
+    flex-wrap: wrap;
+    justify-content: flex-start;
     gap: 6px;
     width: 100%;
   }
-  /* Equal-width chips (flex: 1 1 0) is what makes the row read as evenly aligned;
-     min-width: 0 lets a chip actually shrink below its content's natural width when
-     the row is tight, and the ellipsis is the graceful fallback for when a chip's
-     text genuinely doesn't fit its share of the row, instead of wrapping or
-     overflowing into its neighbor. */
+  /* Content-sized chips: width follows the text (no forced equal widths, no
+     shrink-to-ellipsis). white-space stays nowrap so short badge text (the common
+     case) never breaks mid-word, but word-break: break-word is a safety net for
+     the rare chip whose text alone is wider than the viewport — it wraps onto a
+     second line inside the chip instead of overflowing or getting clipped. */
   .campus-hud-row .campus-chip {
-    flex: 1 1 0;
+    flex: 0 1 auto;
     width: auto;
     min-width: 0;
     max-width: 100%;
     text-align: center;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    line-height: 1.3;
+  }
+  @media (max-width: 360px) {
+    /* On the narrowest phones, let chip text wrap onto a second line inside the
+       chip rather than relying purely on the row wrapping — keeps each chip
+       readably narrow instead of stretching edge-to-edge. */
+    .campus-hud-row .campus-chip { white-space: normal; }
   }
   .campus-minimap {
     position: relative;
-    width: 100%;
+    /* Fixed, deliberately small footprint — independent of the chip row's width above
+       it (that row still sizes .campus-hud-left; the minimap no longer stretches to
+       match it, see align-self below). This is the only thing that changed: same
+       aspect ratio, same drawMiniMap draw logic, same markers (their pixel sizes are
+       fixed constants, not derived from the panel's size — see the dot(...) calls
+       and player-triangle markerSize in drawMiniMap, both untouched). Because tile
+       pitch there is still computed as innerW / mapWidth from this panel's own CSS
+       width, shrinking just this width is what makes every wall cell and grid line
+       smaller and more tightly packed — a smaller, more minimal radar, nothing else.
+       align-self: flex-start now applies at every width, not just the two narrow
+       breakpoints below, so it never grows even if the chip row above is very wide. */
+    width: 96px;
+    max-width: 96px;
+    align-self: flex-start;
     aspect-ratio: 2.3 / 1; /* short, wide strip — never stretches tall — the canvas
                                always fills this exactly; see the player-tracked
                                vertical viewport in drawMiniMap, which scrolls to
                                follow the player through the taller-than-wide campus
                                without ever needing to letterbox this shape. */
-    border-radius: 9px;
+    border-radius: 7px;
     overflow: hidden;
     border: 1px solid rgba(103, 205, 209, .28);
     background: rgba(8, 12, 22, .90);
@@ -3557,7 +3651,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
        match the chip row's width — keeps the same short, wide proportions as
        desktop (never a tall square) so it stays a tight, unobtrusive HUD element
        that takes up very little screen space. */
-    .campus-minimap { width: 84px; max-width: 84px; aspect-ratio: 2.3 / 1; border-radius: 7px; align-self: flex-start; }
+    .campus-minimap { width: 60px; max-width: 60px; aspect-ratio: 2.3 / 1; border-radius: 6px; align-self: flex-start; }
     .campus-exit-btn { padding: 4px 6px; font-size: 8px; border-radius: 5px; gap: 3px; }
   }
   @media (max-width: 430px) {
@@ -3565,10 +3659,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     .campus-hud-left { max-width: calc(100% - 48px); gap: 3px; }
     .campus-hud-row { gap: 3px; }
     .campus-hud-row .campus-chip { padding: 2px 4px; font-size: 6px; border-radius: 4px; }
-    .campus-minimap { width: 68px; max-width: 68px; aspect-ratio: 2.3 / 1; border-radius: 6px; align-self: flex-start; }
+    .campus-minimap { width: 48px; max-width: 48px; aspect-ratio: 2.3 / 1; border-radius: 5px; align-self: flex-start; }
     .campus-exit-btn { padding: 3px 5px; font-size: 7px; border-radius: 4px; gap: 2px; }
   }
 
+  /* World interaction prompt ("press to enter", NPC name, etc.) — mobile-first: a
+     tight single-line pill, never a card, positioned high enough that it can't be
+     covered by the joystick/interact badge below. Sized up slightly for desktop. */
   .campus-prompt {
     position: absolute;
     top: 18%;
@@ -3577,24 +3674,22 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     background: rgba(15, 20, 36, .92);
     border: 1px solid var(--cyan);
     color: #f4f0e7;
-    padding: 7px 14px;
-    border-radius: 7px;
-    font: 10px var(--app-font-mono);
+    padding: 5px 10px;
+    border-radius: 5px;
+    font: 8px var(--app-font-mono);
     text-align: center;
     display: none;
     pointer-events: auto;
     cursor: pointer;
     touch-action: manipulation;
     text-shadow: 0 0 8px rgba(103, 205, 209, .6);
-    box-shadow: 0 0 18px rgba(103, 205, 209, .2);
+    box-shadow: 0 0 14px rgba(103, 205, 209, .18);
     z-index: 10;
     backdrop-filter: blur(10px);
+    max-width: calc(100% - 24px);
   }
-  @media (max-width: 700px) {
-    .campus-prompt { padding: 6px 12px; font-size: 9px; border-radius: 6px; max-width: calc(100% - 24px); }
-  }
-  @media (max-width: 430px) {
-    .campus-prompt { padding: 5px 10px; font-size: 8px; border-radius: 5px; }
+  @media (min-width: 641px) {
+    .campus-prompt { padding: 7px 14px; font-size: 10px; border-radius: 7px; box-shadow: 0 0 18px rgba(103, 205, 209, .2); }
   }
   .campus-tap-start {
     position: absolute;
@@ -3622,18 +3717,21 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     display: none;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 34px;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
     background: rgba(15, 20, 36, .88);
     border: 1.5px solid rgba(248, 184, 78, .75);
     color: var(--amber);
-    box-shadow: 0 0 0 4px rgba(248, 184, 78, .12), 0 2px 10px rgba(0, 0, 0, .4);
+    box-shadow: 0 0 0 3px rgba(248, 184, 78, .12), 0 2px 8px rgba(0, 0, 0, .4);
     pointer-events: auto;
     cursor: pointer;
     z-index: 7;
     animation: campus-badge-pulse 1.6s ease-in-out infinite;
     will-change: transform;
+  }
+  @media (min-width: 641px) {
+    .campus-interact-badge { width: 34px; height: 34px; box-shadow: 0 0 0 4px rgba(248, 184, 78, .12), 0 2px 10px rgba(0, 0, 0, .4); }
   }
   .campus-interact-badge::after {
     content: '';
@@ -3891,68 +3989,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       margin-top: 10px;
     }
 
-    /* --- Battle / question screen: shrink the title and the arena (avatars, health
-       bars, VS) down to a slim strip so the question and its answers — the actual
-       point of the screen — get the majority of the vertical space. --- */
-    .battle-layout .page-title {
-      font-size: 20px;
-    }
-    .battle-layout .eyebrow {
-      font-size: 9px;
-    }
-    .battle-arena {
-      margin-bottom: 8px;
-    }
-    .arena-wall {
-      padding: 10px 12px 8px;
-    }
-    .plate-name {
-      font-size: 10px;
-      margin-bottom: 4px;
-    }
-    .battle-score {
-      font-size: 10px;
-    }
-    .arena-floor {
-      grid-template-columns: 1fr 40px 1fr;
-      padding: 10px 12px 12px;
-      gap: 4px;
-    }
-    .combatant-avatar {
-      width: 38px;
-      height: 38px;
-      font-size: 13px;
-      border-radius: 12px;
-    }
-    .health-track {
-      margin-top: 5px;
-      height: 4px;
-    }
-    .versus {
-      font-size: 10px;
-    }
-    .question-panel {
-      padding: 14px;
-    }
-    .question-index {
-      font-size: 9px;
-    }
-    .question-text {
-      margin: 6px 0 12px;
-      font-size: 15px;
-    }
-    .answers {
-      gap: 6px;
-    }
-    .answer-btn {
-      padding: 10px 12px;
-      font-size: 11.5px;
-    }
-    .feedback {
-      margin-top: 10px;
-      padding: 9px 10px;
-      font-size: 10px;
-    }
     .auth-card {
       padding: 22px 18px;
     }
@@ -3978,129 +4014,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       width: 130px;
       height: 130px;
     }
-    .toast-stack {
-      right: 10px;
-      left: 10px;
-      top: 10px;
-      justify-items: stretch;
-    }
-    .toast {
-      width: 100%;
-    }
     .profile-avatar {
       min-height: 150px;
     }
     .profile-avatar .pixel-avatar {
       transform: scale(1.05);
-    }
-
-    /* ===== MOBILE BATTLE: KEEP THE ENTIRE ENCOUNTER ON ONE SCREEN ===== */
-    .battle-layout {
-      min-height: 100dvh;
-      height: 100dvh;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-    .battle-layout .page-toolbar {
-      flex: 0 0 auto;
-      margin-bottom: 6px;
-    }
-    .battle-layout .page-title {
-      font-size: clamp(18px, 5.5vw, 24px);
-      line-height: 1.05;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .battle-layout .page-toolbar .btn-secondary {
-      min-height: 38px;
-      padding: 8px 12px;
-      font-size: 11px;
-    }
-    .battle-layout .battle-arena {
-      flex: 0 0 clamp(176px, 34dvh, 230px);
-      min-height: 0;
-      margin-bottom: 6px;
-      overflow: hidden;
-    }
-    .battle-layout .arena-wall {
-      padding: 8px 10px 6px;
-    }
-    .battle-layout .arena-floor {
-      min-height: 0;
-      height: calc(100% - 48px);
-      padding: 6px 10px 8px;
-      align-items: end;
-    }
-    .battle-layout .combatant-fighter {
-      min-height: 156px;
-      overflow: visible;
-    }
-    .battle-layout .combatant-fighter .pixel-avatar {
-      transform: scale(.88);
-      transform-origin: center bottom;
-      width: 96px;
-      height: 152px;
-      margin: 0 -4px 0;
-      flex-basis: 96px;
-    }
-    .battle-layout .question-panel {
-      flex: 1 1 0;
-      min-height: 0;
-      display: flex;
-      flex-direction: column;
-      padding: 10px 12px;
-      overflow-y: auto;
-    }
-    .battle-layout .question-text {
-      flex: 0 0 auto;
-      margin: 4px 0 8px;
-      font-size: clamp(13px, 3.8vw, 16px);
-      line-height: 1.25;
-    }
-    .battle-layout .answers {
-      flex: 1 1 0;
-      min-height: 0;
-      display: grid;
-      gap: 5px;
-    }
-    .battle-layout .answer-btn {
-      min-height: 0;
-      padding: 6px 10px;
-      font-size: clamp(10px, 3vw, 12px);
-      display: flex;
-      align-items: center;
-    }
-    .battle-layout .feedback {
-      flex: 0 0 auto;
-      margin-top: 6px;
-      padding: 7px 9px;
-      font-size: 9px;
-    }
-
-    /* Very short landscape phones: compress spacing instead of creating a scrollbar. */
-    @media (max-height: 520px) {
-      .battle-layout .page-toolbar { margin-bottom: 3px; }
-      .battle-layout .eyebrow { display: none; }
-      .battle-layout .battle-arena { flex-basis: 154px; }
-      .battle-layout .arena-wall { padding: 5px 8px 3px; }
-      .battle-layout .arena-floor { height: calc(100% - 40px); padding: 3px 8px 5px; }
-      .battle-layout .plate-name, .battle-layout .battle-score { font-size: 8px; }
-      .battle-layout .health-track { height: 3px; margin-top: 3px; }
-      .battle-layout .combatant-fighter { min-height: 112px; overflow: visible; }
-      .battle-layout .combatant-fighter .pixel-avatar {
-        transform: scale(.72);
-        width: 96px;
-        height: 152px;
-        margin: 0 -10px;
-      }
-      .battle-layout .question-panel { padding: 7px 10px; }
-      .battle-layout .question-index { font-size: 8px; }
-      .battle-layout .question-text { margin: 2px 0 5px; font-size: 12px; }
-      .battle-layout .answers { gap: 4px; }
-      .battle-layout .answer-btn { padding: 4px 8px; font-size: 10px; }
-      .battle-layout .feedback { margin-top: 4px; padding: 5px 7px; font-size: 8px; }
     }
   }
 
@@ -4167,6 +4085,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   }
 
   .battle-layout .battle-arena {
+    min-width: 0;
     min-height: 0;
     height: 100%;
     margin: 0;
@@ -4249,6 +4168,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
   .battle-layout .question-panel {
     width: 100%;
+    min-width: 0;
     min-height: min(36dvh, 330px);
     margin: 0;
     padding: clamp(9px, 1.3vh, 18px) clamp(10px, 1.8vw, 22px);
@@ -4271,8 +4191,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   }
 
   .battle-layout .answers {
-    flex: 1 1 auto;
-    min-height: 0;
+    flex: 1 0 auto;
+    min-width: 0;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-auto-rows: minmax(44px, 1fr);
@@ -5172,7 +5092,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   function TierCompleteModal({ masteredTier, nextTier, onProceed, onDismiss }: { masteredTier: QuestTier; nextTier: QuestTier | null; onProceed: () => void; onDismiss: () => void }) {
     return (
       <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="tier-complete-title">
-        <div className="modal-card">
+        <div className="modal-card tier-complete-card">
           <h2 id="tier-complete-title" className="modal-title">🏆 {masteredTier.name} tier mastered!</h2>
           <p className="modal-copy">
             {nextTier
@@ -6319,7 +6239,15 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // Locked gate: a wall tile (5) that only opens once every id in requiredIds has been defeated.
   // It's the sole passage into the Mastery Citadel, so it gates real progress behind mastery
   // rather than just being scenery.
-  type CampusGate = { x: number; y: number; requiredIds: string[]; label: string; requirementLabel: string; openMessage: string };
+  // `announceUnlock` (defaults to true — see checkGateUnlock) controls whether opening
+  // this gate gets its own toast/sound. It's false for the three tier-boundary gates
+  // below because opening them is never a surprise: it happens in the exact same
+  // instant completeBattle already shows a "🏆 Tier mastered!" notification announcing
+  // that the next area is unlocked. Popping a second "seal breaks" toast a moment later
+  // (once CampusExplorer remounts back into roaming) would just restate what the player
+  // was already told. The gate still opens and the map tile still clears either way —
+  // this only silences the redundant announcement, never the actual unlock.
+  type CampusGate = { x: number; y: number; requiredIds: string[]; label: string; requirementLabel: string; openMessage: string; announceUnlock?: boolean };
   const CAMPUS_GATE: CampusGate = {
     x: 13, y: 6, requiredIds: ['npc_1', 'npc_2', 'npc_3'], label: 'Mastery Citadel Gate',
     requirementLabel: 'Defeat all three Districts first',
@@ -6328,24 +6256,30 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // Every locked gate in the campus, checked and drawn identically regardless of which
   // tier it belongs to. CAMPUS_GATE (the original Mastery Citadel gate, part of the
   // Foundation tier's own internal progression) is unchanged and simply included here as
-  // the first entry. The other three are new: one per quest-tier boundary, each opening
-  // only once every challenger in the previous tier (see QUEST_TIERS) has been defeated.
+  // the first entry — it has no tier-mastered counterpart (it opens on 3 of the 4
+  // Foundation challengers, not the full tier), so it keeps its own announcement. The
+  // other three are one per quest-tier boundary, each opening only once every challenger
+  // in the previous tier (see QUEST_TIERS) has been defeated, and each already fully
+  // covered by that battle's tier-mastered notification — so they unlock silently.
   const CAMPUS_GATES: CampusGate[] = [
     CAMPUS_GATE,
     {
       x: 8, y: 13, requiredIds: [...QUEST_TIERS[0].challengerIds], label: 'Advanced Tier Gate',
       requirementLabel: 'Clear the Foundation tier first',
       openMessage: 'The seal breaks — the Foundation tier is mastered. The Advanced Wing is open.',
+      announceUnlock: false,
     },
     {
       x: 8, y: 18, requiredIds: [...QUEST_TIERS[1].challengerIds], label: 'Expert Tier Gate',
       requirementLabel: 'Clear the Advanced tier first',
       openMessage: 'The seal breaks — the Advanced tier is mastered. The Expert Enclave is open.',
+      announceUnlock: false,
     },
     {
       x: 8, y: 23, requiredIds: [...QUEST_TIERS[2].challengerIds], label: 'Mastery Tier Gate',
       requirementLabel: 'Clear the Expert tier first',
       openMessage: 'The seal breaks — the Expert tier is mastered. The Mastery Vault is open.',
+      announceUnlock: false,
     },
   ];
 
@@ -6596,19 +6530,26 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         notes.forEach((n) => { if (!collectedNotes.has(n.id)) dot(n.x, n.y, 2.1, '#d8b4fe'); });
         gates.forEach((g) => dot(g.x, g.y, 3.1, '#fb7185', 'rgba(255,255,255,.7)'));
 
-        // Player marker — a small, clean circle at the true world position. No facing
-        // cone, direction line, or glow bloom: just a simple dot, deliberately not
-        // rotated or otherwise tied to playerAngle, matching the flat, minimalist style
-        // of the rest of the radar.
+        // Player marker — a small triangle at the true world position, rotated to
+        // playerAngle so it also reads as a heading indicator (same angle convention as
+        // the main view: 0 rad points along +x, matching cos/sin(playerAngle) elsewhere).
         const px = ox + playerX * scale;
         const py = oy + playerY * scale;
+        const markerSize = 4.4;
+        miniCtx.save();
+        miniCtx.translate(px, py);
+        miniCtx.rotate(playerAngle);
         miniCtx.beginPath();
-        miniCtx.arc(px, py, 3.2, 0, Math.PI * 2);
+        miniCtx.moveTo(markerSize, 0);
+        miniCtx.lineTo(-markerSize * 0.7, markerSize * 0.62);
+        miniCtx.lineTo(-markerSize * 0.7, -markerSize * 0.62);
+        miniCtx.closePath();
         miniCtx.fillStyle = '#f4f0e7';
         miniCtx.fill();
         miniCtx.strokeStyle = '#67cdd1';
         miniCtx.lineWidth = 1.5;
         miniCtx.stroke();
+        miniCtx.restore();
 
         // No title bar and no in-canvas legend — the panel is just the live map, with
         // the marker colors (gold quest target, teal guide, violet note, coral gate)
@@ -6624,7 +6565,23 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const guides = CAMPUS_GUIDES.map((g) => ({ ...g }));
       const props = CAMPUS_PROPS.map((p) => ({ ...p }));
       const signs = CAMPUS_SIGNS.map((s) => ({ ...s }));
-      const gates = CAMPUS_GATES.map((g) => ({ ...g, open: false }));
+      // A gate's true state on mount is whatever the player's persisted progress already
+      // says it should be — NOT always-closed. Re-entering the campus (every quest exit,
+      // every navigation back to roaming) remounts this component from scratch, so
+      // seeding every gate as `open: false` here made checkGateUnlock() below treat
+      // long-since-opened gates as brand-new unlocks on every single remount, replaying
+      // their "seal breaks" notification indefinitely. A gate only ever deserves that
+      // notification once, the moment it actually transitions — so gates whose
+      // requirements were already satisfied *before* this mount start pre-opened and
+      // silent; checkGateUnlock only fires for gates that unlock from here on.
+      const gates = CAMPUS_GATES.map((g) => ({
+        ...g,
+        open: g.requiredIds.every((id) => defeatedIdsRef.current.includes(id)),
+      }));
+      // Mirror that pre-opened state onto the map tiles too, so an already-unlocked gate
+      // renders as open ground immediately instead of a wall that only clears once
+      // checkGateUnlock happens to run.
+      gates.forEach((gate) => { if (gate.open) map[gate.y][gate.x] = 0; });
       const collectedNotes = new Set<string>();
       const triggeredGuides = new Set<string>();
       const signaledIds = new Set<string>();
@@ -6646,10 +6603,15 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           if (gate.requiredIds.every((id) => defeatedIdsRef.current.includes(id))) {
             gate.open = true;
             map[gate.y][gate.x] = 0;
-            notifyRef.current(gate.label, gate.openMessage);
-            // A major, rare unlock — the same fanfare cue as an achievement, not the
-            // routine quest/item reward jingle.
-            if (soundEnabledRef.current) playAchievementSfx();
+            // The unlock itself (map tile, gate.open) always happens — only the toast
+            // and fanfare are conditional, and only for gates whose unlock was already
+            // announced elsewhere (see `announceUnlock` above).
+            if (gate.announceUnlock !== false) {
+              notifyRef.current(gate.label, gate.openMessage);
+              // A major, rare unlock — the same fanfare cue as an achievement, not the
+              // routine quest/item reward jingle.
+              if (soundEnabledRef.current) playAchievementSfx();
+            }
           }
         });
       };
@@ -9055,6 +9017,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // message (even fired a moment later) always goes through.
     const lastNotifyRef = useRef<{ key: string; time: number } | null>(null);
     const DUPLICATE_NOTIFY_WINDOW_MS = 3000;
+    // Permanent (session-lifetime) guard against double-claiming the same quest from a
+    // fast double-tap — see claimQuest. Unlike lastNotifyRef's short rolling window,
+    // entries here are never removed: a quest can only ever be claimed once.
+    const claimedQuestIdsRef = useRef<Set<string>>(new Set());
     const notify = (title: string, copy: string, tone?: ToastItem['tone']) => {
       const key = `${title}::${copy}`;
       const now = Date.now();
@@ -9327,6 +9293,15 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     const claimQuest = (id: string) => {
       const quest = game.quests.find((q) => q.id === id);
       if (!quest || quest.done) return;
+      // A quest claim is a genuine one-time event — unlike a battle retry, there's no
+      // legitimate reason to ever claim the same quest twice. `quest.done` alone only
+      // catches that *after* React has re-rendered with the update; a fast double-tap
+      // fires two clicks before that happens, so both would still read quest.done as
+      // false from the same stale closure and both would go through, paying out (and
+      // notifying) twice. claimedQuestIdsRef closes that gap: once a quest starts being
+      // claimed it's marked immediately and permanently, independent of render timing.
+      if (claimedQuestIdsRef.current.has(id)) return;
+      claimedQuestIdsRef.current.add(id);
       updateAccountData((acc) => ({
         ...acc,
         game: {
