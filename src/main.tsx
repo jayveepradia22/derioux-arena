@@ -524,7 +524,15 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   .main-area.main-area--immersive {
     padding: 0;
     height: 100dvh;
-    overflow: hidden;
+    /* Every immersive screen aims to fit in one view on typical devices, but
+       content length is never fully in our control (long opponent names, long
+       feedback/explanation text, unusual font-size settings, etc). Rather than
+       clipping content or letting it overlap when a screen runs taller than the
+       viewport, this scrolls — the one guarantee that nothing is ever cut off
+       or stacked on top of something else, on any device or aspect ratio. */
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
   }
 
   .topbar {
@@ -1975,16 +1983,28 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     text-transform: uppercase;
   }
 
-  /* Battle Layout & Arena */
+  /* Battle Layout & Arena
+     Responsive strategy: nothing here is pinned to a fixed viewport height or forced
+     to squeeze into "one screen, no scroll". Every dimension is either intrinsic
+     (sized by its own content) or a fluid clamp(), and the immersive container
+     (.main-area--immersive) scrolls if a device's screen genuinely can't fit
+     everything — that scroll is the safety net that guarantees nothing ever
+     clips or overlaps, no matter the device, aspect ratio, or text length. */
   .battle-layout {
     width: 100%;
     max-width: min(960px, 100%);
     margin: 0 auto;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(10px, 2vh, 16px);
+    padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+      max(14px, calc(env(safe-area-inset-bottom) + 10px)) max(12px, env(safe-area-inset-left));
   }
 
   .battle-arena {
+    flex: 0 0 auto;
     padding: 0;
-    margin-bottom: 14px;
     background: radial-gradient(circle at 50% 0%, rgba(103, 205, 209, .09), transparent 47%), var(--panel);
     overflow: hidden;
     position: relative;
@@ -1997,8 +2017,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: flex-start;
-    gap: 10px;
-    padding: 14px 18px 12px;
+    gap: clamp(6px, 2vw, 10px);
+    padding: clamp(8px, 2vh, 14px) clamp(10px, 3vw, 18px) clamp(7px, 1.6vh, 12px);
     background: linear-gradient(180deg, rgba(0, 0, 0, .24), transparent);
     border-bottom: 1px solid var(--line);
   }
@@ -2021,11 +2041,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     align-items: center;
     gap: 4px;
     padding-top: 1px;
-    white-space: nowrap;
+    min-width: 0;
   }
 
   .plate-name {
-    font-size: 11px;
+    font-size: clamp(9px, 2.4vw, 11px);
     font-weight: 600;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2035,24 +2055,29 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
   .battle-label {
     color: var(--coral);
-    font: 10px var(--app-font-mono);
-    letter-spacing: .16em;
+    font: clamp(8px, 2vw, 10px) var(--app-font-mono);
+    letter-spacing: .12em;
+    text-align: center;
+    white-space: nowrap;
   }
 
   .battle-score {
     color: var(--amber);
-    font: 11px var(--app-font-mono);
+    font: clamp(9px, 2.2vw, 11px) var(--app-font-mono);
+    white-space: nowrap;
   }
 
   /* Floor of the arena: the fighters themselves stand here, grounded by a soft vignette,
-     directly beneath the wall that carries their names and health. */
+     directly beneath the wall that carries their names and health. Height is a fluid
+     clamp rather than a fixed px value so it scales with viewport instead of either
+     wasting space on tall screens or overflowing short ones. */
   .arena-floor {
     display: grid;
-    grid-template-columns: 1fr 100px 1fr;
+    grid-template-columns: minmax(0, 1fr) clamp(50px, 12vw, 100px) minmax(0, 1fr);
     align-items: end;
-    gap: 12px;
-    min-height: 218px;
-    padding: 24px 18px 18px;
+    gap: clamp(6px, 2vw, 12px);
+    min-height: clamp(150px, 32vh, 218px);
+    padding: clamp(14px, 3vh, 24px) clamp(10px, 3vw, 18px) clamp(10px, 2vh, 18px);
     background: radial-gradient(ellipse 70% 100% at 50% 100%, rgba(0, 0, 0, .3), transparent 72%);
     position: relative;
   }
@@ -2105,7 +2130,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
   .versus {
     color: var(--coral);
-    font: 13px var(--app-font-mono);
+    font: clamp(10px, 2.4vw, 13px) var(--app-font-mono);
     text-align: center;
   }
 
@@ -2116,16 +2141,18 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     display: flex;
     justify-content: center;
     align-items: flex-end;
-    min-height: 190px;
+    min-height: clamp(130px, 26vh, 190px);
     position: relative;
     overflow: visible;
   }
 
   /* Battle uses one shared full-body scale for both fighters. We intentionally do not use
      the compact small avatar here: that was the reason the battle versions looked like
-     tiny profile thumbnails. Both head-to-shoe figures now occupy the same visual footprint. */
+     tiny profile thumbnails. Both head-to-shoe figures now occupy the same visual footprint.
+     The scale itself is fluid so the fighter shrinks gracefully on narrow/short screens
+     instead of pushing the arena taller than it has room to be. */
   .battle-layout .combatant-fighter .pixel-avatar {
-    transform: scale(1.08);
+    transform: scale(clamp(.62, calc(.5 + 4vw), 1.08));
     transform-origin: center bottom;
     width: 96px;
     height: 152px;
@@ -2345,37 +2372,64 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   }
 
   .question-panel {
-    padding: 24px;
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: clamp(14px, 3vh, 24px) clamp(14px, 4vw, 24px);
+    /* No fixed/min height and no internal overflow-y here — the panel grows with
+       its content (question text, four answers, feedback, button) and the outer
+       immersive container scrolls if that total ever exceeds the viewport. This
+       is what keeps the feedback box and the answer grid from ever fighting each
+       other for a slice of a fixed-height box. */
   }
 
   .question-index {
     color: var(--cyan);
-    font: 10px var(--app-font-mono);
+    font: clamp(9px, 2.2vw, 10px) var(--app-font-mono);
   }
 
   .question-text {
-    margin: 10px 0 22px;
-    font-size: 20px;
+    margin: clamp(6px, 1.6vh, 10px) 0 clamp(14px, 3vh, 22px);
+    font-size: clamp(16px, 4vw, 20px);
     line-height: 1.35;
     letter-spacing: -.03em;
-    overflow-wrap: break-word;
+    overflow-wrap: anywhere;
   }
 
+  /* Answers auto-fit into as many columns as comfortably fit at >=150px each, and
+     collapse to a single column on narrow phones automatically — no hand-tuned
+     width breakpoint needed, and it degrades gracefully on any screen size. Rows
+     are auto-height (not a fixed/fr split) so a button with wrapped text simply
+     grows taller instead of clipping or overlapping its neighbors. */
   .answers {
     display: grid;
-    gap: 9px;
+    grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+    grid-auto-rows: auto;
+    gap: clamp(7px, 1.6vw, 9px);
   }
 
   .answer-btn {
-    padding: 13px 15px;
+    min-width: 0;
+    min-height: 44px;
+    padding: clamp(10px, 1.6vh, 13px) clamp(11px, 2.6vw, 15px);
+    display: flex;
+    align-items: center;
     text-align: left;
     border: 1px solid var(--line);
     border-radius: 7px;
     background: rgba(255, 255, 255, .025);
     color: #cad0df;
-    font-size: 12px;
+    font-size: clamp(11px, 2.8vw, 12px);
+    line-height: 1.3;
     transition: border .2s, background .2s, transform .2s;
-    overflow-wrap: break-word;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .answer-btn span {
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   .answer-btn:hover {
@@ -2397,13 +2451,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   }
 
   .feedback {
-    margin-top: 15px;
-    padding: 12px;
+    margin-top: clamp(10px, 2vh, 15px);
+    padding: clamp(10px, 1.8vh, 12px);
     border-radius: 7px;
     background: rgba(248, 184, 78, .07);
     color: var(--amber);
-    font: 11px var(--app-font-mono);
-    overflow-wrap: break-word;
+    font: clamp(10px, 2.4vw, 11px) var(--app-font-mono);
+    line-height: 1.4;
+    overflow-wrap: anywhere;
   }
 
   .feedback-explanation {
@@ -3942,9 +3997,9 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     }
 
     /* Immersive screens (roaming/briefing/battle): tighten the top gap since there's
-       no topbar above them, and fit the whole quest/challenge and question screens
-       inside 100dvh with room to spare — see .main-area.main-area--immersive above
-       for why overflow is hidden rather than scrollable. */
+       no topbar above them. These screens aim to fit within the viewport, but
+       .main-area--immersive scrolls (see its rule above) as a fallback whenever a
+       device is too short/narrow for that, so nothing is ever clipped. */
     .main-area--immersive .page-wrap {
       padding-top: 14px;
     }
@@ -4023,59 +4078,38 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   }
 
   /* ===================================================================================
-     VIEWPORT-FIT IMMERSIVE BATTLE
-     The battle is a composition, not a scrolling document. The viewport is divided into
-     three purposeful zones: compact title/HUD, flexible arena, compact question deck.
-     Nothing is globally scaled; each zone gives up space independently when the viewport
-     becomes shorter or narrower.
+     IMMERSIVE BATTLE — RESPONSIVE OVERRIDES
+     The base Battle Layout & Arena rules above already use fluid clamp()/auto-fit
+     sizing that adapts continuously to viewport size, so this section only adds the
+     handful of things specific to the sidebar-less immersive context: the toolbar's
+     title treatment, and centering the "encounter cleared" screen. Deliberately no
+     fixed-height grid, no forced 100dvh composition, and no overflow:hidden anywhere
+     in this chain — .main-area--immersive scrolls if a device is ever too short for
+     the full stack, which is what actually guarantees nothing clips or overlaps.
   =================================================================================== */
-  .main-area.main-area--immersive {
-    overflow: hidden;
-  }
-
-  .battle-layout {
-    width: 100%;
-    max-width: 1180px;
-    height: 100dvh;
-    min-height: 0;
-    margin: 0 auto;
-    padding: clamp(8px, 1.4vh, 18px) clamp(10px, 2vw, 28px) clamp(8px, 1vh, 14px);
-    box-sizing: border-box;
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr) auto;
-    gap: clamp(6px, 1vh, 12px);
-    overflow: hidden;
-  }
-
   .battle-layout .page-toolbar {
     min-width: 0;
-    min-height: clamp(38px, 7vh, 68px);
+    flex-wrap: wrap;
+    row-gap: 8px;
     margin: 0;
     padding: 0;
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
   }
 
   .battle-layout .page-toolbar > div:first-child {
     min-width: 0;
-    overflow: hidden;
+    flex: 1 1 200px;
   }
 
   .battle-layout .eyebrow {
-    font-size: clamp(8px, 1vw, 10px);
+    font-size: clamp(8px, 2.2vw, 10px);
     line-height: 1;
   }
 
   .battle-layout .page-title {
     margin-top: 4px;
-    font-size: clamp(20px, 3.1vw, 40px);
-    line-height: 1.02;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-size: clamp(18px, 5.5vw, 32px);
+    line-height: 1.1;
+    overflow-wrap: break-word;
   }
 
   .battle-layout .page-toolbar .btn-secondary {
@@ -4084,227 +4118,52 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     padding: 8px 12px;
   }
 
-  .battle-layout .battle-arena {
-    min-width: 0;
-    min-height: 0;
-    height: 100%;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .battle-layout .arena-wall {
-    flex: 0 0 auto;
-    padding: clamp(7px, 1.1vh, 14px) clamp(10px, 1.8vw, 22px) clamp(6px, .9vh, 11px);
-    gap: clamp(5px, 1vw, 12px);
-  }
-
-  .battle-layout .plate-name {
-    font-size: clamp(9px, 1vw, 12px);
-    margin-bottom: 4px;
-  }
-
-  .battle-layout .battle-label {
-    font-size: clamp(8px, .9vw, 10px);
-  }
-
-  .battle-layout .battle-score {
-    font-size: clamp(9px, 1vw, 11px);
-  }
-
-  .battle-layout .health-track {
-    height: clamp(3px, .55vh, 5px);
-    margin-top: 0;
-  }
-
-  .battle-layout .arena-floor {
-    flex: 1 1 auto;
-    min-height: 0;
-    height: auto;
-    grid-template-columns: minmax(0, 1fr) clamp(38px, 6vw, 76px) minmax(0, 1fr);
-    align-items: end;
-    gap: clamp(4px, 1vw, 12px);
-    padding: clamp(6px, 1.2vh, 18px) clamp(8px, 2vw, 24px) clamp(7px, 1vh, 14px);
-  }
-
-  .battle-layout .combatant {
-    min-width: 0;
-    height: 100%;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-  }
-
-  .battle-layout .combatant-fighter {
-    width: 100%;
-    height: 100%;
-    min-height: 0;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    overflow: visible;
-  }
-
-  .battle-layout .combatant-fighter .pixel-avatar {
-    width: 96px;
-    height: 152px;
-    flex: 0 0 96px;
-    margin: 0;
-    transform: scale(clamp(.76, calc(.58 + 1.7vw), 1.08));
-    transform-origin: center bottom;
-  }
-
-  .battle-layout .enemy-fighter-flip {
-    display: inline-flex;
-    align-items: flex-end;
-    height: 100%;
-  }
-
-  .battle-layout .versus {
-    align-self: center;
-    font-size: clamp(10px, 1.2vw, 14px);
-  }
-
-  .battle-layout .question-panel {
-    width: 100%;
-    min-width: 0;
-    min-height: min(36dvh, 330px);
-    margin: 0;
-    padding: clamp(9px, 1.3vh, 18px) clamp(10px, 1.8vw, 22px);
-    box-sizing: border-box;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .battle-layout .question-index {
-    flex: 0 0 auto;
-    font-size: clamp(8px, .9vw, 10px);
-  }
-
-  .battle-layout .question-text {
-    flex: 0 0 auto;
-    margin: clamp(4px, .7vh, 9px) 0 clamp(7px, 1vh, 13px);
-    font-size: clamp(13px, 1.5vw, 20px);
-    line-height: 1.22;
-  }
-
-  .battle-layout .answers {
-    flex: 1 0 auto;
-    min-width: 0;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-auto-rows: minmax(44px, 1fr);
-    gap: clamp(5px, .7vw, 9px);
-  }
-
-  .battle-layout .answer-btn {
-    min-width: 0;
-    min-height: 44px;
-    padding: 8px 10px;
-    display: flex;
-    align-items: center;
-    text-align: left;
-    font-size: clamp(10px, 1vw, 13px);
-    line-height: 1.25;
-    overflow: hidden;
-  }
-
-  .battle-layout .answer-btn span {
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-
-  .battle-layout .feedback {
-    flex: 0 0 auto;
-    margin-top: 6px;
-    padding: 7px 9px;
-    font-size: clamp(8px, .85vw, 10px);
-    line-height: 1.25;
-  }
-
   .battle-layout .question-panel .btn-primary {
-    flex: 0 0 auto;
-    margin-top: 7px !important;
-    min-height: 38px;
+    margin-top: clamp(10px, 2vh, 16px) !important;
+    min-height: 44px;
   }
 
   .battle-layout .battle-complete {
+    display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     text-align: center;
+    padding: clamp(20px, 5vh, 34px) clamp(14px, 4vw, 24px);
   }
 
-  /* Short viewports get more question space and a shorter arena, while the fighter
-     footprint remains large enough to read as a full character. */
-  @media (max-height: 700px) {
-    .battle-layout {
-      grid-template-rows: auto minmax(170px, 1fr) minmax(190px, auto);
-      gap: 5px;
-    }
-    .battle-layout .page-toolbar { min-height: 38px; }
-    .battle-layout .page-title { font-size: clamp(18px, 2.8vw, 28px); }
-    .battle-layout .arena-wall { padding-top: 5px; padding-bottom: 5px; }
-    .battle-layout .arena-floor { padding-top: 4px; padding-bottom: 5px; }
-    .battle-layout .combatant-fighter .pixel-avatar {
-      transform: scale(clamp(.72, calc(.55 + 1.4vw), .94));
-    }
-    .battle-layout .question-panel { max-height: none; }
-    .battle-layout .question-text { font-size: clamp(12px, 1.5vw, 16px); }
-  }
-
-  /* Very short landscape phones: preserve the question deck and compress only decorative
-     chrome. Answers remain >=44px high for touch accessibility. */
-  @media (max-height: 540px) {
-    .battle-layout {
-      padding: 5px 8px;
-      grid-template-rows: 34px minmax(128px, 1fr) minmax(180px, auto);
-      gap: 4px;
-    }
-    .battle-layout .eyebrow { display: none; }
-    .battle-layout .page-title { font-size: 18px; margin-top: 0; }
-    .battle-layout .page-toolbar .btn-secondary { min-height: 32px; padding: 5px 9px; font-size: 10px; }
-    .battle-layout .arena-wall { padding: 4px 8px; }
-    .battle-layout .plate-name,
-    .battle-layout .battle-score { font-size: 8px; }
-    .battle-layout .battle-label { font-size: 7px; }
-    .battle-layout .health-track { height: 3px; }
-    .battle-layout .arena-floor { grid-template-columns: 1fr 30px 1fr; padding: 2px 5px 4px; }
-    .battle-layout .combatant-fighter .pixel-avatar {
-      transform: scale(.72);
-    }
-    .battle-layout .question-panel { padding: 6px 8px; }
-    .battle-layout .question-text { margin: 3px 0 5px; font-size: 11px; }
-    .battle-layout .answers { gap: 4px; grid-auto-rows: minmax(44px, 1fr); }
-    .battle-layout .answer-btn { padding: 5px 7px; font-size: 9px; }
-    .battle-layout .question-panel .btn-primary { min-height: 34px; margin-top: 4px !important; font-size: 10px; }
-  }
-
-  /* Narrow portrait phones: keep the two-column answer deck so four answers do not push
-     the question below the viewport. The text wraps inside each button instead of making
-     the entire battle taller. */
-  @media (max-width: 430px) and (min-height: 541px) {
-    .battle-layout {
-      padding-left: 7px;
-      padding-right: 7px;
-      grid-template-rows: auto minmax(185px, 1fr) minmax(245px, auto);
-    }
-    .battle-layout .page-title { font-size: clamp(17px, 5.2vw, 22px); }
-    .battle-layout .battle-arena { border-radius: 12px; }
-    .battle-layout .arena-wall { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); padding: 6px 8px; }
-    .battle-layout .arena-floor { grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr); }
-    .battle-layout .combatant-fighter .pixel-avatar { transform: scale(.78); }
-    .battle-layout .question-panel { border-radius: 12px; }
-    .battle-layout .question-text { font-size: 13px; }
-    .battle-layout .answer-btn { font-size: 10px; }
-  }
-
-  /* Landscape tablets/phones have more horizontal room; use the extra width for larger
-     fighters rather than adding empty vertical space. */
+  /* Landscape phones/tablets have more width than height — use it for a slightly
+     larger fighter footprint rather than leaving space unused. */
   @media (orientation: landscape) and (min-width: 600px) {
     .battle-layout .combatant-fighter .pixel-avatar {
       transform: scale(clamp(.78, calc(.62 + 1.6vw), 1.08));
+    }
+  }
+
+  /* Very narrow phones: a single-column answer deck reads more comfortably than a
+     cramped two-column grid, especially once answers wrap to more than one line. */
+  @media (max-width: 360px) {
+    .battle-layout .answers {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Very short screens (small phones in landscape): trim decorative chrome first so
+     the question and answers keep the space they need to stay legible and tappable. */
+  @media (max-height: 480px) {
+    .battle-layout .eyebrow {
+      display: none;
+    }
+    .battle-layout .page-title {
+      margin-top: 0;
+      font-size: clamp(16px, 4vw, 22px);
+    }
+    .battle-layout .arena-floor {
+      min-height: clamp(100px, 24vh, 150px);
+      padding-top: clamp(8px, 2vh, 14px);
+    }
+    .battle-layout .combatant-fighter {
+      min-height: clamp(90px, 20vh, 130px);
     }
   }
 
@@ -4383,230 +4242,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     .holo-briefing-panel .quest-briefing-actions button { justify-content: center; }
   }
 
-  /* ===================================================================================
-     FINAL BATTLE VISIBILITY PATCH
-     The question deck must never cover the fighters. On short landscape screens we reserve
-     a real, minimum-height character lane first, then fit the question/answers into the
-     remaining viewport. This is intentionally a final override so it wins over the earlier
-     responsive rules above.
-  =================================================================================== */
-  @media (max-height: 700px) {
-    .battle-layout {
-      gap: 6px;
-      grid-template-rows: 38px minmax(145px, 1fr) minmax(158px, auto);
-    }
-
-    .battle-layout .battle-arena {
-      min-height: 145px;
-    }
-
-    .battle-layout .arena-wall {
-      min-height: 34px;
-      padding: 4px 8px 3px;
-    }
-
-    .battle-layout .arena-floor {
-      min-height: 108px;
-      padding: 2px 8px 4px;
-    }
-
-    .battle-layout .combatant-fighter {
-      min-height: 104px;
-      height: 104px;
-    }
-
-    .battle-layout .combatant-fighter .pixel-avatar {
-      width: 96px;
-      height: 152px;
-      transform: scale(.68);
-      transform-origin: center bottom;
-    }
-
-    .battle-layout .question-panel {
-      min-height: 158px;
-      max-height: none;
-      padding: 7px 9px;
-      gap: 0;
-    }
-
-    .battle-layout .question-index {
-      font-size: 8px;
-      line-height: 1;
-    }
-
-    .battle-layout .question-text {
-      margin: 3px 0 5px;
-      font-size: clamp(11px, 1.8vw, 15px);
-      line-height: 1.15;
-    }
-
-    .battle-layout .answers {
-      gap: 4px;
-      grid-auto-rows: minmax(36px, 1fr);
-    }
-
-    .battle-layout .answer-btn {
-      min-height: 36px;
-      padding: 5px 7px;
-      font-size: clamp(9px, 1vw, 11px);
-      line-height: 1.15;
-    }
-
-    .battle-layout .feedback {
-      margin-top: 3px;
-      padding: 4px 6px;
-      font-size: 8px;
-    }
-
-    .battle-layout .question-panel .btn-primary {
-      min-height: 32px;
-      margin-top: 4px !important;
-      padding: 5px 8px;
-      font-size: 9px;
-    }
-  }
-
-  /* Very short landscape devices, including the proportions shown in the reference
-     screenshot. The arena gets the first claim on vertical space so the entire character
-     (head, body, arms, legs and shoes) remains above the question deck. */
-  @media (max-height: 540px) and (orientation: landscape) {
-    .battle-layout {
-      height: 100dvh;
-      padding: 4px 7px 5px;
-      gap: 5px;
-      grid-template-rows: 30px minmax(145px, 1fr) minmax(115px, auto);
-    }
-
-    .battle-layout .page-toolbar {
-      min-height: 30px;
-      height: 30px;
-    }
-
-    .battle-layout .page-title {
-      font-size: clamp(17px, 2.6vw, 22px);
-      line-height: 1;
-      margin-top: 0;
-    }
-
-    .battle-layout .page-toolbar .btn-secondary {
-      min-height: 28px;
-      padding: 4px 8px;
-      font-size: 9px;
-    }
-
-    .battle-layout .battle-arena {
-      min-height: 145px;
-    }
-
-    .battle-layout .arena-wall {
-      min-height: 32px;
-      padding: 3px 7px 2px;
-    }
-
-    .battle-layout .plate-name,
-    .battle-layout .battle-score {
-      font-size: 7px;
-    }
-
-    .battle-layout .battle-label {
-      font-size: 7px;
-    }
-
-    .battle-layout .health-track {
-      height: 3px;
-      margin-top: 2px;
-    }
-
-    .battle-layout .arena-floor {
-      min-height: 109px;
-      padding: 1px 5px 3px;
-      grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr);
-      gap: 3px;
-    }
-
-    .battle-layout .combatant {
-      height: 109px;
-      min-height: 109px;
-    }
-
-    .battle-layout .combatant-fighter {
-      height: 105px;
-      min-height: 105px;
-    }
-
-    .battle-layout .combatant-fighter .pixel-avatar {
-      width: 96px;
-      height: 152px;
-      flex-basis: 96px;
-      transform: scale(.68);
-      transform-origin: center bottom;
-    }
-
-    .battle-layout .question-panel {
-      min-height: 115px;
-      padding: 5px 7px;
-      border-radius: 10px;
-    }
-
-    .battle-layout .question-index {
-      font-size: 7px;
-    }
-
-    .battle-layout .question-text {
-      margin: 2px 0 4px;
-      font-size: 10px;
-      line-height: 1.1;
-    }
-
-    .battle-layout .answers {
-      gap: 3px;
-      grid-auto-rows: minmax(34px, 1fr);
-    }
-
-    .battle-layout .answer-btn {
-      min-height: 34px;
-      padding: 4px 6px;
-      font-size: 8px;
-      line-height: 1.1;
-      border-radius: 7px;
-    }
-
-    .battle-layout .feedback {
-      margin-top: 3px;
-      padding: 4px 6px;
-      font-size: 8px;
-      line-height: 1.2;
-    }
-
-    .battle-layout .question-panel .btn-primary {
-      min-height: 30px;
-      margin-top: 4px !important;
-      padding: 4px 8px;
-      font-size: 9px;
-    }
-  }
-
-  /* If the viewport is short but portrait, keep a modest separation between the arena and
-     question deck rather than allowing the deck to visually collide with the fighters. */
-  @media (max-width: 430px) and (max-height: 700px) and (orientation: portrait) {
-    .battle-layout {
-      gap: 7px;
-      grid-template-rows: 38px minmax(190px, 1fr) minmax(220px, auto);
-    }
-
-    .battle-layout .battle-arena {
-      min-height: 190px;
-    }
-
-    .battle-layout .arena-floor {
-      min-height: 145px;
-    }
-  }
-
-  /* The immersive battle has no reason to scroll. If the OS/browser reports a slightly
-     different visual viewport because of a dynamic address bar, 100dvh tracks that change. */
+  /* Fallback for browsers that don't support dvh units — .main-area--immersive still
+     scrolls internally (see its rule above), so this is just sizing, not a scroll-vs-
+     clip decision. */
   @supports not (height: 100dvh) {
-    .battle-layout,
     .main-area.main-area--immersive { height: 100vh; }
   }
   `;
