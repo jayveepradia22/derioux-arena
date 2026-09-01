@@ -2103,8 +2103,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     display: grid;
     grid-template-columns: minmax(0, 1fr) clamp(50px, 12vw, 100px) minmax(0, 1fr);
     align-items: end;
+    justify-items: center;
     gap: clamp(6px, 2vw, 12px);
-    min-height: clamp(150px, 32vh, 218px);
+    /* Trimmed to match the smaller fighters below (see .pixel-avatar) — the floor no
+       longer reserves height for the old, larger sprite footprint, so that space goes
+       back to the rest of the layout instead of sitting empty around the characters. */
+    min-height: clamp(128px, 27vh, 186px);
     padding: clamp(14px, 3vh, 24px) clamp(10px, 3vw, 18px) clamp(10px, 2vh, 18px);
     background: radial-gradient(ellipse 70% 100% at 50% 100%, rgba(0, 0, 0, .3), transparent 72%);
     position: relative;
@@ -2169,7 +2173,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     display: flex;
     justify-content: center;
     align-items: flex-end;
-    min-height: clamp(130px, 26vh, 190px);
+    min-height: clamp(112px, 22vh, 164px);
     position: relative;
     overflow: visible;
   }
@@ -2180,12 +2184,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
      The scale itself is fluid so the fighter shrinks gracefully on narrow/short screens
      instead of pushing the arena taller than it has room to be. */
   .battle-layout .combatant-fighter .pixel-avatar {
-    transform: scale(clamp(.62, calc(.5 + 4vw), 1.08));
+    transform: scale(clamp(.54, calc(.42 + 3.4vw), .92));
     transform-origin: center bottom;
-    width: 96px;
-    height: 152px;
+    width: 82px;
+    height: 130px;
     margin: 0 -2px 0;
-    flex: 0 0 96px;
+    flex: 0 0 82px;
   }
 
   .battle-layout .combatant-fighter .teacher-enemy-avatar {
@@ -2425,22 +2429,26 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     overflow-wrap: anywhere;
   }
 
-  /* Answers auto-fit into as many columns as comfortably fit at >=150px each, and
-     collapse to a single column on narrow phones automatically — no hand-tuned
-     width breakpoint needed, and it degrades gracefully on any screen size. Rows
-     are auto-height (not a fixed/fr split) so a button with wrapped text simply
-     grows taller instead of clipping or overlapping its neighbors. */
+  /* Fixed 2x2 grid — always exactly 2 columns/2 rows on every screen size, rather
+     than reflowing to 1 or 4-across depending on available width. Columns are equal
+     width via the two 1fr tracks; grid-auto-rows: 1fr keeps both rows the same
+     height as each other (matching the taller of the two, rather than each row
+     sizing independently to its own content), so all four buttons read as one
+     even grid. min-width: 0 on the columns plus overflow-wrap/white-space on the
+     button itself (below) is what keeps a long answer wrapping in place instead of
+     overflowing or forcing the grid wider than its container on narrow phones. */
   .answers {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
-    grid-auto-rows: auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: 1fr;
     gap: clamp(7px, 1.6vw, 9px);
   }
 
   .answer-btn {
     min-width: 0;
     min-height: 44px;
-    padding: clamp(10px, 1.6vh, 13px) clamp(11px, 2.6vw, 15px);
+    height: 100%;
+    padding: clamp(9px, 1.6vh, 13px) clamp(10px, 2.4vw, 15px);
     display: flex;
     align-items: center;
     text-align: left;
@@ -2448,11 +2456,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     border-radius: 7px;
     background: rgba(255, 255, 255, .025);
     color: #cad0df;
-    font-size: clamp(11px, 2.8vw, 12px);
+    font-size: clamp(10.5px, 2.6vw, 12px);
     line-height: 1.3;
     transition: border .2s, background .2s, transform .2s;
     overflow-wrap: anywhere;
     white-space: normal;
+    box-sizing: border-box;
   }
 
   .answer-btn span {
@@ -2476,6 +2485,18 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     color: #ffd2cb;
     background: rgba(239, 117, 103, .15);
     border-color: var(--coral);
+  }
+
+  /* Reserves the vertical space the feedback + "next question" button will occupy
+     once an answer is picked, BEFORE it's picked — so the question panel is exactly
+     as tall unanswered as it is answered, and nothing in the arena or panel above it
+     shifts, grows, or shrinks the instant a choice is made. This is a floor
+     (min-height), not a fixed height: on the rare over-long explanation it can still
+     grow past this, but it never clips. Deliberately empty in the DOM until resolved
+     (see the JSX) rather than pre-rendering the real feedback text hidden — that
+     would let anyone inspect the page and read the correct answer before choosing. */
+  .battle-feedback-zone {
+    min-height: clamp(148px, 23vh, 206px);
   }
 
   .feedback {
@@ -4164,15 +4185,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
      larger fighter footprint rather than leaving space unused. */
   @media (orientation: landscape) and (min-width: 600px) {
     .battle-layout .combatant-fighter .pixel-avatar {
-      transform: scale(clamp(.78, calc(.62 + 1.6vw), 1.08));
-    }
-  }
-
-  /* Very narrow phones: a single-column answer deck reads more comfortably than a
-     cramped two-column grid, especially once answers wrap to more than one line. */
-  @media (max-width: 360px) {
-    .battle-layout .answers {
-      grid-template-columns: 1fr;
+      transform: scale(clamp(.68, calc(.54 + 1.4vw), .94));
     }
   }
 
@@ -4187,11 +4200,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       font-size: clamp(16px, 4vw, 22px);
     }
     .battle-layout .arena-floor {
-      min-height: clamp(100px, 24vh, 150px);
+      min-height: clamp(88px, 21vh, 128px);
       padding-top: clamp(8px, 2vh, 14px);
     }
     .battle-layout .combatant-fighter {
-      min-height: clamp(90px, 20vh, 130px);
+      min-height: clamp(78px, 17vh, 112px);
     }
   }
 
@@ -6389,12 +6402,23 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // above 1 means the camera looks down over the top of a same-height wall, which is
       // what "noticeably above the player" needs. CAMERA_PITCH is the same horizon-shift
       // technique the old first-person view used, just larger, for the added downward tilt.
-      const CAMERA_HEIGHT = 1.85;
-      const CAMERA_PITCH = 0.3; // moderate downward look angle
-      const CAMERA_BACK_DISTANCE = 3.1; // desired follow distance directly behind the player
+      const CAMERA_HEIGHT = 1.75; // moderately elevated — clearly above the player's own eye line without floating up near the roof
+      // World-space height of the roof plane (floor = 0, a wall's top = 1 — see the
+      // convention note above). Kept comfortably above CAMERA_HEIGHT so the elevated
+      // camera can never be pitched or pushed up into/through the ceiling structure —
+      // the vertical equivalent of the horizontal wall clearance below.
+      const ROOF_HEIGHT = 2.6;
+      const CAMERA_PITCH_DEG = 22.5; // 20-25° downward camera pitch, per spec
+      // Horizon-shift fraction used below as `pitchOffsetPx = h * CAMERA_PITCH` — same
+      // convention the old hand-tuned constant used, just now derived from an actual
+      // angle. This lines up exactly with the wall/ceiling vertical-projection math
+      // (screenY(H) = horizonY - (H - CAMERA_HEIGHT) * h / correctedDist), where a plane
+      // at distance 1 shifts by `tan(pitch)` of the screen height per world-unit.
+      const CAMERA_PITCH = Math.tan((CAMERA_PITCH_DEG * Math.PI) / 180);
+      const CAMERA_BACK_DISTANCE = 3.1; // desired follow distance directly behind the player — held steady by the smoothing below rather than drifting with speed or input
       const CAMERA_MIN_BACK_DISTANCE = 0.6; // never pulls in closer than this even against a wall
       const CAMERA_CLEARANCE = 0.32; // how far short of a wall/NPC the camera stops
-      const CAMERA_FOLLOW_RATE = 9; // per-second smoothing for camera position (higher = snappier)
+      const CAMERA_FOLLOW_RATE = 9; // per-second smoothing for camera position (higher = snappier) — this is what keeps rotation and the stable follow distance feeling smooth instead of snapping
       const CAMERA_COLLIDER_RADIUS = 0.15; // treat the camera itself as this big for wall/NPC clearance checks
       // Persisted across frames (not re-declared in render()) so the follow position eases
       // toward its target smoothly instead of snapping every frame — this is what keeps
@@ -6418,7 +6442,20 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const moveSpeed = isMobile ? 2.0 : 3.0;
       // Natural FPS-style look sensitivity; mobile is slightly gentler for touch.
       const sensitivity = 0.0016;
-      const touchLookSensitivity = 0.0015; // was 0.0035 — same full-width-swipe-turns-you-around feel, just gentler
+      // Touch-drag look sensitivity is expressed as "radians of turn per full screen-width
+      // swipe" rather than a flat per-pixel constant, then converted to a per-pixel
+      // multiplier using the *current* viewport width each time it's read. That's what makes
+      // it adaptive across phones/tablets of any size: a swipe across, say, half the screen
+      // turns the camera the same amount whether the screen is 360px or 1024px wide, instead
+      // of a narrow phone (fewer physical pixels per swipe) feeling far twitchier than a
+      // large tablet under one fixed constant. Raised from the old flat 0.0015 (which read as
+      // sluggish, especially on wider devices) to a snappier, still-controllable feel. Desktop
+      // mouselook (`sensitivity` above) is untouched by any of this.
+      const TOUCH_LOOK_RADIANS_PER_SCREEN_WIDTH = Math.PI * 1.15; // ~207° of turn per full-width swipe
+      function getTouchLookSensitivity() {
+        const viewportWidth = window.innerWidth || canvas.clientWidth || 390;
+        return TOUCH_LOOK_RADIANS_PER_SCREEN_WIDTH / viewportWidth;
+      }
 
       let leftJoy = { active: false, id: null as number | null, dx: 0, dy: 0 };
 
@@ -6452,7 +6489,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // canvas height — both change rarely (a district crossing, or a resize) — so they're
       // cached and only rebuilt when either changes, instead of calling createLinearGradient
       // twice every single frame regardless of whether anything changed.
-      let cachedSky: { h: number; w: number; sky: CanvasGradient; sunX: number; sunY: number; sunR: number } | null = null;
+      // Subtle vertical ambient wash painted under the roof's beam/panel grid — depends only
+      // on canvas height (not the district or camera position), so it's cached the same way
+      // the old sky gradient was, and only rebuilt on resize.
+      let cachedCeilingBase: { h: number; base: CanvasGradient } | null = null;
       let cachedFloorGradient: { districtId: string; h: number; floor: CanvasGradient } | null = null;
 
       let resizeRaf = 0;
@@ -6812,17 +6852,17 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       function render(dt: number) {
         const w = canvas!.width, h = canvas!.height;
         const now = performance.now();
-        // Zoomed-out, spacious perspective (~95-100°): mobile sits at the top of that range
+        // Third-person follow FOV, 70-75° per spec: mobile sits at the top of that range
         // since there's no mouse-look nuance to fall back on there and a narrower FOV reads
         // like navigating through a straw on a fixed touch camera; desktop sits a touch
         // narrower since free-look mouse control makes the extra width less necessary.
-        const fov = isMobile ? (98 * Math.PI) / 180 : (95 * Math.PI) / 180; // wider first-person view for a more spacious, less cramped feel
+        const fov = isMobile ? (75 * Math.PI) / 180 : (71 * Math.PI) / 180;
         // Half-width (in world units, at unit forward distance) of the projection plane —
         // used to cast rays evenly across a flat screen-space plane (tan-based) rather than
         // stepping evenly through angles. Angle-uniform ray stepping is what produces the
         // classic "fisheye" bulge as FOV widens; sampling evenly along the tangent plane
-        // instead keeps straight walls looking straight at 95-100° the same way they did at
-        // the old, narrower FOV. Sprite projection below is kept in lockstep with this same
+        // instead keeps straight walls looking straight at 70-75° the same way it did at
+        // the old, wider FOV. Sprite projection below is kept in lockstep with this same
         // plane so billboards/NPCs/items line up with the walls behind them.
         const halfFovTan = Math.tan(fov / 2);
         const fogDistance = isMobile ? 26 : 22;
@@ -6874,46 +6914,79 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         drawMiniMap(now);
 
         const [fr, fg, fb] = district.floor;
-        // Open sky, not a ceiling: a fixed sky gradient + soft sun glow + a few slow
-        // clouds, completely independent of any district color — nothing here is a tint
-        // or a lightened version of the old ceiling fill, it's a different background
-        // entirely. It's still just a flat screen-space band above the horizon (this
-        // raycaster has no geometry to project an actual rooftop plane onto), but a real
-        // gradient plus soft shapes reads as open air rather than a solid ceiling.
-        // Cached purely on canvas height since it no longer depends on district at all.
-        if (!cachedSky || cachedSky.h !== h || cachedSky.w !== w) {
-          const sky = ctx!.createLinearGradient(0, 0, 0, h / 2);
-          sky.addColorStop(0, '#4d84c4');
-          sky.addColorStop(0.6, '#8fb8e0');
-          sky.addColorStop(1, '#d9ecf9');
-          cachedSky = { h, w, sky, sunX: w * 0.76, sunY: h * 0.1, sunR: h * 0.42 };
+        // Enclosed school roof, not open sky: a real structure directly overhead, built out
+        // of timber/steel beams framing recessed ceiling panels, with the occasional flush
+        // light fixture — never a bare gap to open air. Unlike the old flat gradient band,
+        // this is genuinely perspective-cast: each column samples the actual world position
+        // its view ray would hit on the roof plane (ROOF_HEIGHT above the floor), using the
+        // same distance-projection relationship the wall strips use below
+        // (screenY(H) = horizonY - (H - CAMERA_HEIGHT) * h / correctedDist, solved for
+        // distance instead of screen position). That's what makes the beam grid genuinely
+        // recede toward the horizon and pan correctly as the camera turns/moves, instead of
+        // being a flat screen-space overlay — and, combined with ROOF_HEIGHT staying safely
+        // above CAMERA_HEIGHT, it's also what keeps the camera from ever appearing to poke
+        // through the structure above it.
+        //
+        // Column/row sampling is deliberately coarser than the per-ray wall pass — the roof
+        // is a diffuse, low-detail surface far overhead, so a lower-resolution grid reads
+        // just as solid at a fraction of the cost.
+        if (!cachedCeilingBase || cachedCeilingBase.h !== h) {
+          const base = ctx!.createLinearGradient(0, 0, 0, h / 2);
+          base.addColorStop(0, '#211f1c'); // deep shadow tucked up among the beams, top of screen
+          base.addColorStop(1, '#5c5346'); // warm ambient bounce light down near the walls/horizon
+          cachedCeilingBase = { h, base };
         }
-        ctx!.fillStyle = cachedSky.sky;
+        ctx!.fillStyle = cachedCeilingBase.base;
         ctx!.fillRect(0, 0, w, horizonY);
-        const sunGlow = ctx!.createRadialGradient(cachedSky.sunX, cachedSky.sunY, 0, cachedSky.sunX, cachedSky.sunY, cachedSky.sunR);
-        sunGlow.addColorStop(0, 'rgba(255, 252, 235, 0.65)');
-        sunGlow.addColorStop(1, 'rgba(255, 252, 235, 0)');
-        ctx!.fillStyle = sunGlow;
-        ctx!.fillRect(0, 0, w, horizonY);
-        // A handful of soft, slow-drifting clouds — purely decorative, screen-space only,
-        // so they never interact with collision/geometry/minimap in any way.
-        ctx!.save();
-        ctx!.beginPath();
-        ctx!.rect(0, 0, w, horizonY);
-        ctx!.clip();
-        ctx!.fillStyle = 'rgba(255, 255, 255, 0.55)';
-        for (let cIdx = 0; cIdx < 5; cIdx++) {
-          const cloudSpanX = w + 260;
-          const driftX = ((now / 1000) * (9 + cIdx * 2) + cIdx * (cloudSpanX / 5)) % cloudSpanX - 130;
-          const cloudY = horizonY * (0.18 + 0.14 * (cIdx % 3));
-          const cloudScale = 0.7 + 0.15 * (cIdx % 3);
-          ctx!.beginPath();
-          ctx!.ellipse(driftX, cloudY, 60 * cloudScale, 16 * cloudScale, 0, 0, Math.PI * 2);
-          ctx!.ellipse(driftX + 34 * cloudScale, cloudY - 8 * cloudScale, 34 * cloudScale, 13 * cloudScale, 0, 0, Math.PI * 2);
-          ctx!.ellipse(driftX - 30 * cloudScale, cloudY - 4 * cloudScale, 30 * cloudScale, 12 * cloudScale, 0, 0, Math.PI * 2);
-          ctx!.fill();
+
+        const roofAboveCam = ROOF_HEIGHT - CAMERA_HEIGHT; // > 0 by construction of ROOF_HEIGHT above
+        const CEIL_COLUMNS = Math.min(rayCap, isMobile ? 84 : 120);
+        const CEIL_ROW_BANDS = 7;
+        const CEIL_CELL_SIZE = 2.35; // world units per roof beam/panel cell
+        const CEIL_BEAM_FRAC = 0.07; // fraction of each cell taken up by the dark beam line
+        const ceilColPxW = w / CEIL_COLUMNS;
+        for (let ci = 0; ci < CEIL_COLUMNS; ci++) {
+          const ceilCamX = (2 * (ci + 0.5)) / CEIL_COLUMNS - 1;
+          const ceilAngleOffset = Math.atan(ceilCamX * halfFovTan);
+          const ceilAngle = playerAngle + ceilAngleOffset;
+          const ceilCosCorrect = Math.cos(ceilAngleOffset); // corrects for the same off-center foreshortening the wall distances correct for
+          const dirX = Math.cos(ceilAngle), dirY = Math.sin(ceilAngle);
+          const colPx = Math.floor(ci * ceilColPxW);
+          const colPxW = Math.ceil(ceilColPxW) + 1;
+          for (let bi = 0; bi < CEIL_ROW_BANDS; bi++) {
+            const yTop = (horizonY * bi) / CEIL_ROW_BANDS;
+            const yBot = (horizonY * (bi + 1)) / CEIL_ROW_BANDS;
+            const pixelsAboveHorizon = Math.max(1, horizonY - (yTop + yBot) / 2);
+            // Distance at which the roof plane projects to this band's screen row —
+            // the inverse of the wall projection formula (wallHeight = h / correctedDist).
+            const correctedDist = (roofAboveCam * h) / pixelsAboveHorizon;
+            const dist = correctedDist / ceilCosCorrect; // actual distance along this ray, for placing the world-space sample point
+            const worldX = camX + dirX * dist;
+            const worldY = camY + dirY * dist;
+            const gx = worldX / CEIL_CELL_SIZE, gy = worldY / CEIL_CELL_SIZE;
+            const fx = gx - Math.floor(gx), fy = gy - Math.floor(gy);
+            const onBeam = fx < CEIL_BEAM_FRAC || fx > 1 - CEIL_BEAM_FRAC || fy < CEIL_BEAM_FRAC || fy > 1 - CEIL_BEAM_FRAC;
+            const cellIx = Math.floor(gx), cellIy = Math.floor(gy);
+            const cellParity = (cellIx + cellIy) % 2 === 0;
+            const fog = Math.max(0.16, Math.min(1, 1 - dist / (fogDistance * 1.4)));
+            let r: number, g: number, b: number;
+            if (onBeam) {
+              // Dark timber/steel truss beam framing each panel
+              r = 34 * fog; g = 27 * fog; b = 22 * fog;
+            } else if (cellParity && cellIx % 3 === 0) {
+              // A flush-mounted light fixture, spaced every few panels — warm glow instead
+              // of a raw color, so it stays readable as "light" even as fog dims it
+              r = 30 + 200 * fog; g = 28 + 188 * fog; b = 20 + 150 * fog;
+            } else {
+              // Recessed acoustic ceiling panel, alternating tone for a tiled look
+              r = (cellParity ? 148 : 130) * fog;
+              g = (cellParity ? 140 : 124) * fog;
+              b = (cellParity ? 128 : 114) * fog;
+            }
+            ctx!.fillStyle = `rgb(${Math.floor(r)},${Math.floor(g)},${Math.floor(b)})`;
+            ctx!.fillRect(colPx, Math.floor(yTop), colPxW, Math.ceil(yBot - yTop) + 1);
+          }
         }
-        ctx!.restore();
 
         if (!cachedFloorGradient || cachedFloorGradient.districtId !== district.id || cachedFloorGradient.h !== h) {
           const floorGrad = ctx!.createLinearGradient(0, h / 2, 0, h);
@@ -7033,6 +7106,35 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           // Same falloff curve the walls use, so a sprite reaches zero opacity exactly where
           // the wall behind it would have gone black — no more full-brightness objects
           // sitting in front of (or glimpsed beyond) fogged-out geometry.
+          const fogAlpha = Math.max(0, Math.min(1, 1 - transformX / fogDistance));
+          return { screenX, size, drawY, dist: transformX, fogAlpha };
+        }
+
+        // Same screen-position/size/fog math as projectSprite, but deliberately handled
+        // differently at the two edges that were making the player vanish entirely:
+        //
+        // 1. Near/behind-camera clamp instead of a hard cull. The follow camera eases
+        //    toward its ideal spot each frame (see CAMERA_FOLLOW_RATE above) rather than
+        //    snapping there, so during a quick turn — exactly what happens rounding a
+        //    corner — the smoothed camera position can momentarily lag very close to, or
+        //    even slightly past, the player along the camera's own forward axis. That's a
+        //    real, if brief, close-range state, not a reason to render nothing: clamping
+        //    the projected depth to a small minimum keeps the figure large-and-close on
+        //    screen for that instant instead of the whole sprite blinking out.
+        // 2. No z-buffer occlusion test here at all — occlusion for the player is instead
+        //    done per-screen-column at draw time (see the call site below), so a wall hides
+        //    only the slice of the player actually behind it rather than the entire sprite
+        //    the moment any one sample point clips a wall corner.
+        const MIN_PLAYER_PROJECT_DIST = 0.35;
+        function projectPlayerSprite(sx: number, sy: number, maxDist: number = fogDistance) {
+          const spriteX = sx - camX, spriteY = sy - camY;
+          const rawTransformX = Math.cos(playerAngle) * spriteX + Math.sin(playerAngle) * spriteY;
+          const transformY = -Math.sin(playerAngle) * spriteX + Math.cos(playerAngle) * spriteY;
+          const transformX = Math.max(rawTransformX, MIN_PLAYER_PROJECT_DIST);
+          if (transformX > maxDist) return null; // legitimately out of render/fog range
+          const screenX = (w / 2) * (1 + (transformY / transformX) / halfFovTan);
+          const size = Math.abs(h / transformX);
+          const drawY = horizonY + (CAMERA_HEIGHT - 1) * size;
           const fogAlpha = Math.max(0, Math.min(1, 1 - transformX / fogDistance));
           return { screenX, size, drawY, dist: transformX, fogAlpha };
         }
@@ -7413,22 +7515,67 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           });
         });
 
-        // Third-person view: render the player's own body, seen from behind, using the
-        // exact same billboard projection/occlusion and voxel-figure renderer every other
-        // character already uses — it only differs in using the player's live avatar,
-        // always-back facing (we're behind them), and their own walk animation state.
+        // Third-person view: render the player's own body, seen from behind, using the same
+        // billboard projection math every other character uses for screen position/size.
+        // Occlusion is genuine and partial, not all-or-nothing: the player's on-screen
+        // footprint is split into the same per-ray columns the wall pass just wrote into
+        // zBuffer, and only the columns where a wall is actually nearer than the player get
+        // clipped out before drawing — so a wall hides just the sliver of the player truly
+        // behind it (an arm brushing a corner, half the body mid-corner-turn, etc.) instead
+        // of the previous behavior where a single occluded sample point culled the entire
+        // sprite. A fallback guarantees at least the player's center column always survives
+        // the clip, so the player can never render as fully invisible while still inside the
+        // playable area, even in the extreme grazing-corner case where every sampled column
+        // would otherwise come back occluded. Facing is always-back (we're behind them),
+        // using their own walk animation state, same as before.
         {
-          const playerProj = projectSprite(playerX, playerY);
-          if (playerProj && playerProj.dist > 0.25) {
+          const playerProj = projectPlayerSprite(playerX, playerY);
+          if (playerProj) {
             const { screenX: pScreenX, size: pSize, drawY: pDrawY, dist: pDist, fogAlpha: pFogAlpha } = playerProj;
             spriteDrawQueue.push({
               dist: pDist,
               draw: () => {
                 const groundY = pDrawY + pSize;
                 const figureHeight = pSize * 0.82;
+                // Footprint half-width in screen pixels, a bit generous versus the actual
+                // limb/shoe silhouette so we never clip visible pixels at the sprite's edge.
+                const halfWidthPx = Math.max(2, pSize * 0.32);
+                const clipLeftPx = pScreenX - halfWidthPx;
+                const clipRightPx = pScreenX + halfWidthPx;
+                const firstCol = Math.max(0, Math.floor((clipLeftPx / w) * numRays));
+                const lastCol = Math.min(numRays - 1, Math.ceil((clipRightPx / w) * numRays));
+                const centerCol = Math.min(numRays - 1, Math.max(0, Math.round((pScreenX / w) * numRays)));
+
+                ctx!.save();
+                ctx!.beginPath();
+                let anyVisible = false;
+                let runStartCol: number | null = null;
+                const addRun = (startCol: number, endColExclusive: number) => {
+                  const x0 = (startCol / numRays) * w;
+                  const x1 = (endColExclusive / numRays) * w;
+                  ctx!.rect(x0, 0, x1 - x0, h);
+                  anyVisible = true;
+                };
+                for (let col = firstCol; col <= lastCol; col++) {
+                  const colVisible = col === centerCol || pDist < zBuffer[col];
+                  if (colVisible) {
+                    if (runStartCol === null) runStartCol = col;
+                  } else if (runStartCol !== null) {
+                    addRun(runStartCol, col);
+                    runStartCol = null;
+                  }
+                }
+                if (runStartCol !== null) addRun(runStartCol, lastCol + 1);
+                if (!anyVisible) {
+                  // Belt-and-suspenders: the centerCol === true clause above should already
+                  // make this unreachable, but never skip drawing the player entirely.
+                  addRun(centerCol, centerCol + 1);
+                }
+                ctx!.clip();
                 ctx!.globalAlpha = pFogAlpha;
                 drawVoxelFigure(pScreenX, groundY, figureHeight, avatarRef.current, 'back', walkPhase, playerWalking);
                 ctx!.globalAlpha = 1;
+                ctx!.restore();
               },
             });
           }
@@ -7543,7 +7690,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         lastTime = timestamp;
         if (roamingActive) {
           if (pointerLocked) { playerAngle += mouseDX * sensitivity; mouseDX = 0; }
-          if (touchLookDX !== 0) { playerAngle += touchLookDX * touchLookSensitivity; touchLookDX = 0; }
+          if (touchLookDX !== 0) { playerAngle += touchLookDX * getTouchLookSensitivity(); touchLookDX = 0; }
           playerAngle = playerAngle % (Math.PI * 2);
           let moveX = 0, moveY = 0;
           if (keys['w'] || keys['arrowup']) { moveX += Math.cos(playerAngle); moveY += Math.sin(playerAngle); }
@@ -8399,32 +8546,38 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                 </button>
               ))}
             </div>
-            {resolved && (
-              <>
-                <div className="feedback">
-                  {selected === current.answer
-                    ? 'DIRECT HIT // The concept is locked in.'
-                    : (
-                      <>
-                        MISS // The correct answer was {current.options[current.answer]}.
-                        {current.explanation && <span className="feedback-explanation"> {current.explanation}</span>}
-                      </>
-                    )}
-                </div>
-                {/* Disabled until the attack sequence finishes so the fighters are always
-                    back at rest before either the next question's UI, or the final
-                    return-to-arena action, appears underneath them. On the last question
-                    this button is the ONLY thing that can end the encounter — win or
-                    lose, it never happens automatically. */}
-                <button
-                  className="btn-primary mt-4"
-                  onClick={question === questions.length - 1 ? finishBattle : next}
-                  disabled={attackPhase !== 'idle'}
-                >
-                  {question === questions.length - 1 ? 'Return to Arena' : 'Next question'} <ChevronRight size={14} />
-                </button>
-              </>
-            )}
+            {/* Always rendered — see .battle-feedback-zone above — so this region's
+                height is reserved from the moment the question appears, not only once
+                it's resolved. Empty (nothing rendered inside) until an answer is picked,
+                so there's no way to read the correct answer/explanation early. */}
+            <div className="battle-feedback-zone">
+              {resolved && (
+                <>
+                  <div className="feedback">
+                    {selected === current.answer
+                      ? 'DIRECT HIT // The concept is locked in.'
+                      : (
+                        <>
+                          MISS // The correct answer was {current.options[current.answer]}.
+                          {current.explanation && <span className="feedback-explanation"> {current.explanation}</span>}
+                        </>
+                      )}
+                  </div>
+                  {/* Disabled until the attack sequence finishes so the fighters are always
+                      back at rest before either the next question's UI, or the final
+                      return-to-arena action, appears underneath them. On the last question
+                      this button is the ONLY thing that can end the encounter — win or
+                      lose, it never happens automatically. */}
+                  <button
+                    className="btn-primary mt-4"
+                    onClick={question === questions.length - 1 ? finishBattle : next}
+                    disabled={attackPhase !== 'idle'}
+                  >
+                    {question === questions.length - 1 ? 'Return to Arena' : 'Next question'} <ChevronRight size={14} />
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         )}
         </div>
