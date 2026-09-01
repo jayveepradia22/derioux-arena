@@ -1,4 +1,4 @@
-import { Component, useEffect, useRef, useState, type ErrorInfo, type FormEvent, type ReactNode } from 'react';
+import { Component, useEffect, useLayoutEffect, useRef, useState, type ErrorInfo, type FormEvent, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   Bell, BookOpen, Brain, Check, ChevronRight, CircleUserRound, Clock, Coins, Compass, Crosshair, Eye, EyeOff, Flame, Gem,
@@ -1984,12 +1984,32 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   }
 
   /* Battle Layout & Arena
-     Responsive strategy: nothing here is pinned to a fixed viewport height or forced
-     to squeeze into "one screen, no scroll". Every dimension is either intrinsic
-     (sized by its own content) or a fluid clamp(), and the immersive container
-     (.main-area--immersive) scrolls if a device's screen genuinely can't fit
-     everything — that scroll is the safety net that guarantees nothing ever
-     clips or overlaps, no matter the device, aspect ratio, or text length. */
+     Responsive strategy: every dimension inside .battle-layout is intrinsic or a
+     fluid clamp() so it reflows cleanly at any width. On top of that, the whole
+     card is uniformly scaled to fit the available viewport height (see the
+     battleScale useLayoutEffect in Battle() and .battle-viewport below) — that
+     scale, not a scrollbar, is what guarantees the header, arena, question, and
+     answers are always all on screen together with nothing clipped, overlapped,
+     or requiring a scroll, on any phone size or aspect ratio. */
+  /* Fills the immersive main-area and hands .battle-layout a real, measurable height
+     to scale against (see the useLayoutEffect in Battle). overflow is hidden, not
+     auto/scroll, deliberately: a CSS transform: scale() shrinks how content is
+     *painted* but never its layout box, so once the box is scaled down to fit, the
+     unscaled box still technically extends past where anything is actually drawn.
+     overflow:auto there would misread that untouched space as scrollable content —
+     a dead-zone scrollbar that scrolls to nothing. overflow:hidden simply discards
+     that ghost space, which is exactly correct because nothing is ever rendered
+     into it in the first place. */
+  .battle-viewport {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    overflow: hidden;
+  }
+
   .battle-layout {
     width: 100%;
     max-width: min(960px, 100%);
@@ -1997,9 +2017,17 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
+    flex-shrink: 0;
     gap: clamp(10px, 2vh, 16px);
     padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
       max(14px, calc(env(safe-area-inset-bottom) + 10px)) max(12px, env(safe-area-inset-left));
+    /* Scaled uniformly to fit the viewport height on mobile — see battleScale in
+       Battle(). Origin is top-center so it shrinks toward the header rather than
+       drifting off-center or clipping the top on short screens. Opacity fades in
+       once the first real measurement lands (see battleReady) instead of flashing
+       an unscaled, potentially overflowing/overlapping frame first. */
+    transform-origin: top center;
+    transition: opacity .15s ease;
   }
 
   .battle-arena {
@@ -5470,24 +5498,43 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // prop, gate, and coordinate is untouched (none of them ever referenced a column past
   // 16), so nothing moved or changed meaning — this just cuts the unused floor around
   // it. mapWidth/mapHeight (used by rendering, the minimap, and collision) are read
-  // directly from this array's dimensions, and any position beyond the map's edge is
-  // already treated as solid by both the raycaster and canMove, so the map's boundary
-  // is still fully sealed on every side with no explicit wall column required at the
-  // new eastern edge.
+  // directly from this array's dimensions.
+  //
+  // Column 16 (the last column) is now an explicit wall (1) on every row that isn't
+  // already a district's own boundary row. It used to be left as open floor (0) with
+  // the map's edge relying on castRayDDA's implicit "out of bounds = solid" fallback to
+  // seal it — collision (circleHitsWall) always did treat that edge as solid, so the
+  // player could never actually pass through it, but the fallback rendered that
+  // boundary at a hardcoded distance of 20 world units regardless of how close the
+  // player actually stood to it, which put it far outside the normal fog falloff and
+  // made it render almost pure black — a "wide empty void" instead of a wall, most
+  // noticeable around the open-plan plazas and the Mastery Citadel nook (rows 5-7,
+  // cols 14-16, home to npc_4) where a real player-visible wall was expected on that
+  // side. This column now carries a plain wall tile (1, the same value used for the
+  // map's other outer-boundary edges — row 0, row 28, and column 0) so every edge of
+  // the campus renders and shades exactly like the walls around it, at the correct
+  // distance, with no visible seam. castRayDDA's out-of-bounds fallback (see below)
+  // has also been corrected to compute a real distance instead of a hardcoded one, so
+  // any future edge case reaching it renders correctly too — but the explicit tiles
+  // added here are what actually closes this opening under normal play.
   const CAMPUS_MAP = [
     [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-    [1,4,4,4,4,4,0,0,0,0,0,0,0,0,0,0,0],
-    [1,7,0,0,0,7,0,0,0,0,0,0,0,0,0,0,0],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [1,4,4,4,4,4,0,0,0,0,0,0,0,0,0,0,1],
+    [1,7,0,0,0,7,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
     [1,8,2,1,0,0,1,2,1,6,0,0,6,1,9,2,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,5,0,0,0],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,5,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1],
     [1,2,1,6,0,0,6,1,2,1,6,0,1,1,1,1,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-    [1,0,0,0,6,0,7,0,0,0,7,0,0,0,0,0,0],
-    [1,0,0,0,7,0,6,0,0,0,6,0,0,0,0,0,0],
-    [1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,6,0,7,0,0,0,7,0,0,0,0,0,1],
+    [1,0,0,0,7,0,6,0,0,0,6,0,0,0,0,0,1],
+    // Column 8 opened here (was a solid wall tile): this is the one row standing
+    // between the plaza above and the Advanced Tier Gate at row 13/col 8 below. With
+    // it solid, the gate and everything behind it (the three tier wings just rebuilt
+    // above) had no floor path connecting to them at all, gate state notwithstanding.
+    [1,1,1,1,1,1,1,1,0,1,1,0,0,0,0,0,1],
     // Row 13 was the map's original southern boundary (all walls). It now carries a
     // single locked gate cell (5) at column 8 — the Advanced Tier Gate — which is the
     // sole passage from the original plaza into the new Advanced Wing appended below.
@@ -5496,26 +5543,42 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // --- Advanced Wing (rows 14-18): Tier 2 "Advanced" district, home to npc_5-npc_8.
     // Opens only once every Foundation-tier quest (npc_1-npc_4) is cleared.
     [1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    // Rows 15-17 used to be three bare open rows — a featureless box with four NPCs
+    // standing in empty floor. Now built out as a real walk-in hall: two flanking
+    // chambers on row 15 (door-textured partitions at col 5/11, each chamber's real
+    // entrance left open to the south, same convention as the Lab/Classroom/Library),
+    // and a colonnaded hallway on rows 16-17 (locker-textured pillars) that npc_6 and
+    // npc_8 stand in. Every NPC's own tile (col 3/8/13) stays open floor, the col-8
+    // spine stays clear top-to-bottom so the gate corridor still runs straight
+    // through, and every chamber/hallway is still reachable — nothing here narrows
+    // any path the player actually needs to take.
+    [1,0,0,0,0,6,0,0,0,0,0,6,0,0,0,0,1],
+    [1,8,0,0,0,0,0,0,0,0,0,0,0,0,0,8,1],
+    [1,0,0,8,0,0,0,0,0,0,0,0,0,8,0,0,1],
     // Row 18: Advanced Wing's south wall, carrying the Expert Tier Gate at column 8.
     [1,1,1,1,1,1,1,1,5,1,1,1,1,1,1,1,1],
     // --- Expert Enclave (rows 19-23): Tier 3 "Expert" district, home to npc_9-npc_12.
     // Opens only once every Advanced-tier quest (npc_5-npc_8) is cleared.
     [1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    // Same treatment as the Advanced Wing above, in this district's own texture set
+    // (window-textured chamber partitions, wall-variant-3 pillars) so it reads as a
+    // distinct building rather than a reskinned copy. NPC tiles, the col-8 spine, and
+    // full reachability are preserved exactly as above.
+    [1,0,0,0,0,7,0,0,0,0,0,7,0,0,0,0,1],
+    [1,3,0,0,0,0,0,0,0,0,0,0,0,0,0,3,1],
+    [1,0,0,3,0,0,0,0,0,0,0,0,0,3,0,0,1],
     // Row 23: Expert Enclave's south wall, carrying the Mastery Tier Gate at column 8.
     [1,1,1,1,1,1,1,1,5,1,1,1,1,1,1,1,1],
     // --- Mastery Vault (rows 24-28): Tier 4 "Mastery" district, home to npc_13-npc_16.
     // Opens only once every Expert-tier quest (npc_9-npc_12) is cleared. This is the
     // final tier — clearing it masters the entire quest-tier progression.
     [1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    // Same treatment again, in this district's own texture set (notice-board-textured
+    // chamber partitions, wall-variant-4 pillars) — the campus's final, most ornate
+    // building. NPC tiles, the col-8 spine, and full reachability preserved.
+    [1,0,0,0,0,9,0,0,0,0,0,9,0,0,0,0,1],
+    [1,4,0,0,0,0,0,0,0,0,0,0,0,0,0,4,1],
+    [1,0,0,4,0,0,0,0,0,0,0,0,0,4,0,0,1],
     [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
   ];
   // Tile legend: 0 open floor, 1/2/3/4 wall variants (visual only — see canMove, which
@@ -5972,6 +6035,17 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     { id: 'prop_lib_shelf_4', x: 9.3, y: 11.3, glyph: '📚' },
     { id: 'prop_lib_table', x: 8.3, y: 10.7, glyph: '📖' },
     { id: 'prop_lib_chair', x: 8.3, y: 11.7, glyph: '🪑' },
+    // Advanced Wing / Expert Enclave / Mastery Vault — the three tier halls added
+    // alongside the new wall layout above (see CAMPUS_MAP) were bare rectangles even
+    // once walled; a couple of lamps/plants/banners per hall, kept clear of the col-8
+    // spine and every NPC tile, is enough to read as a furnished building instead of
+    // an empty box.
+    { id: 'prop_adv_1', x: 5.5, y: 16.5, glyph: '💡' },
+    { id: 'prop_adv_2', x: 11.5, y: 16.5, glyph: '🪴', sway: true },
+    { id: 'prop_exp_1', x: 5.5, y: 21.5, glyph: '🗺️' },
+    { id: 'prop_exp_2', x: 11.5, y: 21.5, glyph: '💡' },
+    { id: 'prop_mas_1', x: 5.5, y: 26.5, glyph: '🏆' },
+    { id: 'prop_mas_2', x: 11.5, y: 26.5, glyph: '✨' },
   ];
 
   // Landmark signs — small text placards at a few key structures, so a district or building
@@ -6303,10 +6377,30 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       let playerX = initialPosition?.x ?? 4.5;
       let playerY = initialPosition?.y ?? 6.5;
       let playerAngle = initialPosition?.angle ?? 0;
-      // First-person camera: render directly from the player's eye position.
-      // Movement/collision still uses playerX/playerY as the player's feet position.
-      // This keeps the world stable while giving a true FPS-style view.
-      const CAMERA_PITCH = 0.06; // subtle downward look for a comfortable FPS view
+      // Third-person exploration camera: positioned behind and above the player, looking
+      // down at a moderate angle, instead of rendering from the player's own eyes.
+      // playerX/playerY/playerAngle remain the player's own position/heading and are
+      // untouched by any of this — movement, collision, interactions, minimap, and NPC
+      // logic all still key off those exactly as before. Only where the camera itself
+      // sits (camX/camY, computed each frame below) and how that vertical/height math
+      // projects onto the screen changes.
+      // CAMERA_HEIGHT is a world-space eye height where the floor is 0 and a wall's top
+      // is 1 (this scale matches the raycaster's existing wall-height convention) —
+      // above 1 means the camera looks down over the top of a same-height wall, which is
+      // what "noticeably above the player" needs. CAMERA_PITCH is the same horizon-shift
+      // technique the old first-person view used, just larger, for the added downward tilt.
+      const CAMERA_HEIGHT = 1.85;
+      const CAMERA_PITCH = 0.3; // moderate downward look angle
+      const CAMERA_BACK_DISTANCE = 3.1; // desired follow distance directly behind the player
+      const CAMERA_MIN_BACK_DISTANCE = 0.6; // never pulls in closer than this even against a wall
+      const CAMERA_CLEARANCE = 0.32; // how far short of a wall/NPC the camera stops
+      const CAMERA_FOLLOW_RATE = 9; // per-second smoothing for camera position (higher = snappier)
+      const CAMERA_COLLIDER_RADIUS = 0.15; // treat the camera itself as this big for wall/NPC clearance checks
+      // Persisted across frames (not re-declared in render()) so the follow position eases
+      // toward its target smoothly instead of snapping every frame — this is what keeps
+      // rotation/movement feeling smooth on both mouse-look and touch-drag input.
+      let smoothCamX = playerX - Math.cos(playerAngle) * CAMERA_BACK_DISTANCE;
+      let smoothCamY = playerY - Math.sin(playerAngle) * CAMERA_BACK_DISTANCE;
       let pointerLocked = false;
       let roamingActive = true;
       let raf = 0;
@@ -6358,7 +6452,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // canvas height — both change rarely (a district crossing, or a resize) — so they're
       // cached and only rebuilt when either changes, instead of calling createLinearGradient
       // twice every single frame regardless of whether anything changed.
-      let cachedSkyGradients: { districtId: string; h: number; ceil: CanvasGradient; floor: CanvasGradient } | null = null;
+      let cachedSky: { h: number; w: number; sky: CanvasGradient; sunX: number; sunY: number; sunR: number } | null = null;
+      let cachedFloorGradient: { districtId: string; h: number; floor: CanvasGradient } | null = null;
 
       let resizeRaf = 0;
       const resizeCanvas = () => {
@@ -6689,7 +6784,19 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         while (hitVal === 0 && maxSteps > 0) {
           if (sideDistX < sideDistY) { sideDistX += deltaDistX; mapX += stepX; side = 0; } else { sideDistY += deltaDistY; mapY += stepY; side = 1; }
           maxSteps--;
-          if (mapX < 0 || mapX >= mapWidth || mapY < 0 || mapY >= mapHeight) return { dist: 20, side: 0, tile: 1, wallX: 0 };
+          if (mapX < 0 || mapX >= mapWidth || mapY < 0 || mapY >= mapHeight) {
+            // Ray has crossed the grid line at the map's outer edge without hitting a
+            // tile first — every edge is walled explicitly now (see CAMPUS_MAP), so
+            // this is just a defensive backstop, not the normal way a boundary gets
+            // drawn. Treat the crossed line as a plain wall (tile 1) and fall through
+            // to the same distance/wallX math used for a real hit below, instead of
+            // returning a hardcoded distance: a fixed distance here previously made
+            // this edge render at a fake depth (usually far outside the fog falloff,
+            // so almost pure black) no matter how close the player actually stood to
+            // it — a wall that was solid to collision but read as a void visually.
+            hitVal = 1;
+            break;
+          }
           hitVal = map[mapY][mapX];
         }
         const dist = side === 0 ? (mapX - originX + (1 - stepX) / 2) / dirX : (mapY - originY + (1 - stepY) / 2) / dirY;
@@ -6702,7 +6809,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         return { dist: Math.max(dist, 0.01), side, tile: hitVal, wallX };
       }
 
-      function render() {
+      function render(dt: number) {
         const w = canvas!.width, h = canvas!.height;
         const now = performance.now();
         // Zoomed-out, spacious perspective (~95-100°): mobile sits at the top of that range
@@ -6720,10 +6827,36 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         const halfFovTan = Math.tan(fov / 2);
         const fogDistance = isMobile ? 26 : 22;
 
-        // True first-person camera: the render origin is the player's position.
-        // There is no third-person follow distance and no automatic camera zoom.
-        const camX = playerX;
-        const camY = playerY;
+        // Third-person follow camera: the ideal spot is directly behind the player along
+        // their current heading. A single backward raycast (same castRayDDA the walls
+        // use) finds how much room is actually behind the player, so the camera never
+        // ends up clipped inside/through a wall — it's pulled in short of it instead.
+        // collidesWithNpc/circleHitsWall then do a final short-step safety pass for
+        // corners or NPC bodies a single straight ray behind the player can miss.
+        const behindAngle = playerAngle + Math.PI;
+        const behindHit = castRayDDA(behindAngle, playerX, playerY);
+        let desiredBackDist = Math.min(CAMERA_BACK_DISTANCE, Math.max(CAMERA_MIN_BACK_DISTANCE, behindHit.dist - CAMERA_CLEARANCE));
+        let idealCamX = playerX + Math.cos(behindAngle) * desiredBackDist;
+        let idealCamY = playerY + Math.sin(behindAngle) * desiredBackDist;
+        let clearanceGuard = 0;
+        while (
+          clearanceGuard < 12 &&
+          desiredBackDist > CAMERA_MIN_BACK_DISTANCE &&
+          (circleHitsWall(idealCamX, idealCamY, CAMERA_COLLIDER_RADIUS) || collidesWithNpc(idealCamX, idealCamY))
+        ) {
+          desiredBackDist -= 0.2;
+          idealCamX = playerX + Math.cos(behindAngle) * desiredBackDist;
+          idealCamY = playerY + Math.sin(behindAngle) * desiredBackDist;
+          clearanceGuard++;
+        }
+        // Ease toward that target instead of snapping to it — keeps the view smooth when
+        // desiredBackDist changes frame-to-frame near corners, and smooths ordinary
+        // mouse-look/touch-drag rotation too, on both desktop and mobile.
+        const followT = 1 - Math.exp(-CAMERA_FOLLOW_RATE * Math.max(dt, 0));
+        smoothCamX += (idealCamX - smoothCamX) * followT;
+        smoothCamY += (idealCamY - smoothCamY) * followT;
+        const camX = smoothCamX;
+        const camY = smoothCamY;
         const pitchOffsetPx = h * CAMERA_PITCH;
         const horizonY = h / 2 - pitchOffsetPx;
 
@@ -6741,18 +6874,54 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         drawMiniMap(now);
 
         const [fr, fg, fb] = district.floor;
-        const [cr, cg, cb] = district.ceil;
-        if (!cachedSkyGradients || cachedSkyGradients.districtId !== district.id || cachedSkyGradients.h !== h) {
-          const ceilGrad = ctx!.createLinearGradient(0, 0, 0, h / 2);
-          ceilGrad.addColorStop(0, `rgb(${Math.floor(cr * .6)},${Math.floor(cg * .6)},${Math.floor(cb * .6)})`);
-          ceilGrad.addColorStop(1, `rgb(${cr},${cg},${cb})`);
+        // Open sky, not a ceiling: a fixed sky gradient + soft sun glow + a few slow
+        // clouds, completely independent of any district color — nothing here is a tint
+        // or a lightened version of the old ceiling fill, it's a different background
+        // entirely. It's still just a flat screen-space band above the horizon (this
+        // raycaster has no geometry to project an actual rooftop plane onto), but a real
+        // gradient plus soft shapes reads as open air rather than a solid ceiling.
+        // Cached purely on canvas height since it no longer depends on district at all.
+        if (!cachedSky || cachedSky.h !== h || cachedSky.w !== w) {
+          const sky = ctx!.createLinearGradient(0, 0, 0, h / 2);
+          sky.addColorStop(0, '#4d84c4');
+          sky.addColorStop(0.6, '#8fb8e0');
+          sky.addColorStop(1, '#d9ecf9');
+          cachedSky = { h, w, sky, sunX: w * 0.76, sunY: h * 0.1, sunR: h * 0.42 };
+        }
+        ctx!.fillStyle = cachedSky.sky;
+        ctx!.fillRect(0, 0, w, horizonY);
+        const sunGlow = ctx!.createRadialGradient(cachedSky.sunX, cachedSky.sunY, 0, cachedSky.sunX, cachedSky.sunY, cachedSky.sunR);
+        sunGlow.addColorStop(0, 'rgba(255, 252, 235, 0.65)');
+        sunGlow.addColorStop(1, 'rgba(255, 252, 235, 0)');
+        ctx!.fillStyle = sunGlow;
+        ctx!.fillRect(0, 0, w, horizonY);
+        // A handful of soft, slow-drifting clouds — purely decorative, screen-space only,
+        // so they never interact with collision/geometry/minimap in any way.
+        ctx!.save();
+        ctx!.beginPath();
+        ctx!.rect(0, 0, w, horizonY);
+        ctx!.clip();
+        ctx!.fillStyle = 'rgba(255, 255, 255, 0.55)';
+        for (let cIdx = 0; cIdx < 5; cIdx++) {
+          const cloudSpanX = w + 260;
+          const driftX = ((now / 1000) * (9 + cIdx * 2) + cIdx * (cloudSpanX / 5)) % cloudSpanX - 130;
+          const cloudY = horizonY * (0.18 + 0.14 * (cIdx % 3));
+          const cloudScale = 0.7 + 0.15 * (cIdx % 3);
+          ctx!.beginPath();
+          ctx!.ellipse(driftX, cloudY, 60 * cloudScale, 16 * cloudScale, 0, 0, Math.PI * 2);
+          ctx!.ellipse(driftX + 34 * cloudScale, cloudY - 8 * cloudScale, 34 * cloudScale, 13 * cloudScale, 0, 0, Math.PI * 2);
+          ctx!.ellipse(driftX - 30 * cloudScale, cloudY - 4 * cloudScale, 30 * cloudScale, 12 * cloudScale, 0, 0, Math.PI * 2);
+          ctx!.fill();
+        }
+        ctx!.restore();
+
+        if (!cachedFloorGradient || cachedFloorGradient.districtId !== district.id || cachedFloorGradient.h !== h) {
           const floorGrad = ctx!.createLinearGradient(0, h / 2, 0, h);
           floorGrad.addColorStop(0, `rgb(${fr},${fg},${fb})`);
           floorGrad.addColorStop(1, `rgb(${Math.floor(fr * .55)},${Math.floor(fg * .55)},${Math.floor(fb * .55)})`);
-          cachedSkyGradients = { districtId: district.id, h, ceil: ceilGrad, floor: floorGrad };
+          cachedFloorGradient = { districtId: district.id, h, floor: floorGrad };
         }
-        ctx!.fillStyle = cachedSkyGradients.ceil; ctx!.fillRect(0, 0, w, horizonY);
-        ctx!.fillStyle = cachedSkyGradients.floor; ctx!.fillRect(0, horizonY, w, h - horizonY);
+        ctx!.fillStyle = cachedFloorGradient.floor; ctx!.fillRect(0, horizonY, w, h - horizonY);
 
         const numRays = Math.min(w, rayCap);
         interactHitboxes.length = 0; // rebuilt below as each interactable is projected this frame
@@ -6771,7 +6940,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           const correctedDist = result.dist * Math.cos(rayAngleOffset);
           zBuffer[i] = correctedDist;
           const wallHeight = h / correctedDist;
-          const wallTop = (h - wallHeight) / 2 - pitchOffsetPx;
+          // Vertical placement now accounts for the camera's actual height (see
+          // CAMERA_HEIGHT above) instead of assuming a fixed eye-level mid-wall camera.
+          // At CAMERA_HEIGHT = 0.5 this reduces to the exact original formula
+          // ((h - wallHeight) / 2 - pitchOffsetPx) — wallHeight itself is unaffected by
+          // camera height, only where the strip sits on screen is, so walls stay full,
+          // solid, and never partially culled just because the camera moved up/back.
+          const wallTop = horizonY + (CAMERA_HEIGHT - 1) * wallHeight;
           const brightness = Math.max(0, 1 - correctedDist / fogDistance);
           let r: number, g: number, b: number;
           if (result.tile === 2) { r = Math.floor(120 * brightness); g = Math.floor(80 * brightness); b = Math.floor(40 * brightness); }
@@ -6844,7 +7019,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           // the edges as FOV widens.
           const screenX = (w / 2) * (1 + (transformY / transformX) / halfFovTan);
           const size = Math.abs(h / transformX);
-          const drawY = (h - size) / 2 - pitchOffsetPx;
+          // Same camera-height-aware placement as the walls above (see wallTop), so every
+          // sprite — NPCs, notes, signs, the player's own body — stays correctly grounded
+          // against the wall/floor it's standing next to under the new camera position.
+          const drawY = horizonY + (CAMERA_HEIGHT - 1) * size;
           const halfWidthPx = Math.max(1, size * 0.28);
           const sampleXs = [screenX - halfWidthPx, screenX, screenX + halfWidthPx];
           for (const sampleX of sampleXs) {
@@ -7235,7 +7413,26 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           });
         });
 
-        // First-person view: do NOT render the player's own body.
+        // Third-person view: render the player's own body, seen from behind, using the
+        // exact same billboard projection/occlusion and voxel-figure renderer every other
+        // character already uses — it only differs in using the player's live avatar,
+        // always-back facing (we're behind them), and their own walk animation state.
+        {
+          const playerProj = projectSprite(playerX, playerY);
+          if (playerProj && playerProj.dist > 0.25) {
+            const { screenX: pScreenX, size: pSize, drawY: pDrawY, dist: pDist, fogAlpha: pFogAlpha } = playerProj;
+            spriteDrawQueue.push({
+              dist: pDist,
+              draw: () => {
+                const groundY = pDrawY + pSize;
+                const figureHeight = pSize * 0.82;
+                ctx!.globalAlpha = pFogAlpha;
+                drawVoxelFigure(pScreenX, groundY, figureHeight, avatarRef.current, 'back', walkPhase, playerWalking);
+                ctx!.globalAlpha = 1;
+              },
+            });
+          }
+        }
         // Other characters/props continue to use the same depth-tested sprite projection.
 
         // Paint back-to-front (farthest first) so nearer sprites always end up drawn on
@@ -7374,7 +7571,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             if (canMove(nx, playerY) && !collidesWithNpc(nx, playerY)) playerX = nx;
             if (canMove(playerX, ny) && !collidesWithNpc(playerX, ny)) playerY = ny;
           }
-          render();
+          render(dt);
         }
         raf = requestAnimationFrame(gameLoop);
       }
@@ -7949,6 +8146,62 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         if (impactPulseTimeoutRef.current) window.clearTimeout(impactPulseTimeoutRef.current);
       };
     }, []);
+    // --- Scale-to-fit for mobile: the battle screen (toolbar + arena + question card)
+    // must always render as ONE screen with no scrollbar, on every phone size/aspect
+    // ratio, even when a long opponent name, a long question, or the feedback +
+    // explanation text push the natural (unscaled) height past the viewport. Rather
+    // than guessing a breakpoint, this measures the real rendered height of the content
+    // against the space actually available and shrinks the whole thing uniformly
+    // (never below a legibility floor) so it always fits edge-to-edge. CSS transforms
+    // don't affect layout box sizes, so scrollHeight/clientHeight reads below stay
+    // accurate regardless of the current scale — no measure/reset/re-measure dance
+    // needed, and no feedback loop through ResizeObserver.
+    const battleViewportRef = useRef<HTMLDivElement>(null);
+    const battleContentRef = useRef<HTMLDivElement>(null);
+    const [battleScale, setBattleScale] = useState(1);
+    // Stays false until the very first real measurement lands. Without this, the card
+    // briefly paints at scale(1) — full, unscaled size — for one frame before the
+    // layout effect corrects it; on a short/narrow phone that unscaled frame is exactly
+    // the "answers and feedback overlapping/cut off" glitch a screenshot can catch.
+    // Holding opacity at 0 until `battleReady` skips straight past that frame.
+    const [battleReady, setBattleReady] = useState(false);
+    useLayoutEffect(() => {
+      const viewportEl = battleViewportRef.current;
+      const contentEl = battleContentRef.current;
+      if (!viewportEl || !contentEl) return;
+      const MIN_SCALE = 0.55;
+      const recompute = () => {
+        const availableHeight = viewportEl.clientHeight;
+        const naturalHeight = contentEl.scrollHeight;
+        if (!availableHeight || !naturalHeight) return;
+        const fitScale = availableHeight / naturalHeight;
+        setBattleScale(Math.max(MIN_SCALE, Math.min(1, fitScale)));
+        setBattleReady(true);
+      };
+      recompute();
+      const resizeObserver = new ResizeObserver(recompute);
+      resizeObserver.observe(contentEl);
+      resizeObserver.observe(viewportEl);
+      window.addEventListener('orientationchange', recompute);
+      // Web fonts (the mono font used throughout the battle UI) can finish loading
+      // after this first measurement, changing line lengths/heights slightly. If that
+      // happens after we've already measured, re-measure once more so the scale still
+      // matches what actually ends up on screen instead of a pre-font-swap estimate.
+      let cancelled = false;
+      if (typeof document !== 'undefined' && 'fonts' in document) {
+        (document as Document & { fonts: FontFaceSet }).fonts.ready.then(() => {
+          if (!cancelled) recompute();
+        }).catch(() => {});
+      }
+      return () => {
+        cancelled = true;
+        resizeObserver.disconnect();
+        window.removeEventListener('orientationchange', recompute);
+      };
+      // Re-measure whenever anything that can change the card's natural height
+      // changes: which question is showing, whether feedback/explanation is
+      // revealed, and whether the "encounter cleared" panel has swapped in.
+    }, [question, resolved, complete, opponent?.name, profile.name]);
     // One entry per answered question — feeds subject-level mastery tracking on the
     // dashboard once the encounter finishes (see onComplete below).
     const resultsRef = useRef<{ subject: string; correct: boolean }[]>([]);
@@ -8053,7 +8306,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       setResolved(false);
     };
     return (
-      <div className="page-wrap battle-layout">
+      <div className="battle-viewport" ref={battleViewportRef}>
+        <div
+          className="page-wrap battle-layout"
+          ref={battleContentRef}
+          style={{ transform: `scale(${battleScale})`, opacity: battleReady ? 1 : 0 }}
+        >
         <div className="page-toolbar">
           <div>
             <div className="eyebrow">{opponent?.questTitle ? opponent.questTitle.toUpperCase() : 'LIVE ENCOUNTER'}</div>
@@ -8118,7 +8376,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           </div>
         </div>
         {complete ? (
-          <div className="panel question-panel battle-complete">
+          <div className="panel question-panel battle-complete" key="complete">
             <Trophy size={34} className="text-amber-300 mx-auto" />
             <div className="question-index mt-4">ENCOUNTER CLEARED</div>
             <h2 className="question-text">You stayed with the hard part.</h2>
@@ -8126,7 +8384,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             <button className="btn-primary mt-5" onClick={onExit}>Return to mission control <ChevronRight size={14} /></button>
           </div>
         ) : (
-          <div className="panel question-panel">
+          <div className="panel question-panel" key={question}>
             <div className="question-index">QUESTION 0{question + 1} / KNOWLEDGE CHECK</div>
             <h2 className="question-text">{current.question}</h2>
             <div className="answers">
@@ -8169,6 +8427,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             )}
           </div>
         )}
+        </div>
       </div>
     );
   }
