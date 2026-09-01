@@ -2011,8 +2011,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   }
 
   .battle-layout {
-    width: 100%;
-    max-width: min(960px, 100%);
+    /* Viewport-relative width instead of a fixed max-width: on every device (phone,
+       tablet, ultrawide desktop) this fills almost the full screen edge-to-edge, with
+       only a small, consistent gutter on each side, rather than snapping to a fixed
+       960px card once the screen gets wide. min(..., 100%) is a safety clamp so it can
+       never exceed its own container (.battle-viewport, itself edge-to-edge in
+       immersive mode — see .main-area.main-area--immersive) and cause overflow. */
+    width: min(97vw, 100%);
     margin: 0 auto;
     box-sizing: border-box;
     display: flex;
@@ -2487,17 +2492,19 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     border-color: var(--coral);
   }
 
-  /* Reserves the vertical space the feedback + "next question" button will occupy
-     once an answer is picked, BEFORE it's picked — so the question panel is exactly
-     as tall unanswered as it is answered, and nothing in the arena or panel above it
-     shifts, grows, or shrinks the instant a choice is made. This is a floor
-     (min-height), not a fixed height: on the rare over-long explanation it can still
-     grow past this, but it never clips. Deliberately empty in the DOM until resolved
-     (see the JSX) rather than pre-rendering the real feedback text hidden — that
-     would let anyone inspect the page and read the correct answer before choosing. */
-  .battle-feedback-zone {
-    min-height: clamp(148px, 23vh, 206px);
-  }
+  /* Deliberately empty in the DOM until resolved (see the JSX) rather than
+     pre-rendering the real feedback text hidden — that would let anyone inspect the
+     page and read the correct answer before choosing. This used to also carry a
+     fixed min-height so the panel pre-reserved the feedback + button's eventual
+     space before an answer was picked — but that reservation was exactly the large
+     empty block sitting below the answer grid on every still-unanswered question.
+     The panel now sizes to its real content instead: empty and zero-height while
+     unresolved, then grows the instant an answer lands. Nothing shifts in a jarring
+     way when it grows — the height-fit scale in Battle() already re-measures on
+     every change to "resolved" (see its useLayoutEffect deps), so the whole card
+     smoothly settles to whatever scale the taller, resolved state needs.
+     .battle-feedback-zone itself carries no layout rules anymore — a plain div,
+     sized purely by whatever is (or isn't) inside it. */
 
   .feedback {
     margin-top: clamp(10px, 2vh, 15px);
@@ -8301,11 +8308,29 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // against the space actually available and shrinks the whole thing uniformly
     // (never below a legibility floor) so it always fits edge-to-edge. CSS transforms
     // don't affect layout box sizes, so scrollHeight/clientHeight reads below stay
-    // accurate regardless of the current scale — no measure/reset/re-measure dance
-    // needed, and no feedback loop through ResizeObserver.
+    // accurate regardless of the current scale. Widening the box to compensate for the
+    // scale (see battleWidthVw below) does make contentEl's own width change with scale,
+    // so the ResizeObserver on contentEl fires again after each scale update — but that's
+    // wanted, not a bug: a wider box only ever wraps text less and gets shorter or stays
+    // the same height, never taller, so this settles to a stable width/scale pair within
+    // a couple of frames instead of oscillating.
     const battleViewportRef = useRef<HTMLDivElement>(null);
     const battleContentRef = useRef<HTMLDivElement>(null);
     const [battleScale, setBattleScale] = useState(1);
+    // transform: scale() shrinks the painted result in BOTH axes uniformly — but the
+    // fit-to-height measurement above only ever needed to reclaim vertical space. Left
+    // alone, that uniform shrink also pulls the card's visual width in with it, which is
+    // exactly what produced the wide empty gutters down either side on tall/narrow
+    // phones: a scale(0.7) card centered in a full-width viewport paints at only 70% of
+    // that width. To cancel the horizontal side-effect, the box's own (unscaled) width is
+    // widened by the inverse of the scale — e.g. at scale 0.7 the box is laid out at
+    // 97/0.7 ≈ 139vw — so that once the transform shrinks it back down, the painted
+    // width lands back at the intended ~97vw, edge-to-edge with only a small, consistent
+    // side margin, on phones, tablets, and desktop alike, while the height still shrinks
+    // to fit as before. transform-origin: top center (see .battle-layout) keeps that
+    // widened box horizontally centered before AND after the scale, so nothing drifts
+    // off-axis.
+    const battleWidthVw = battleScale > 0 ? 97 / battleScale : 97;
     // Stays false until the very first real measurement lands. Without this, the card
     // briefly paints at scale(1) — full, unscaled size — for one frame before the
     // layout effect corrects it; on a short/narrow phone that unscaled frame is exactly
@@ -8457,7 +8482,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         <div
           className="page-wrap battle-layout"
           ref={battleContentRef}
-          style={{ transform: `scale(${battleScale})`, opacity: battleReady ? 1 : 0 }}
+          style={{
+            transform: `scale(${battleScale})`,
+            opacity: battleReady ? 1 : 0,
+            width: `min(${battleWidthVw}vw, ${battleWidthVw}%)`,
+          }}
         >
         <div className="page-toolbar">
           <div>
@@ -8546,10 +8575,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                 </button>
               ))}
             </div>
-            {/* Always rendered — see .battle-feedback-zone above — so this region's
-                height is reserved from the moment the question appears, not only once
-                it's resolved. Empty (nothing rendered inside) until an answer is picked,
-                so there's no way to read the correct answer/explanation early. */}
+            {/* Always rendered — kept as a wrapper element even though it no longer
+                reserves any height (see .battle-feedback-zone above) — so the DOM
+                structure stays stable across the resolved/unresolved states. Empty
+                (nothing rendered inside) until an answer is picked, so there's no way
+                to read the correct answer/explanation early, and no dead space sits
+                below the answers while the question is still unanswered. */}
             <div className="battle-feedback-zone">
               {resolved && (
                 <>
