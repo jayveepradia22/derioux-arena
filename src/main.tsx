@@ -4606,7 +4606,9 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // ---------------------------------------------------------------------------------------
   type TutorialStepId = 'inactive' | 'intro' | 'movement' | 'camera' | 'zoom' | 'minimap' | 'quests' | 'interact' | 'battle';
   const TUTORIAL_STEP_ORDER: Exclude<TutorialStepId, 'inactive' | 'intro'>[] = ['movement', 'camera', 'zoom', 'minimap', 'quests', 'interact', 'battle'];
-  const TUTORIAL_STORAGE_KEY = 'derioux_campus_tutorial_done_v1';
+  // Tutorial completion is account-specific and stored inside the player's Firestore
+  // game state. Do NOT use a device-wide localStorage flag here: two different accounts
+  // on the same phone/browser must keep independent tutorial progress.
   const CAMERA_SENSITIVITY_STORAGE_KEY = 'derioux_campus_camera_sensitivity_v1';
   const DEFAULT_CAMERA_SENSITIVITY = 1;
   const MIN_CAMERA_SENSITIVITY = 0.55;
@@ -4619,15 +4621,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   }
   function persistCameraSensitivity(value: number) {
     try { window.localStorage.setItem(CAMERA_SENSITIVITY_STORAGE_KEY, String(value)); } catch { /* localStorage unavailable */ }
-  }
-  function readTutorialCompleted(): boolean {
-    try { return window.localStorage.getItem(TUTORIAL_STORAGE_KEY) === '1'; } catch { return false; }
-  }
-  function persistTutorialCompleted(done: boolean) {
-    try {
-      if (done) window.localStorage.setItem(TUTORIAL_STORAGE_KEY, '1');
-      else window.localStorage.removeItem(TUTORIAL_STORAGE_KEY);
-    } catch { /* localStorage unavailable (private browsing, etc.) — tutorial just reshows next visit */ }
   }
   type AuthStep = 'welcome' | 'login' | 'signup' | 'strand' | 'avatar' | 'confirm';
   type ToastItem = { id: number; title: string; copy: string; tone?: 'success' | 'error' };
@@ -4669,7 +4662,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   };
   type ShopItem = { id: string; name: string; copy: string; price: number; icon: typeof Crosshair; category: 'Gear' | 'Consumables' | 'Cosmetics'; requiredQuestId?: string };
   type PlayerPreferences = { sound: boolean; encounterFeedback: boolean };
-  type GameState = { coins: number; xp: number; quests: Quest[]; owned: string[]; equipped: string | null; studyMinutes: number; activityDates: string[]; subjectMastery: Record<string, { correct: number; total: number }>; defeatedChallengerIds: string[]; challengerScores: Record<string, ChallengerScore>; preferences: PlayerPreferences; questionHistory: QuestionHistoryEntry[] };
+  type GameState = { coins: number; xp: number; quests: Quest[]; owned: string[]; equipped: string | null; studyMinutes: number; activityDates: string[]; subjectMastery: Record<string, { correct: number; total: number }>; defeatedChallengerIds: string[]; challengerScores: Record<string, ChallengerScore>; preferences: PlayerPreferences; questionHistory: QuestionHistoryEntry[]; tutorialCompleted: boolean; tutorialStarted: boolean };
   // No `password` field anymore — Firebase Auth owns credentials entirely; this is now
   // purely the Firestore document shape for `players/{uid}`.
   type StoredAccount = { profile: Profile; game: GameState };
@@ -4856,7 +4849,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     const derivedName = authUser?.displayName?.trim() || authUser?.email?.split('@')[0] || 'Player';
     return { name: derivedName, email: authUser?.email ?? '', strand: 'STEM', avatar: makeDefaultAvatar() };
   };
-  const makeFreshGameState = (): GameState => ({ coins: 0, xp: 0, quests: initialQuests.map((quest) => ({ ...quest })), owned: [], equipped: null, studyMinutes: 0, activityDates: [], subjectMastery: {}, defeatedChallengerIds: [], challengerScores: {}, preferences: { sound: true, encounterFeedback: true }, questionHistory: [] });
+  const makeFreshGameState = (): GameState => ({ coins: 0, xp: 0, quests: initialQuests.map((quest) => ({ ...quest })), owned: [], equipped: null, studyMinutes: 0, activityDates: [], subjectMastery: {}, defeatedChallengerIds: [], challengerScores: {}, preferences: { sound: true, encounterFeedback: true }, questionHistory: [], tutorialCompleted: false, tutorialStarted: false });
   const getInitials = (name: string) => name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'PL';
 
   const toISODate = (date: Date) => {
@@ -4899,6 +4892,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       challengerScores: data.game.challengerScores ?? {},
       preferences: { sound: data.game.preferences?.sound ?? true, encounterFeedback: data.game.preferences?.encounterFeedback ?? true },
       questionHistory: data.game.questionHistory ?? [],
+      // Existing accounts created before account-scoped tutorial persistence are treated
+      // as returning players, so they are never suddenly interrupted by onboarding.
+      // Brand-new accounts are created with tutorialCompleted: false below.
+      tutorialCompleted: data.game.tutorialCompleted ?? true,
+      // Existing accounts predate the one-time entry marker, so treat them as already
+      // having entered the arena/campus and never interrupt them with onboarding.
+      tutorialStarted: data.game.tutorialStarted ?? true,
     },
   });
   // Cache-only read: resolves near-instantly from the on-device IndexedDB cache that
@@ -9140,8 +9140,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // state, so a toggle here survives a refresh, a logout/login, or a different device —
     // same durability as coins/xp/quests.
     preferences: PlayerPreferences; updatePreferences: (patch: Partial<PlayerPreferences>) => void;
-    // Resets the first-time campus tutorial (stored in localStorage, see
-    // TUTORIAL_STORAGE_KEY) so the player can walk through it again on demand.
+    // Opens the tutorial again on demand without changing the account's one-time first-entry
+    // marker or completion state.
     onReplayTutorial: () => void;
   }) {
     const [editingAvatar, setEditingAvatar] = useState(false);
@@ -9760,7 +9760,15 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           return;
         }
         if (existing) {
-          setAccountData(existing);
+          // Migrate legacy account documents that predate the account-scoped tutorial flag.
+          // They are intentionally considered old/returning users, so never show onboarding
+          // merely because the field is absent. Persist the migration so future sessions are
+          // deterministic and independent of this device's localStorage.
+          const normalizedExisting = normalizeStoredAccount(existing);
+          if (existing.game.tutorialCompleted === undefined) {
+            await savePlayerDoc(authUser.uid, normalizedExisting);
+          }
+          setAccountData(normalizedExisting);
         } else {
           // Auth account exists but no Firestore doc yet (e.g. it was deleted, or this
           // is the moment right after signup — see completeSignup below, which writes
@@ -9794,14 +9802,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     const [questReturnPosition, setQuestReturnPosition] = useState<CampusReturnPosition | null>(null);
 
     // ---------------------------------------------------------------------------------
-    // First-time campus tutorial. `tutorialCompleted` is read once from localStorage and
-    // persisted back whenever the player finishes or skips it, so — per spec — it never
-    // shows again on its own after that unless explicitly reset (see the "Replay
-    // tutorial" control passed into Profile below). `tutorialStep` drives what
+    // First-entry campus tutorial. `tutorialStarted` records that this account has already
+    // opened the arena/campus once, while `tutorialCompleted` records that the tutorial was
+    // finished or skipped. This distinction guarantees a new account sees onboarding only
+    // on its first arena/campus entry, while replay remains explicitly available anytime. `tutorialStep` drives what
     // <TutorialCoach> renders; refs mirror the two pieces of state the transition effect
     // below needs to read without re-running on every unrelated re-render.
     // ---------------------------------------------------------------------------------
-    const [tutorialCompleted, setTutorialCompletedState] = useState<boolean>(() => readTutorialCompleted());
+    const [tutorialCompleted, setTutorialCompletedState] = useState<boolean>(false);
     const [tutorialStep, setTutorialStep] = useState<TutorialStepId>('inactive');
     const [tutorialReplay, setTutorialReplay] = useState(false);
     const tutorialStepRef = useRef<TutorialStepId>('inactive');
@@ -9812,7 +9820,36 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // (reset whenever the player backs out to the quest list), so it offers the tutorial
     // again next time they explore instead of nagging mid-session.
     const tutorialSeenIntroRef = useRef(false);
-    const markTutorialCompleted = () => { persistTutorialCompleted(true); setTutorialCompletedState(true); };
+    // True while the tutorial is waiting on a battle it triggered to resolve, so other
+    // effects can tell "mid-tutorial-battle" apart from an ordinary battle.
+    const tutorialPendingBattleRef = useRef(false);
+
+    // Keep the onboarding flag synchronized with the currently signed-in account. This is
+    // intentionally keyed to Firestore account data rather than localStorage so signing
+    // out of one account and into another can never inherit the previous player's tutorial
+    // state. If an older account has no field yet, normalizeStoredAccount() treats it as
+    // completed, which preserves the requested no-tutorial behavior for existing players.
+    useEffect(() => {
+      if (!accountData) return;
+      const completed = accountData.game.tutorialCompleted ?? true;
+      setTutorialCompletedState(completed);
+      tutorialSeenIntroRef.current = false;
+      tutorialPendingBattleRef.current = false;
+      setTutorialReplay(false);
+      // Do not open the tutorial from account-data hydration itself. The first-entry
+      // decision is made only when questStage actually reaches `roaming`, which means
+      // opening the app, dashboard, or quest list can never consume the one-time tutorial.
+      setTutorialStep('inactive');
+    }, [accountData?.game.tutorialCompleted, authUser?.uid, questStage]);
+
+    const markTutorialCompleted = () => {
+      // Completion belongs to this signed-in account, not this browser/device.
+      setTutorialCompletedState(true);
+      updateAccountData((acc) => ({
+        ...acc,
+        game: { ...acc.game, tutorialCompleted: true },
+      }));
+    };
 
     // Lets the player explicitly replay the tutorial (e.g. from Profile settings) even
     // after it's been completed/skipped before.
@@ -9825,22 +9862,32 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       setTutorialStep('intro');
     };
 
-    // The tutorial is only automatically opened when the player first enters roaming.
-    // After completion/skip, it never reopens automatically; replay is explicitly launched
-    // by the Tutorial / How to Play control. No gameplay subsystem is modified here.
+    // The automatic tutorial is tied to the account's FIRST actual arena/campus entry,
+    // not to every roaming session. `tutorialStarted` is persisted immediately when that
+    // first entry happens, so even if the player closes/skips the tutorial, a second entry
+    // stays quiet. `tutorialCompleted` remains the separate finished/skipped status used for
+    // tutorial progress, while Replay is always explicit.
     useEffect(() => {
       const currentStep = tutorialStepRef.current;
       if (questStage === 'list') {
-        if (!tutorialCompletedRef.current) tutorialSeenIntroRef.current = false;
         if (currentStep !== 'inactive' && !tutorialReplay) setTutorialStep('inactive');
         return;
       }
-      if (questStage === 'roaming' && !tutorialCompletedRef.current && !tutorialSeenIntroRef.current) {
-        tutorialSeenIntroRef.current = true;
-        setTutorialReplay(false);
-        setTutorialStep('intro');
+      if (questStage === 'roaming' && !tutorialSeenIntroRef.current) {
+        const hasStarted = accountData?.game.tutorialStarted ?? true;
+        if (!hasStarted) {
+          tutorialSeenIntroRef.current = true;
+          setTutorialReplay(false);
+          setTutorialStep('intro');
+          // Persist immediately on first entry. This is intentionally independent of
+          // completion so leaving the tutorial cannot make it appear again next time.
+          updateAccountData((acc) => ({
+            ...acc,
+            game: { ...acc.game, tutorialStarted: true },
+          }));
+        }
       }
-    }, [questStage, tutorialReplay]);
+    }, [questStage, tutorialReplay, accountData?.game.tutorialStarted]);
     // Set the instant a tier's 4th and final quest is cleared for the first time (see
     // completeBattle's newlyMasteredTierIndex) — drives the TierCompleteModal prompt
     // below. nextTier is null only for the last tier (Mastery), where there's nothing
