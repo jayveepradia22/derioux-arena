@@ -6083,6 +6083,31 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // before it fully mastered first — a strict, linear progression.
   const isTierUnlocked = (tierIndex: number, defeatedIds: string[]) => tierIndex <= 0 || isTierMastered(QUEST_TIERS[tierIndex - 1], defeatedIds);
   const getTierIndexForChallenger = (challengerId: string) => QUEST_TIERS.findIndex((tier) => tier.challengerIds.includes(challengerId));
+  // Wayfinding destination: a one-time nudge into a tier you haven't started yet — not a
+  // running trail toward whatever quest happens to be next. While you're actively partway
+  // through a tier's roster (some defeated, some not), this returns null and the player is
+  // expected to explore/find the remaining NPCs on their own, with only the mini-map's muted
+  // dots as a hint. The moment a tier is fully mastered, the very next unlocked tier — which
+  // by definition hasn't had anyone defeated in it yet — gets its first, lowest-level
+  // candidate as the new destination, so the glowing path reappears just long enough to walk
+  // the player into the new area. Once they beat that first NPC, defeatedInTier > 0 again and
+  // the guide goes quiet for the rest of that tier. Locked tiers are never a destination, and
+  // once every tier is fully mastered this returns null for good (free-roam, no fake path).
+  const getCurrentQuestDestination = (defeatedIds: string[]) => {
+    for (let tierIndex = 0; tierIndex < QUEST_TIERS.length; tierIndex++) {
+      if (!isTierUnlocked(tierIndex, defeatedIds)) continue;
+      const tier = QUEST_TIERS[tierIndex];
+      const defeatedInTier = tier.challengerIds.filter((id) => defeatedIds.includes(id)).length;
+      if (defeatedInTier >= tier.challengerIds.length) continue; // fully mastered — move on to the next tier check
+      if (defeatedInTier > 0) return null; // already underway in this tier — no hand-holding mid-tier
+      const candidates = CAMPUS_CHALLENGERS
+        .filter((challenger) => tier.challengerIds.includes(challenger.id) && !defeatedIds.includes(challenger.id))
+        .sort((a, b) => a.recommendedLevel - b.recommendedLevel);
+      return candidates.length > 0 ? candidates[0] : null;
+    }
+    return null;
+  };
+
 
   const hashSeed = (input: string) => {
     let hash = 0;
@@ -6578,11 +6603,44 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           if (stroke) { miniCtx.strokeStyle = stroke; miniCtx.lineWidth = 1.5; miniCtx.stroke(); }
         };
 
-        // Quest targets: gold for active, muted green check for completed.
+        const currentQuestDestination = getCurrentQuestDestination(defeatedIdsRef.current);
+        // Only the single actionable destination is gold. Other undefeated challengers remain
+        // visible as quiet campus markers, but they never compete with the player's next step.
         challengers.forEach((c) => {
           const done = defeatedIdsRef.current.includes(c.id);
-          if (!done) dot(c.x, c.y, 3.2, '#f8b84e', 'rgba(255,255,255,.7)');
+          const isDestination = currentQuestDestination?.id === c.id;
+          if (!done && !isDestination) dot(c.x, c.y, 2.2, 'rgba(248, 184, 78, .28)');
+          if (isDestination) {
+            dot(c.x, c.y, 4.2, '#f8b84e', 'rgba(255,255,255,.85)');
+            miniCtx.beginPath();
+            miniCtx.arc(ox + c.x * scale, oy + c.y * scale, 7, 0, Math.PI * 2);
+            miniCtx.strokeStyle = 'rgba(248, 184, 78, .28)';
+            miniCtx.lineWidth = 1.5;
+            miniCtx.stroke();
+          }
         });
+
+        // Draw the same route on the mini-map as a quiet secondary cue. The world-space
+        // glowing path remains the primary guide; this line simply confirms the destination.
+        if (currentQuestDestination) {
+          const route = getQuestPath(currentQuestDestination);
+          if (route.length > 1) {
+            miniCtx.save();
+            miniCtx.beginPath();
+            route.forEach((point, index) => {
+              const sx = ox + point.x * scale;
+              const sy = oy + point.y * scale;
+              if (index === 0) miniCtx.moveTo(sx, sy);
+              else miniCtx.lineTo(sx, sy);
+            });
+            miniCtx.strokeStyle = 'rgba(248, 184, 78, .48)';
+            miniCtx.lineWidth = Math.max(1.2, Math.min(2.2, scale * 0.22));
+            miniCtx.setLineDash([Math.max(2, scale * 0.7), Math.max(2.5, scale * 1.1)]);
+            miniCtx.stroke();
+            miniCtx.restore();
+          }
+        }
+
         guides.forEach((g) => dot(g.x, g.y, 2.8, '#67cdd1'));
         notes.forEach((n) => { if (!collectedNotes.has(n.id)) dot(n.x, n.y, 2.1, '#d8b4fe'); });
         gates.forEach((g) => dot(g.x, g.y, 3.1, '#fb7185', 'rgba(255,255,255,.7)'));
@@ -6685,6 +6743,111 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         });
       };
       checkGateUnlock();
+
+      // Dynamic in-world quest guidance. The route is calculated only when the destination,
+      // player navigation cell, or opened-gate state changes — never every render frame.
+      let questPath: { x: number; y: number }[] = [];
+      let questPathKey = '';
+      let questDestinationId: string | null = null;
+
+      const getWalkableCell = (x: number, y: number) =>
+        x >= 0 && x < mapWidth && y >= 0 && y < mapHeight && map[y]?.[x] === 0;
+
+      const getQuestPath = (destination: { x: number; y: number; id: string } | null) => {
+        if (!destination) {
+          questPath = [];
+          questPathKey = 'none';
+          questDestinationId = null;
+          return questPath;
+        }
+
+        const startX = Math.max(0, Math.min(mapWidth - 1, Math.floor(playerX)));
+        const startY = Math.max(0, Math.min(mapHeight - 1, Math.floor(playerY)));
+        const goalX = Math.max(0, Math.min(mapWidth - 1, Math.floor(destination.x)));
+        const goalY = Math.max(0, Math.min(mapHeight - 1, Math.floor(destination.y)));
+        const key = `${destination.id}:${startX},${startY}:${goalX},${goalY}:${gates.filter((gate) => gate.open).length}`;
+
+        if (key === questPathKey && questDestinationId === destination.id) return questPath;
+
+        questPathKey = key;
+        questDestinationId = destination.id;
+        questPath = [];
+
+        // The destination itself is always on an open tile. If a future map edit ever puts
+        // an NPC on a blocked tile, fail safely rather than drawing a path through a wall.
+        if (!getWalkableCell(goalX, goalY)) return questPath;
+
+        const startKey = `${startX},${startY}`;
+        const goalKey = `${goalX},${goalY}`;
+        const queue: { x: number; y: number }[] = [{ x: startX, y: startY }];
+        const cameFrom = new Map<string, string | null>([[startKey, null]]);
+        const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
+
+        // BFS is sufficient for this compact campus grid and guarantees the route stays
+        // inside the same walkable cells used by the player's collision system.
+        for (let head = 0; head < queue.length; head++) {
+          const current = queue[head];
+          const currentKey = `${current.x},${current.y}`;
+          if (currentKey === goalKey) break;
+
+          for (const [dx, dy] of dirs) {
+            const nx = current.x + dx;
+            const ny = current.y + dy;
+            if (!getWalkableCell(nx, ny)) continue;
+            const nextKey = `${nx},${ny}`;
+            if (cameFrom.has(nextKey)) continue;
+            cameFrom.set(nextKey, currentKey);
+            queue.push({ x: nx, y: ny });
+          }
+        }
+
+        if (!cameFrom.has(goalKey)) {
+          // If the exact NPC tile is temporarily unreachable, guide to the closest
+          // reachable tile around it instead of drawing an impossible route.
+          let bestKey: string | null = null;
+          let bestDist = Infinity;
+          for (const [cellKey] of cameFrom) {
+            const [cx, cy] = cellKey.split(',').map(Number);
+            const d = (cx - goalX) ** 2 + (cy - goalY) ** 2;
+            if (d < bestDist) { bestDist = d; bestKey = cellKey; }
+          }
+          if (!bestKey) return questPath;
+          let cursor: string | null = bestKey;
+          const fallback: { x: number; y: number }[] = [];
+          while (cursor) {
+            const [cx, cy] = cursor.split(',').map(Number);
+            fallback.push({ x: cx + 0.5, y: cy + 0.5 });
+            cursor = cameFrom.get(cursor) ?? null;
+          }
+          questPath = fallback.reverse();
+          return questPath;
+        }
+
+        const reversed: { x: number; y: number }[] = [];
+        let cursor: string | null = goalKey;
+        while (cursor) {
+          const [cx, cy] = cursor.split(',').map(Number);
+          reversed.push({ x: cx + 0.5, y: cy + 0.5 });
+          cursor = cameFrom.get(cursor) ?? null;
+        }
+
+        // Replace the final cell center with the NPC's actual position so the guide ends
+        // exactly at the quest-giver rather than stopping at the middle of its tile.
+        const route = reversed.reverse();
+        if (route.length > 0) route[route.length - 1] = { x: destination.x, y: destination.y };
+
+        // Collapse every few grid cells into a slightly longer segment. This keeps the
+        // visual calm and prevents dozens of tiny glowing marks on mobile.
+        const simplified: { x: number; y: number }[] = [];
+        const stride = 2;
+        for (let i = 0; i < route.length; i += stride) simplified.push(route[i]);
+        const last = route[route.length - 1];
+        if (last && (!simplified.length || simplified[simplified.length - 1].x !== last.x || simplified[simplified.length - 1].y !== last.y)) {
+          simplified.push(last);
+        }
+        questPath = simplified;
+        return questPath;
+      };
 
       // Holographic discovery queue: a quest signal gets a tappable "investigate" CTA
       // that jumps straight into the quest dialogue; a hint (note/guide) just gets an
@@ -7050,143 +7213,243 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
       const joyCleanups: Array<() => void> = [];
       if (isMobile) {
-        // --- Left stick: compact fixed MOBA-style movement pad. Touching anywhere on the
-        // pad recenters the thumb to the pad's middle and drags relative to that center,
-        // so it always feels the same regardless of where the thumb finger lands.
+        // Mobile controls use POINTER EVENTS so two independent fingers can control two
+        // independent zones at the same time:
+        //   LEFT hand  = movement joystick
+        //   RIGHT hand = camera/look drag
+        // A pinch zoom is only recognized when BOTH fingers are inside the right look zone.
+        // Therefore a left-thumb + right-finger gesture can NEVER accidentally zoom.
         const leftZone = leftZoneRef.current;
         const leftThumb = leftThumbRef.current;
+
         if (leftZone && leftThumb) {
           const PAD = 116, THUMB = 42, CENTER = PAD / 2, HALF_THUMB = THUMB / 2;
           const MAX_DIST = CENTER - HALF_THUMB - 4;
           const restTransform = `translate(${CENTER - HALF_THUMB}px, ${CENTER - HALF_THUMB}px)`;
           leftThumb.style.transform = restTransform;
 
-          const lStart = (e: TouchEvent) => {
+          const lStart = (e: PointerEvent) => {
+            if (e.pointerType === 'mouse') return;
             e.preventDefault();
-            const touch = e.changedTouches[0];
-            leftJoy.active = true; leftJoy.id = touch.identifier; leftJoy.dx = 0; leftJoy.dy = 0;
+            leftZone.setPointerCapture?.(e.pointerId);
+            leftJoy.active = true;
+            leftJoy.id = e.pointerId;
+            leftJoy.dx = 0;
+            leftJoy.dy = 0;
           };
-          const lMove = (e: TouchEvent) => {
-            for (let i = 0; i < e.changedTouches.length; i++) {
-              const touch = e.changedTouches[i];
-              if (touch.identifier === leftJoy.id) {
-                e.preventDefault();
-                const rect = leftZone.getBoundingClientRect();
-                let dx = touch.clientX - rect.left - CENTER;
-                let dy = touch.clientY - rect.top - CENTER;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist > MAX_DIST) { dx = (dx / dist) * MAX_DIST; dy = (dy / dist) * MAX_DIST; }
-                leftJoy.dx = dx / MAX_DIST; leftJoy.dy = dy / MAX_DIST;
-                leftThumb.style.transform = `translate(${CENTER - HALF_THUMB + dx}px, ${CENTER - HALF_THUMB + dy}px)`;
-              }
+
+          const lMove = (e: PointerEvent) => {
+            if (e.pointerId !== leftJoy.id) return;
+            e.preventDefault();
+            const rect = leftZone.getBoundingClientRect();
+            let dx = e.clientX - rect.left - CENTER;
+            let dy = e.clientY - rect.top - CENTER;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > MAX_DIST) {
+              dx = (dx / dist) * MAX_DIST;
+              dy = (dy / dist) * MAX_DIST;
             }
+            leftJoy.dx = dx / MAX_DIST;
+            leftJoy.dy = dy / MAX_DIST;
+            leftThumb.style.transform = `translate(${CENTER - HALF_THUMB + dx}px, ${CENTER - HALF_THUMB + dy}px)`;
           };
-          const lEnd = (e: TouchEvent) => {
-            for (let i = 0; i < e.changedTouches.length; i++) {
-              if (e.changedTouches[i].identifier === leftJoy.id) {
-                leftJoy.active = false; leftJoy.id = null; leftJoy.dx = 0; leftJoy.dy = 0;
-                leftThumb.style.transform = restTransform;
-              }
-            }
+
+          const lEnd = (e: PointerEvent) => {
+            if (e.pointerId !== leftJoy.id) return;
+            leftJoy.active = false;
+            leftJoy.id = null;
+            leftJoy.dx = 0;
+            leftJoy.dy = 0;
+            leftThumb.style.transform = restTransform;
+            try { leftZone.releasePointerCapture?.(e.pointerId); } catch { /* already released */ }
           };
-          leftZone.addEventListener('touchstart', lStart, { passive: false });
-          leftZone.addEventListener('touchmove', lMove, { passive: false });
-          leftZone.addEventListener('touchend', lEnd);
-          leftZone.addEventListener('touchcancel', lEnd);
+
+          leftZone.addEventListener('pointerdown', lStart, { passive: false });
+          leftZone.addEventListener('pointermove', lMove, { passive: false });
+          leftZone.addEventListener('pointerup', lEnd);
+          leftZone.addEventListener('pointercancel', lEnd);
+          leftZone.addEventListener('lostpointercapture', lEnd);
+
           joyCleanups.push(() => {
-            leftZone.removeEventListener('touchstart', lStart); leftZone.removeEventListener('touchmove', lMove);
-            leftZone.removeEventListener('touchend', lEnd); leftZone.removeEventListener('touchcancel', lEnd);
+            leftZone.removeEventListener('pointerdown', lStart);
+            leftZone.removeEventListener('pointermove', lMove);
+            leftZone.removeEventListener('pointerup', lEnd);
+            leftZone.removeEventListener('pointercancel', lEnd);
+            leftZone.removeEventListener('lostpointercapture', lEnd);
           });
         }
 
-        // --- Free look: drag anywhere on screen (outside the movement pad) to pan/rotate the
-        // camera. We accumulate raw per-event finger delta (touchLookDX) exactly like the
-        // desktop mouselook accumulates movementX, and drain it once per rendered frame in
-        // gameLoop — so response tracks the finger 1:1 with no smoothing/inertia lag, and
-        // fast vs. slow swipes stay proportional instead of clamping at a joystick's edge.
-        // This same layer doubles as the mobile tap-to-interact surface: a touch that ends
-        // close to where it started, quickly, is treated as a tap rather than a look-drag
-        // and hit-tested against this frame's NPC screen hitboxes — mirroring the desktop
-        // click behavior so mobile never gets a proximity-triggered prompt either.
+        // --- RIGHT-HAND CAMERA LOOK / PINCH ZOOM ---------------------------------------------
+        // This is intentionally pointer-based instead of TouchEvent-based. TouchEvent code
+        // sees the entire page's touch list, so the old implementation interpreted
+        // [left joystick finger + right look finger] as a two-finger pinch and zoomed while
+        // the player was simply walking and looking at the same time.
+        //
+        // With Pointer Events, only pointers that actually land on this right-side look layer
+        // are tracked here. The joystick lives in a separate higher-z-index element, so its
+        // pointer is invisible to this map. Two right-side pointers = pinch. One right-side
+        // pointer = camera look. Left + right = movement + look simultaneously, with NO zoom.
         const lookLayer = lookLayerRef.current;
         if (lookLayer) {
-          const lookTouch = {
-            id: null as number | null,
-            lastX: 0, lastY: 0, startX: 0, startY: 0,
-            startTime: 0, moved: 0,
-            pinchActive: false,
-            pinchLastDistance: 0,
+          type LookPointer = {
+            x: number;
+            y: number;
+            startX: number;
+            startY: number;
+            startTime: number;
+            moved: number;
           };
-          const getTwoTouchDistance = (touches: TouchList) => {
-            if (touches.length < 2) return 0;
-            const a = touches[0], b = touches[1];
-            return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+
+          const lookPointers = new Map<number, LookPointer>();
+          let pinchLastDistance = 0;
+          let wasPinching = false;
+
+          const getLookPointers = () => Array.from(lookPointers.values());
+          const getPinchDistance = () => {
+            const points = getLookPointers();
+            if (points.length < 2) return 0;
+            return Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
           };
-          const lookStart = (e: TouchEvent) => {
-            if (e.touches.length >= 2) {
-              lookTouch.pinchActive = true;
-              lookTouch.pinchLastDistance = getTwoTouchDistance(e.touches);
-              lookTouch.moved = 999;
-              return;
+
+          const resetRemainingLookPointer = () => {
+            const entry = lookPointers.entries().next().value as [number, LookPointer] | undefined;
+            if (!entry) return;
+            const [, pointer] = entry;
+            pointer.x = pointer.startX = pointer.x;
+            pointer.y = pointer.startY = pointer.y;
+            pointer.startTime = performance.now();
+            pointer.moved = 999;
+          };
+
+          const lookStart = (e: PointerEvent) => {
+            if (e.pointerType === 'mouse') return;
+            e.preventDefault();
+            lookLayer.setPointerCapture?.(e.pointerId);
+
+            lookPointers.set(e.pointerId, {
+              x: e.clientX,
+              y: e.clientY,
+              startX: e.clientX,
+              startY: e.clientY,
+              startTime: performance.now(),
+              moved: 0,
+            });
+
+            if (lookPointers.size >= 2) {
+              pinchLastDistance = getPinchDistance();
+              wasPinching = true;
+              touchLookDX = 0;
             }
-            if (lookTouch.id !== null) return;
-            const touch = e.changedTouches[0];
-            lookTouch.id = touch.identifier;
-            lookTouch.lastX = touch.clientX; lookTouch.lastY = touch.clientY;
-            lookTouch.startX = touch.clientX; lookTouch.startY = touch.clientY;
-            lookTouch.startTime = performance.now();
-            lookTouch.moved = 0;
           };
-          const lookMove = (e: TouchEvent) => {
-            if (e.touches.length >= 2 || lookTouch.pinchActive) {
-              if (e.touches.length >= 2) {
-                e.preventDefault();
-                const distance = getTwoTouchDistance(e.touches);
-                if (lookTouch.pinchLastDistance > 0 && distance > 0) {
-                  setCameraZoomFromInput((lookTouch.pinchLastDistance - distance) * 0.055);
+
+
+          // The movement above needs the previous coordinate before it is overwritten, so
+          // use a corrected single-pointer handler that keeps the old position explicitly.
+          const correctedLookMove = (e: PointerEvent) => {
+            if (e.pointerType === 'mouse') return;
+            const pointer = lookPointers.get(e.pointerId);
+            if (!pointer) return;
+
+            e.preventDefault();
+            const prevX = pointer.x;
+            const prevY = pointer.y;
+            pointer.x = e.clientX;
+            pointer.y = e.clientY;
+            pointer.moved += Math.abs(e.clientX - prevX) + Math.abs(e.clientY - prevY);
+
+            if (lookPointers.size >= 2) {
+              const distance = getPinchDistance();
+              if (pinchLastDistance > 0 && distance > 0) {
+                const distanceDelta = pinchLastDistance - distance;
+                if (Math.abs(distanceDelta) >= 0.35) {
+                  setCameraZoomFromInput(distanceDelta * 0.055);
                 }
-                lookTouch.pinchLastDistance = distance;
               }
+              pinchLastDistance = distance;
+              wasPinching = true;
+              touchLookDX = 0;
               return;
             }
-            for (let i = 0; i < e.changedTouches.length; i++) {
-              const touch = e.changedTouches[i];
-              if (touch.identifier === lookTouch.id) {
-                e.preventDefault();
-                touchLookDX += touch.clientX - lookTouch.lastX;
-                lookTouch.moved += Math.abs(touch.clientX - lookTouch.lastX) + Math.abs(touch.clientY - lookTouch.lastY);
-                lookTouch.lastX = touch.clientX; lookTouch.lastY = touch.clientY;
-              }
-            }
-          };
-          const lookEnd = (e: TouchEvent) => {
-            if (e.touches.length < 2 && lookTouch.pinchActive) {
-              lookTouch.pinchActive = false;
-              lookTouch.pinchLastDistance = 0;
-              lookTouch.id = null;
+
+            if (wasPinching) {
+              // Pinch just ended: re-baseline the remaining finger so it can resume
+              // camera look without a sudden jump.
+              wasPinching = false;
+              pointer.startX = pointer.x;
+              pointer.startY = pointer.y;
+              pointer.startTime = performance.now();
+              pointer.moved = 999;
               return;
             }
-            for (let i = 0; i < e.changedTouches.length; i++) {
-              if (e.changedTouches[i].identifier === lookTouch.id) {
-                const touch = e.changedTouches[i];
-                const elapsed = performance.now() - lookTouch.startTime;
-                if (roamingActive && elapsed < 350 && lookTouch.moved < 14) {
-                  const rect = canvas.getBoundingClientRect();
-                  const scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
-                  const hit = hitTestAt((touch.clientX - rect.left) * scaleX, (touch.clientY - rect.top) * scaleY);
-                  if (hit) interact(hit.target, hit.worldX, hit.worldY);
-                }
-                lookTouch.id = null;
-              }
-            }
+
+            // One right-hand finger = horizontal camera rotation. Vertical movement is
+            // intentionally ignored because the existing camera is yaw-based.
+            touchLookDX += e.clientX - prevX;
           };
-          lookLayer.addEventListener('touchstart', lookStart, { passive: true });
-          lookLayer.addEventListener('touchmove', lookMove, { passive: false });
-          lookLayer.addEventListener('touchend', lookEnd);
-          lookLayer.addEventListener('touchcancel', lookEnd);
+
+          const lookEnd = (e: PointerEvent) => {
+            if (e.pointerType === 'mouse') return;
+            const pointer = lookPointers.get(e.pointerId);
+            if (!pointer) return;
+
+            const wasSinglePointer = lookPointers.size === 1 && !wasPinching;
+            const elapsed = performance.now() - pointer.startTime;
+            const moved = pointer.moved;
+            const clientX = e.clientX;
+            const clientY = e.clientY;
+
+            lookPointers.delete(e.pointerId);
+
+            if (lookPointers.size >= 2) {
+              pinchLastDistance = getPinchDistance();
+              wasPinching = true;
+            } else if (lookPointers.size === 1) {
+              // Keep the remaining right-hand finger, but don't turn its next movement into
+              // a camera jump after the pinch gesture.
+              pinchLastDistance = 0;
+              wasPinching = true;
+              resetRemainingLookPointer();
+            } else {
+              pinchLastDistance = 0;
+              wasPinching = false;
+            }
+
+            if (wasSinglePointer && roamingActive && elapsed < 350 && moved < 14) {
+              const rect = canvas.getBoundingClientRect();
+              const scaleX = canvas.width / rect.width;
+              const scaleY = canvas.height / rect.height;
+              const hit = hitTestAt(
+                (clientX - rect.left) * scaleX,
+                (clientY - rect.top) * scaleY
+              );
+              if (hit) interact(hit.target, hit.worldX, hit.worldY);
+            }
+
+            try { lookLayer.releasePointerCapture?.(e.pointerId); } catch { /* already released */ }
+          };
+
+          const lookCancel = (e: PointerEvent) => {
+            if (e.pointerType === 'mouse') return;
+            lookPointers.delete(e.pointerId);
+            pinchLastDistance = lookPointers.size >= 2 ? getPinchDistance() : 0;
+            wasPinching = lookPointers.size > 0;
+            if (lookPointers.size === 1) resetRemainingLookPointer();
+            try { lookLayer.releasePointerCapture?.(e.pointerId); } catch { /* already released */ }
+          };
+
+          lookLayer.addEventListener('pointerdown', lookStart, { passive: false });
+          lookLayer.addEventListener('pointermove', correctedLookMove, { passive: false });
+          lookLayer.addEventListener('pointerup', lookEnd);
+          lookLayer.addEventListener('pointercancel', lookCancel);
+
           joyCleanups.push(() => {
-            lookLayer.removeEventListener('touchstart', lookStart); lookLayer.removeEventListener('touchmove', lookMove);
-            lookLayer.removeEventListener('touchend', lookEnd); lookLayer.removeEventListener('touchcancel', lookEnd);
+            lookLayer.removeEventListener('pointerdown', lookStart);
+            lookLayer.removeEventListener('pointermove', correctedLookMove);
+            lookLayer.removeEventListener('pointerup', lookEnd);
+            lookLayer.removeEventListener('pointercancel', lookCancel);
+            lookPointers.clear();
+            pinchLastDistance = 0;
+            wasPinching = false;
           });
         }
       }
@@ -7926,6 +8189,114 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             },
           });
         });
+
+        // Primary world-space wayfinding is painted after the floor/walls but before sprites,
+        // so the route feels embedded in the campus and NPCs can naturally stand above it.
+        // Defined here (inside render) rather than at the outer effect scope so it can close
+        // over this frame's camera/projection state (camX, camY, w, h, zBuffer, etc.) instead
+        // of stale or undefined outer-scope values.
+        const drawQuestWayfinding = (wfNow: number, destination: (typeof challengers)[number] | null) => {
+          if (!destination) return;
+
+          const route = getQuestPath(destination);
+          if (route.length < 2) return;
+
+          const projectFloorPoint = (sx: number, sy: number) => {
+            const dx = sx - camX;
+            const dy = sy - camY;
+            const transformX = Math.cos(playerAngle) * dx + Math.sin(playerAngle) * dy;
+            const transformY = -Math.sin(playerAngle) * dx + Math.cos(playerAngle) * dy;
+            if (transformX <= 0.15 || transformX > fogDistance + 4) return null;
+            const screenX = (w / 2) * (1 + (transformY / transformX) / halfFovTan);
+            if (screenX < -80 || screenX > w + 80) return null;
+            const size = Math.abs(h / transformX);
+            const groundY = horizonY + currentCameraHeight * size;
+            const rayIdx = Math.floor((screenX / w) * numRays);
+            if (rayIdx < 0 || rayIdx >= numRays) return null;
+            // The path is painted after the walls, so only draw a point when the floor point
+            // itself is in front of the wall depth at that screen column.
+            if (transformX >= zBuffer[rayIdx] - 0.03) return null;
+            return { screenX, groundY, depth: transformX, size };
+          };
+
+          const projected = route.map((point) => projectFloorPoint(point.x, point.y));
+          const visibleSegments: { a: NonNullable<ReturnType<typeof projectFloorPoint>>; b: NonNullable<ReturnType<typeof projectFloorPoint>> }[] = [];
+          for (let i = 1; i < projected.length; i++) {
+            const a = projected[i - 1], b = projected[i];
+            if (a && b) visibleSegments.push({ a, b });
+          }
+
+          const pulse = 0.68 + Math.sin(wfNow * 0.004) * 0.16;
+          ctx!.save();
+          ctx!.lineCap = 'round';
+          ctx!.lineJoin = 'round';
+
+          // Soft halo.
+          for (const segment of visibleSegments) {
+            const depth = Math.max(0.5, (segment.a.depth + segment.b.depth) * 0.5);
+            const width = Math.max(3, Math.min(16, h / depth * 0.035));
+            ctx!.strokeStyle = `rgba(248, 184, 78, ${0.12 * pulse})`;
+            ctx!.lineWidth = width * 3.2;
+            ctx!.beginPath();
+            ctx!.moveTo(segment.a.screenX, segment.a.groundY - width * 0.25);
+            ctx!.lineTo(segment.b.screenX, segment.b.groundY - width * 0.25);
+            ctx!.stroke();
+          }
+
+          // Main guide: warm, compact, dashed segments rather than a giant continuous neon road.
+          for (const segment of visibleSegments) {
+            const depth = Math.max(0.5, (segment.a.depth + segment.b.depth) * 0.5);
+            const width = Math.max(1.6, Math.min(7, h / depth * 0.017));
+            ctx!.strokeStyle = `rgba(248, 184, 78, ${0.58 * pulse})`;
+            ctx!.lineWidth = width;
+            ctx!.setLineDash([Math.max(4, width * 2.6), Math.max(5, width * 3.8)]);
+            ctx!.beginPath();
+            ctx!.moveTo(segment.a.screenX, segment.a.groundY - width * 0.3);
+            ctx!.lineTo(segment.b.screenX, segment.b.groundY - width * 0.3);
+            ctx!.stroke();
+          }
+          ctx!.setLineDash([]);
+
+          // Small pulsing destination beacon. It is intentionally understated and only appears
+          // when the destination is visible in the current camera view.
+          const target = projectFloorPoint(destination.x, destination.y);
+          if (target) {
+            const radius = Math.max(5, Math.min(18, target.size * 0.11));
+            ctx!.globalAlpha = 0.72 + Math.sin(wfNow * 0.005) * 0.18;
+            ctx!.strokeStyle = '#f8b84e';
+            ctx!.lineWidth = Math.max(1.2, radius * 0.12);
+            ctx!.beginPath();
+            ctx!.arc(target.screenX, target.groundY - radius * 0.35, radius, 0, Math.PI * 2);
+            ctx!.stroke();
+            ctx!.beginPath();
+            ctx!.arc(target.screenX, target.groundY - radius * 0.35, radius * 0.42, 0, Math.PI * 2);
+            ctx!.fillStyle = 'rgba(248, 184, 78, .72)';
+            ctx!.fill();
+            ctx!.globalAlpha = 1;
+
+            const label = `${QUEST_TIERS[getTierIndexForChallenger(destination.id)]?.name.toUpperCase() ?? 'NEXT'} · QUEST`;
+            const fontSize = Math.max(10, Math.min(15, h * 0.018));
+            ctx!.font = `700 ${fontSize}px Inter, system-ui, sans-serif`;
+            const labelW = ctx!.measureText(label).width + 16;
+            const labelX = Math.max(8, Math.min(w - labelW - 8, target.screenX - labelW / 2));
+            const labelY = Math.max(18, target.groundY - radius - fontSize * 1.8);
+            ctx!.fillStyle = 'rgba(7, 10, 18, .82)';
+            ctx!.fillRect(labelX, labelY - fontSize, labelW, fontSize + 8);
+            ctx!.strokeStyle = 'rgba(248, 184, 78, .58)';
+            ctx!.lineWidth = 1;
+            ctx!.strokeRect(labelX, labelY - fontSize, labelW, fontSize + 8);
+            ctx!.fillStyle = '#f8e7c2';
+            ctx!.textAlign = 'center';
+            ctx!.textBaseline = 'middle';
+            ctx!.fillText(label, labelX + labelW / 2, labelY - fontSize / 2 + 2);
+            ctx!.textAlign = 'left';
+            ctx!.textBaseline = 'alphabetic';
+          }
+          ctx!.restore();
+        };
+
+        const currentQuestDestination = getCurrentQuestDestination(defeatedIdsRef.current);
+        drawQuestWayfinding(now, currentQuestDestination);
 
         // Third-person view: render the player's own body, seen from behind, using the same
         // billboard projection math every other character uses for screen position/size.
@@ -9567,7 +9938,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       },
       minimap: {
         title: 'Mini-map',
-        body: 'The mini-map shows the campus layout and helps you stay oriented. Your player marker shows where you are and the direction you are facing.',
+        body: 'The mini-map shows the campus layout, your facing direction, and any undefeated quest NPCs as faint gold dots. Use it to explore and find them yourself.',
         hint: 'Watch the map while you move',
         icon: <MapPin size={16} />,
         mobileLabel: isTouchDevice ? 'MINI-MAP · ORIENTATION' : undefined,
@@ -9577,9 +9948,9 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       quests: {
         title: 'Quests · Find the NPC',
         body: isTouchDevice
-          ? 'Start with the active quest. On the mini-map, the gold dots mark quest NPCs. Walk toward the gold dot, then look for that NPC in the world.'
-          : 'Your active quest tells you what to do next. Use the objective marker and mini-map to locate the correct quest-giver.',
-        hint: isTouchDevice ? 'Gold dot = quest NPC · Follow it on the mini-map' : 'Follow the active objective marker',
+          ? 'Explore campus to find and challenge the NPCs on the mini-map yourself. Once you clear out a whole tier, a glowing gold path appears briefly to walk you into the next unlocked area.'
+          : 'Explore campus to find and challenge the NPCs marked on the mini-map. Once you finish a whole tier, a glowing gold path will guide you into the next unlocked area.',
+        hint: isTouchDevice ? 'Gold dots = quest NPCs · Glowing path only appears between tiers' : 'Gold dots mark quest NPCs · path guides you between tiers',
         icon: <BookOpen size={16} />,
         mobileLabel: isTouchDevice ? 'GOLD DOTS · QUEST NPCS' : undefined,
         mobileArrow: isTouchDevice ? 'up' : undefined,
@@ -9820,9 +10191,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // (reset whenever the player backs out to the quest list), so it offers the tutorial
     // again next time they explore instead of nagging mid-session.
     const tutorialSeenIntroRef = useRef(false);
-    // True while the tutorial is waiting on a battle it triggered to resolve, so other
-    // effects can tell "mid-tutorial-battle" apart from an ordinary battle.
-    const tutorialPendingBattleRef = useRef(false);
 
     // Keep the onboarding flag synchronized with the currently signed-in account. This is
     // intentionally keyed to Firestore account data rather than localStorage so signing
@@ -9834,7 +10202,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const completed = accountData.game.tutorialCompleted ?? true;
       setTutorialCompletedState(completed);
       tutorialSeenIntroRef.current = false;
-      tutorialPendingBattleRef.current = false;
       setTutorialReplay(false);
       // Do not open the tutorial from account-data hydration itself. The first-entry
       // decision is made only when questStage actually reaches `roaming`, which means
