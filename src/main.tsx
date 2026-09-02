@@ -2,7 +2,7 @@ import { Component, useEffect, useLayoutEffect, useRef, useState, type ErrorInfo
 import { createRoot } from 'react-dom/client';
 import {
   Bell, BookOpen, Brain, Check, ChevronRight, CircleUserRound, Clock, Coins, Compass, Crosshair, Eye, EyeOff, Flame, Gem,
-  KeyRound, LogOut, MapPin, Package, Pause, Play, RotateCcw, ShieldCheck, Shirt, ShoppingBag, Sparkles, Swords, Timer, Trophy,
+  KeyRound, LogOut, MapPin, Package, Pause, Play, RotateCcw, ShieldCheck, Shirt, ShoppingBag, Settings, Sparkles, Swords, Timer, Trophy,
   UserRound, X, Zap,
 } from 'lucide-react';
 import { auth, db } from "./firebase";
@@ -3695,14 +3695,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
        match it, see align-self below). This is the only thing that changed: same
        aspect ratio, same drawMiniMap draw logic, same markers (their pixel sizes are
        fixed constants, not derived from the panel's size — see the dot(...) calls
-       and player-triangle markerSize in drawMiniMap, both untouched). Because tile
+       and player marker in drawMiniMap, both untouched). Because tile
        pitch there is still computed as innerW / mapWidth from this panel's own CSS
        width, shrinking just this width is what makes every wall cell and grid line
        smaller and more tightly packed — a smaller, more minimal radar, nothing else.
        align-self: flex-start now applies at every width, not just the two narrow
        breakpoints below, so it never grows even if the chip row above is very wide. */
-    width: 96px;
-    max-width: 96px;
+    width: 108px;
+    max-width: 108px;
     align-self: flex-start;
     aspect-ratio: 2.3 / 1; /* short, wide strip — never stretches tall — the canvas
                                always fills this exactly; see the player-tracked
@@ -3721,6 +3721,138 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     display: block;
     width: 100%;
     height: 100%;
+  }
+  .campus-map-controls {
+    display: flex;
+    align-items: flex-start;
+    gap: 5px;
+    align-self: flex-start;
+    position: relative;
+    z-index: 12;
+    pointer-events: auto;
+  }
+  .campus-settings-btn {
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 50%;
+    background: rgba(15, 20, 36, .72);
+    color: rgba(244, 240, 231, .62);
+    box-shadow: 0 4px 10px rgba(0,0,0,.22);
+    backdrop-filter: blur(7px);
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: background .16s ease, color .16s ease, border-color .16s ease, transform .16s ease;
+  }
+  .campus-settings-btn:hover, .campus-settings-btn[aria-expanded="true"] {
+    color: var(--amber);
+    border-color: rgba(248,184,78,.34);
+    background: rgba(20, 27, 45, .95);
+  }
+  .campus-settings-btn:active { transform: scale(.96); }
+  .campus-settings-panel {
+    position: absolute;
+    top: 35px;
+    left: 0;
+    width: min(260px, calc(100vw - 24px));
+    padding: 11px;
+    border: 1px solid rgba(103,205,209,.20);
+    border-radius: 12px;
+    background: linear-gradient(180deg, rgba(20,27,45,.97), rgba(12,17,31,.97));
+    box-shadow: 0 16px 34px rgba(0,0,0,.48), 0 0 0 1px rgba(255,255,255,.025) inset;
+    backdrop-filter: blur(14px);
+    color: #f4f0e7;
+    pointer-events: auto;
+  }
+  .campus-settings-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 9px;
+  }
+  .campus-settings-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .04em;
+  }
+  .campus-settings-close {
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: rgba(244,240,231,.52);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .campus-settings-close:hover { background: rgba(255,255,255,.05); color: #f4f0e7; }
+  .campus-settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 0;
+    border-top: 1px solid rgba(255,255,255,.055);
+  }
+  .campus-settings-row:first-of-type { border-top: none; padding-top: 2px; }
+  .campus-settings-copy { min-width: 0; }
+  .campus-settings-copy strong { display: block; font-size: 10.5px; font-weight: 650; }
+  .campus-settings-copy span { display: block; margin-top: 2px; font-size: 8.5px; line-height: 1.35; color: rgba(244,240,231,.54); }
+  .campus-settings-action {
+    flex: 0 0 auto;
+    min-height: 29px;
+    padding: 6px 9px;
+    border: 1px solid rgba(103,205,209,.18);
+    border-radius: 7px;
+    background: rgba(103,205,209,.07);
+    color: var(--cyan);
+    font: 9px var(--app-font-mono);
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .campus-settings-action:hover { background: rgba(103,205,209,.12); }
+  .campus-sensitivity-value {
+    color: var(--amber);
+    font: 9px var(--app-font-mono);
+    white-space: nowrap;
+  }
+  .campus-sensitivity-slider {
+    width: 100%;
+    margin: 7px 0 1px;
+    accent-color: var(--amber);
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .campus-sensitivity-scale {
+    display: flex;
+    justify-content: space-between;
+    color: rgba(244,240,231,.38);
+    font: 7.5px var(--app-font-mono);
+    letter-spacing: .03em;
+  }
+  @media (max-width: 700px) {
+    .campus-map-controls { gap: 4px; }
+    .campus-minimap { width: 68px; max-width: 68px; }
+    .campus-settings-btn { width: 22px; height: 22px; flex-basis: 22px; border-radius: 50%; }
+    .campus-settings-btn svg { width: 11px; height: 11px; }
+    .campus-settings-panel { top: 27px; width: min(250px, calc(100vw - 18px)); padding: 10px; }
+  }
+  @media (max-width: 430px) {
+    .campus-map-controls { gap: 3px; }
+    .campus-minimap { width: 56px; max-width: 56px; }
+    .campus-settings-btn { width: 20px; height: 20px; flex-basis: 20px; border-radius: 50%; }
+    .campus-settings-btn svg { width: 10px; height: 10px; }
+    .campus-settings-panel { top: 24px; width: min(238px, calc(100vw - 12px)); padding: 9px; border-radius: 10px; }
+    .campus-settings-copy strong { font-size: 9.5px; }
+    .campus-settings-copy span { font-size: 8px; }
+    .campus-settings-action { min-height: 27px; padding: 5px 8px; font-size: 8px; }
   }
 
   /* Chip and exit-button share one minimal visual language: no border, small
@@ -3762,7 +3894,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
        match the chip row's width — keeps the same short, wide proportions as
        desktop (never a tall square) so it stays a tight, unobtrusive HUD element
        that takes up very little screen space. */
-    .campus-minimap { width: 60px; max-width: 60px; aspect-ratio: 2.3 / 1; border-radius: 6px; align-self: flex-start; }
+    .campus-minimap { width: 68px; max-width: 68px; aspect-ratio: 2.3 / 1; border-radius: 6px; align-self: flex-start; }
     .campus-exit-btn { padding: 4px 6px; font-size: 8px; border-radius: 5px; gap: 3px; }
   }
   @media (max-width: 430px) {
@@ -3770,7 +3902,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     .campus-hud-left { max-width: calc(100% - 48px); gap: 3px; }
     .campus-hud-row { gap: 3px; }
     .campus-hud-row .campus-chip { padding: 2px 4px; font-size: 6px; border-radius: 4px; }
-    .campus-minimap { width: 48px; max-width: 48px; aspect-ratio: 2.3 / 1; border-radius: 5px; align-self: flex-start; }
+    .campus-minimap { width: 56px; max-width: 56px; aspect-ratio: 2.3 / 1; border-radius: 5px; align-self: flex-start; }
     .campus-exit-btn { padding: 3px 5px; font-size: 7px; border-radius: 4px; gap: 2px; }
   }
 
@@ -4296,6 +4428,159 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   @supports not (height: 100dvh) {
     .main-area.main-area--immersive { height: 100vh; }
   }
+
+  /* =====================================================================================
+   * FIRST-TIME CAMPUS TUTORIAL (onboarding overlay)
+   * Purely additive UI layer: a spotlight ring around whichever control is being taught,
+   * plus a small instructional card. Rendered fixed/pointer-events:none at the App root
+   * so it floats above the immersive campus/battle screens without altering their DOM,
+   * layout, or event handling — every real control stays fully clickable/draggable
+   * underneath it.
+   * ================================================================================== */
+  .tutorial-layer { position: fixed; inset: 0; z-index: 9000; pointer-events: none; }
+  .tutorial-spotlight {
+    position: fixed;
+    border-radius: 14px;
+    border: 2px solid var(--amber);
+    box-shadow: 0 0 0 9999px rgba(6, 9, 20, .60), 0 0 0 4px rgba(248, 184, 78, .08), 0 0 24px rgba(248, 184, 78, .48);
+    pointer-events: none;
+    transition: top .22s ease, left .22s ease, width .22s ease, height .22s ease;
+    animation: tutorial-spotlight-pulse 1.9s ease-in-out infinite;
+  }
+  @keyframes tutorial-spotlight-pulse {
+    0%, 100% { box-shadow: 0 0 0 9999px rgba(6, 9, 20, .60), 0 0 0 4px rgba(248, 184, 78, .08), 0 0 22px rgba(248, 184, 78, .42); }
+    50% { box-shadow: 0 0 0 9999px rgba(6, 9, 20, .60), 0 0 0 7px rgba(248, 184, 78, .06), 0 0 30px rgba(248, 184, 78, .58); }
+  }
+  .tutorial-card {
+    position: fixed;
+    left: 50%;
+    bottom: calc(14px + var(--safe-bottom));
+    transform: translateX(-50%);
+    width: min(92vw, 430px);
+    max-height: min(38vh, 250px);
+    overflow: auto;
+    background: linear-gradient(180deg, rgba(22, 28, 48, .98), rgba(14, 19, 35, .98));
+    border: 1px solid rgba(103, 205, 209, .25);
+    border-radius: 17px;
+    padding: 13px 15px calc(12px + var(--safe-bottom) / 2);
+    pointer-events: auto;
+    backdrop-filter: blur(14px);
+    box-shadow: 0 16px 38px rgba(0, 0, 0, .50), 0 0 0 1px rgba(255,255,255,.025) inset;
+  }
+  .tutorial-card::before {
+    content: '';
+    display: block;
+    width: 34px;
+    height: 3px;
+    border-radius: 99px;
+    margin: -2px auto 10px;
+    background: linear-gradient(90deg, rgba(103,205,209,.35), rgba(248,184,78,.95), rgba(103,205,209,.35));
+    opacity: .9;
+  }
+  .tutorial-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 7px; }
+  .tutorial-step-count { font-family: var(--app-font-mono); font-size: 9.5px; letter-spacing: .08em; color: var(--cyan); text-transform: uppercase; white-space: nowrap; }
+  .tutorial-close-link { background: none; border: none; color: rgba(244, 240, 231, .58); font-size: 11px; cursor: pointer; padding: 4px 2px; white-space: nowrap; touch-action: manipulation; }
+  .tutorial-close-link:hover { color: rgba(244, 240, 231, .92); }
+  .tutorial-card-title { margin: 0 0 6px; font-size: 15px; letter-spacing: -.01em; }
+  .tutorial-card-body { margin: 0; font-size: 12.5px; line-height: 1.48; color: rgba(244, 240, 231, .86); }
+  .tutorial-control-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 9px;
+    padding: 6px 9px;
+    border-radius: 9px;
+    background: rgba(248, 184, 78, .09);
+    border: 1px solid rgba(248, 184, 78, .18);
+    color: rgba(248, 224, 180, .95);
+    font-size: 10.5px;
+    line-height: 1.25;
+  }
+  .tutorial-card-foot { margin-top: 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .tutorial-nav { display: flex; align-items: center; justify-content: space-between; gap: 7px; width: 100%; }
+  .tutorial-nav .btn-secondary, .tutorial-nav .btn-primary { min-height: 35px; padding: 7px 12px; white-space: nowrap; touch-action: manipulation; }
+  .tutorial-nav .btn-primary { box-shadow: 0 5px 14px rgba(248,184,78,.18); }
+  .tutorial-intro-card { max-width: 390px; text-align: center; }
+  .tutorial-intro-badge { width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; background: rgba(248, 184, 78, .14); color: var(--amber); box-shadow: 0 0 0 6px rgba(248,184,78,.04); }
+  .tutorial-intro-card .modal-actions { flex-wrap: wrap; justify-content: center; }
+
+  .tutorial-mobile-label {
+    position: fixed;
+    z-index: 9002;
+    display: none;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    border-radius: 8px;
+    background: rgba(8, 12, 22, .90);
+    border: 1px solid rgba(248,184,78,.30);
+    color: rgba(248,240,220,.96);
+    font: 9px var(--app-font-mono);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    box-shadow: 0 7px 18px rgba(0,0,0,.35);
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .tutorial-mobile-label::after {
+    content: '';
+    position: absolute;
+    width: 7px;
+    height: 7px;
+    background: rgba(8, 12, 22, .90);
+    border-right: 1px solid rgba(248,184,78,.30);
+    border-bottom: 1px solid rgba(248,184,78,.30);
+    transform: rotate(45deg);
+  }
+  .tutorial-mobile-label[data-arrow="down"]::after { left: 16px; bottom: -4px; }
+  .tutorial-mobile-label[data-arrow="up"]::after { left: 16px; top: -4px; transform: rotate(225deg); }
+  .tutorial-mobile-label[data-arrow="left"]::after { right: -4px; top: 50%; margin-top: -4px; transform: rotate(-45deg); }
+  .tutorial-mobile-label[data-arrow="right"]::after { left: -4px; top: 50%; margin-top: -4px; transform: rotate(135deg); }
+
+  .tutorial-marker-key {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px 9px;
+    margin-top: 8px;
+    font-size: 9.5px;
+    color: rgba(244,240,231,.68);
+  }
+  .tutorial-marker-key span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .tutorial-marker-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; box-shadow: 0 0 6px currentColor; }
+  .tutorial-marker-dot.gold { color: #f8b84e; background: #f8b84e; }
+  .tutorial-marker-dot.cyan { color: #67cdd1; background: #67cdd1; }
+  .tutorial-marker-dot.coral { color: #fb7185; background: #fb7185; }
+
+  @media (max-width: 700px) {
+    .tutorial-card {
+      top: max(10px, env(safe-area-inset-top, 0px));
+      bottom: auto;
+      width: calc(100vw - 20px);
+      max-height: min(35vh, 260px);
+      padding: 11px 12px 11px;
+      border-radius: 16px;
+    }
+    .tutorial-card::before { margin-bottom: 8px; }
+    .tutorial-mobile-label { display: inline-flex; }
+  }
+  @media (max-width: 430px) {
+    .tutorial-card {
+      width: calc(100vw - 14px);
+      max-height: min(38vh, 255px);
+      padding: 10px 11px;
+      border-radius: 15px;
+    }
+    .tutorial-card-title { font-size: 14px; margin-bottom: 5px; }
+    .tutorial-card-body { font-size: 11.5px; line-height: 1.42; }
+    .tutorial-control-hint { margin-top: 7px; padding: 5px 8px; font-size: 9.5px; }
+    .tutorial-nav .btn-secondary, .tutorial-nav .btn-primary { min-height: 34px; padding: 7px 10px; font-size: 10.5px; }
+    .tutorial-mobile-label { font-size: 8px; padding: 4px 7px; }
+  }
+  @media (max-height: 620px) {
+    .tutorial-card { max-height: 42vh; }
+    .tutorial-card-body { line-height: 1.35; }
+  }
   `;
 
   if (!document.getElementById('derioux-styles')) {
@@ -4309,6 +4594,41 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   * TYPES & CONTENT
   * ===================================================================================== */
   type Screen = 'dashboard' | 'quests' | 'shop' | 'achievements' | 'profile';
+
+  // ---------------------------------------------------------------------------------------
+  // First-time campus tutorial. 'inactive' = not showing. 'intro' = the Start/Skip prompt.
+  // The seven single-topic steps below match the tutorial's seven taught topics 1:1, so
+  // "Step N of 7" in the coach card always lines up with the requested curriculum —
+  // movement, camera, zoom, mini-map, quests, interaction, and quiz battle — even though
+  // they're taught in a slightly different order than requested (mini-map/quest-marker
+  // explained while still roaming, interaction gated last since succeeding at it is what
+  // ends the roaming stage and leads into the battle explainer).
+  // ---------------------------------------------------------------------------------------
+  type TutorialStepId = 'inactive' | 'intro' | 'movement' | 'camera' | 'zoom' | 'minimap' | 'quests' | 'interact' | 'battle';
+  const TUTORIAL_STEP_ORDER: Exclude<TutorialStepId, 'inactive' | 'intro'>[] = ['movement', 'camera', 'zoom', 'minimap', 'quests', 'interact', 'battle'];
+  const TUTORIAL_STORAGE_KEY = 'derioux_campus_tutorial_done_v1';
+  const CAMERA_SENSITIVITY_STORAGE_KEY = 'derioux_campus_camera_sensitivity_v1';
+  const DEFAULT_CAMERA_SENSITIVITY = 1;
+  const MIN_CAMERA_SENSITIVITY = 0.55;
+  const MAX_CAMERA_SENSITIVITY = 1.65;
+  function readCameraSensitivity(): number {
+    try {
+      const raw = Number(window.localStorage.getItem(CAMERA_SENSITIVITY_STORAGE_KEY));
+      return Number.isFinite(raw) ? Math.max(MIN_CAMERA_SENSITIVITY, Math.min(MAX_CAMERA_SENSITIVITY, raw)) : DEFAULT_CAMERA_SENSITIVITY;
+    } catch { return DEFAULT_CAMERA_SENSITIVITY; }
+  }
+  function persistCameraSensitivity(value: number) {
+    try { window.localStorage.setItem(CAMERA_SENSITIVITY_STORAGE_KEY, String(value)); } catch { /* localStorage unavailable */ }
+  }
+  function readTutorialCompleted(): boolean {
+    try { return window.localStorage.getItem(TUTORIAL_STORAGE_KEY) === '1'; } catch { return false; }
+  }
+  function persistTutorialCompleted(done: boolean) {
+    try {
+      if (done) window.localStorage.setItem(TUTORIAL_STORAGE_KEY, '1');
+      else window.localStorage.removeItem(TUTORIAL_STORAGE_KEY);
+    } catch { /* localStorage unavailable (private browsing, etc.) — tutorial just reshows next visit */ }
+  }
   type AuthStep = 'welcome' | 'login' | 'signup' | 'strand' | 'avatar' | 'confirm';
   type ToastItem = { id: number; title: string; copy: string; tone?: 'success' | 'error' };
   // A persistent history of the same events that flash as toasts — surfaced in the
@@ -6098,7 +6418,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // foreshorten it by viewing angle. See the `signs.forEach` render pass below.
   const SIGN_NORMALS: Record<CampusSign['side'], [number, number]> = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] };
 
-  function CampusExplorer({ level, strand, avatar, defeatedIds, initialPosition, onChallengerFound, onExit, notify, soundEnabled, onReward }: { level: number; strand: string; avatar: AvatarConfig; defeatedIds: string[]; initialPosition?: CampusReturnPosition | null; onChallengerFound: (challenger: CampusChallenger, position: CampusReturnPosition) => void; onExit: () => void; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void; soundEnabled: boolean; onReward: (coins: number, xp: number) => void }) {
+  function CampusExplorer({ level, strand, avatar, defeatedIds, initialPosition, onChallengerFound, onExit, notify, soundEnabled, onReward, onReplayTutorial }: { level: number; strand: string; avatar: AvatarConfig; defeatedIds: string[]; initialPosition?: CampusReturnPosition | null; onChallengerFound: (challenger: CampusChallenger, position: CampusReturnPosition) => void; onExit: () => void; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void; soundEnabled: boolean; onReward: (coins: number, xp: number) => void; onReplayTutorial: () => void }) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const worldRef = useRef<HTMLDivElement | null>(null);
     const promptRef = useRef<HTMLDivElement | null>(null);
@@ -6129,6 +6449,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // right now, including a change made just before entering the campus.
     const avatarRef = useRef(avatar);
     avatarRef.current = avatar;
+    const [settingsOpen, setSettingsOpen] = useState(false);
+    const [cameraSensitivity, setCameraSensitivity] = useState<number>(() => readCameraSensitivity());
+    const cameraSensitivityRef = useRef(cameraSensitivity);
+    useEffect(() => { cameraSensitivityRef.current = cameraSensitivity; }, [cameraSensitivity]);
 
     useEffect(() => {
       const canvas = canvasRef.current;
@@ -6263,24 +6587,36 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         notes.forEach((n) => { if (!collectedNotes.has(n.id)) dot(n.x, n.y, 2.1, '#d8b4fe'); });
         gates.forEach((g) => dot(g.x, g.y, 3.1, '#fb7185', 'rgba(255,255,255,.7)'));
 
-        // Player marker — a small triangle at the true world position, rotated to
-        // playerAngle so it also reads as a heading indicator (same angle convention as
-        // the main view: 0 rad points along +x, matching cos/sin(playerAngle) elsewhere).
+        // Player marker — a small glowing circular marker with a subtle directional
+        // line/cone. The circle stays visually clean at compact mobile sizes while the
+        // short heading cue still makes the player's facing direction obvious.
         const px = ox + playerX * scale;
         const py = oy + playerY * scale;
-        const markerSize = 4.4;
+        const markerRadius = Math.max(2.6, Math.min(4.1, scale * 0.18));
+        const headingLength = Math.max(5, Math.min(9, scale * 0.55));
         miniCtx.save();
         miniCtx.translate(px, py);
         miniCtx.rotate(playerAngle);
         miniCtx.beginPath();
-        miniCtx.moveTo(markerSize, 0);
-        miniCtx.lineTo(-markerSize * 0.7, markerSize * 0.62);
-        miniCtx.lineTo(-markerSize * 0.7, -markerSize * 0.62);
+        miniCtx.moveTo(markerRadius * 0.15, 0);
+        miniCtx.lineTo(headingLength, -markerRadius * 0.78);
+        miniCtx.lineTo(headingLength, markerRadius * 0.78);
         miniCtx.closePath();
+        miniCtx.fillStyle = 'rgba(103, 205, 209, .16)';
+        miniCtx.fill();
+        miniCtx.strokeStyle = 'rgba(103, 205, 209, .55)';
+        miniCtx.lineWidth = 1;
+        miniCtx.stroke();
+        miniCtx.beginPath();
+        miniCtx.arc(0, 0, markerRadius + 2, 0, Math.PI * 2);
+        miniCtx.fillStyle = 'rgba(103, 205, 209, .12)';
+        miniCtx.fill();
+        miniCtx.beginPath();
+        miniCtx.arc(0, 0, markerRadius, 0, Math.PI * 2);
         miniCtx.fillStyle = '#f4f0e7';
         miniCtx.fill();
         miniCtx.strokeStyle = '#67cdd1';
-        miniCtx.lineWidth = 1.5;
+        miniCtx.lineWidth = 1.2;
         miniCtx.stroke();
         miniCtx.restore();
 
@@ -6397,41 +6733,38 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       let playerX = initialPosition?.x ?? 4.5;
       let playerY = initialPosition?.y ?? 6.5;
       let playerAngle = initialPosition?.angle ?? 0;
-      // Third-person exploration camera: positioned behind and above the player, looking
-      // down at a moderate angle, instead of rendering from the player's own eyes.
-      // playerX/playerY/playerAngle remain the player's own position/heading and are
-      // untouched by any of this — movement, collision, interactions, minimap, and NPC
-      // logic all still key off those exactly as before. Only where the camera itself
-      // sits (camX/camY, computed each frame below) and how that vertical/height math
-      // projects onto the screen changes.
-      // CAMERA_HEIGHT is a world-space eye height where the floor is 0 and a wall's top
-      // is 1 (this scale matches the raycaster's existing wall-height convention) —
-      // above 1 means the camera looks down over the top of a same-height wall, which is
-      // what "noticeably above the player" needs. CAMERA_PITCH is the same horizon-shift
-      // technique the old first-person view used, just larger, for the added downward tilt.
-      const CAMERA_HEIGHT = 1.75; // moderately elevated — clearly above the player's own eye line without floating up near the roof
-      // World-space height of the roof plane (floor = 0, a wall's top = 1 — see the
-      // convention note above). Kept comfortably above CAMERA_HEIGHT so the elevated
-      // camera can never be pitched or pushed up into/through the ceiling structure —
-      // the vertical equivalent of the horizontal wall clearance below.
+      // Unified Roblox-inspired camera: one continuous zoom range. Zooming out gives
+      // a comfortable third-person exploration view; zooming all the way in naturally
+      // becomes first-person. There is no separate camera-mode button or hard switch.
+      const CAMERA_THIRD_DISTANCE = 5.25;
+      const CAMERA_CLOSE_DISTANCE = 1.45;
+      const CAMERA_FIRST_PERSON_DISTANCE = 0.06;
+      const CAMERA_DEFAULT_DISTANCE = 4.6;
+      const CAMERA_MAX_DISTANCE = 6.5;
+      const CAMERA_MIN_DISTANCE = CAMERA_FIRST_PERSON_DISTANCE;
+      const CAMERA_CLEARANCE = 0.30;
+      const CAMERA_FOLLOW_RATE = 11;
+      const CAMERA_ZOOM_RATE = 14;
+      const CAMERA_COLLIDER_RADIUS = 0.15;
+      const CAMERA_FIRST_PERSON_HEIGHT = 0.55;
+      const CAMERA_THIRD_PERSON_HEIGHT = 1.58;
+      const CAMERA_FIRST_PERSON_PITCH_DEG = 0;
+      const CAMERA_THIRD_PERSON_PITCH_DEG = 21;
+      const CAMERA_PITCH_FIRST = Math.tan((CAMERA_FIRST_PERSON_PITCH_DEG * Math.PI) / 180);
+      const CAMERA_PITCH_THIRD = Math.tan((CAMERA_THIRD_PERSON_PITCH_DEG * Math.PI) / 180);
       const ROOF_HEIGHT = 2.6;
-      const CAMERA_PITCH_DEG = 22.5; // 20-25° downward camera pitch, per spec
-      // Horizon-shift fraction used below as `pitchOffsetPx = h * CAMERA_PITCH` — same
-      // convention the old hand-tuned constant used, just now derived from an actual
-      // angle. This lines up exactly with the wall/ceiling vertical-projection math
-      // (screenY(H) = horizonY - (H - CAMERA_HEIGHT) * h / correctedDist), where a plane
-      // at distance 1 shifts by `tan(pitch)` of the screen height per world-unit.
-      const CAMERA_PITCH = Math.tan((CAMERA_PITCH_DEG * Math.PI) / 180);
-      const CAMERA_BACK_DISTANCE = 3.1; // desired follow distance directly behind the player — held steady by the smoothing below rather than drifting with speed or input
-      const CAMERA_MIN_BACK_DISTANCE = 0.6; // never pulls in closer than this even against a wall
-      const CAMERA_CLEARANCE = 0.32; // how far short of a wall/NPC the camera stops
-      const CAMERA_FOLLOW_RATE = 9; // per-second smoothing for camera position (higher = snappier) — this is what keeps rotation and the stable follow distance feeling smooth instead of snapping
-      const CAMERA_COLLIDER_RADIUS = 0.15; // treat the camera itself as this big for wall/NPC clearance checks
+
+      // Zoom persists while exploring. Desktop: mouse wheel / +/- keys. Mobile: pinch.
+      let targetCameraDistance = CAMERA_DEFAULT_DISTANCE;
+      let smoothCameraDistance = CAMERA_DEFAULT_DISTANCE;
+      let currentCameraDistance = CAMERA_DEFAULT_DISTANCE;
+      let currentCameraHeight = CAMERA_THIRD_PERSON_HEIGHT;
+      let currentCameraPitch = CAMERA_PITCH_THIRD;
       // Persisted across frames (not re-declared in render()) so the follow position eases
       // toward its target smoothly instead of snapping every frame — this is what keeps
       // rotation/movement feeling smooth on both mouse-look and touch-drag input.
-      let smoothCamX = playerX - Math.cos(playerAngle) * CAMERA_BACK_DISTANCE;
-      let smoothCamY = playerY - Math.sin(playerAngle) * CAMERA_BACK_DISTANCE;
+      let smoothCamX = playerX - Math.cos(playerAngle) * CAMERA_DEFAULT_DISTANCE;
+      let smoothCamY = playerY - Math.sin(playerAngle) * CAMERA_DEFAULT_DISTANCE;
       let pointerLocked = false;
       let roamingActive = true;
       let raf = 0;
@@ -6461,7 +6794,19 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const TOUCH_LOOK_RADIANS_PER_SCREEN_WIDTH = Math.PI * 1.15; // ~207° of turn per full-width swipe
       function getTouchLookSensitivity() {
         const viewportWidth = window.innerWidth || canvas.clientWidth || 390;
-        return TOUCH_LOOK_RADIANS_PER_SCREEN_WIDTH / viewportWidth;
+        return (TOUCH_LOOK_RADIANS_PER_SCREEN_WIDTH / viewportWidth) * cameraSensitivityRef.current;
+      }
+
+      function clampCameraDistance(value: number) {
+        return Math.max(CAMERA_MIN_DISTANCE, Math.min(CAMERA_MAX_DISTANCE, value));
+      }
+      function setCameraZoomFromInput(delta: number) {
+        if (!Number.isFinite(delta) || delta === 0) return;
+        const direction = delta > 0 ? 1 : -1; // wheel down / pinch inward = zoom out
+        const magnitude = Math.min(Math.abs(delta), 5);
+        targetCameraDistance = clampCameraDistance(
+          targetCameraDistance + direction * Math.max(0.12, targetCameraDistance * 0.075) * magnitude
+        );
       }
 
       let leftJoy = { active: false, id: null as number | null, dx: 0, dy: 0 };
@@ -6653,11 +6998,19 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         return best;
       }
 
+      const handleWheel = (e: WheelEvent) => {
+        if (!roamingActive) return;
+        e.preventDefault();
+        setCameraZoomFromInput(e.deltaY);
+      };
+
       const handleKeyDown = (e: KeyboardEvent) => {
         if (!roamingActive) return;
         const key = e.key.toLowerCase();
-        if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'e'].includes(key)) {
+        if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'e', '+', '=', '-'].includes(key)) {
           keys[key] = true;
+          if (key === '+' || key === '=') setCameraZoomFromInput(-1);
+          if (key === '-') setCameraZoomFromInput(1);
           if (key === 'e') {
             const hit = hitTestAtCenter();
             if (hit) interact(hit.target, hit.worldX, hit.worldY);
@@ -6692,6 +7045,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       document.addEventListener('keyup', handleKeyUp);
       document.addEventListener('mousemove', handleMouseMove);
       canvas.addEventListener('click', handleCanvasClick);
+      canvas.addEventListener('wheel', handleWheel, { passive: false });
       document.addEventListener('pointerlockchange', handlePointerLockChange);
 
       const joyCleanups: Array<() => void> = [];
@@ -6756,8 +7110,25 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // click behavior so mobile never gets a proximity-triggered prompt either.
         const lookLayer = lookLayerRef.current;
         if (lookLayer) {
-          const lookTouch = { id: null as number | null, lastX: 0, lastY: 0, startX: 0, startY: 0, startTime: 0, moved: 0 };
+          const lookTouch = {
+            id: null as number | null,
+            lastX: 0, lastY: 0, startX: 0, startY: 0,
+            startTime: 0, moved: 0,
+            pinchActive: false,
+            pinchLastDistance: 0,
+          };
+          const getTwoTouchDistance = (touches: TouchList) => {
+            if (touches.length < 2) return 0;
+            const a = touches[0], b = touches[1];
+            return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+          };
           const lookStart = (e: TouchEvent) => {
+            if (e.touches.length >= 2) {
+              lookTouch.pinchActive = true;
+              lookTouch.pinchLastDistance = getTwoTouchDistance(e.touches);
+              lookTouch.moved = 999;
+              return;
+            }
             if (lookTouch.id !== null) return;
             const touch = e.changedTouches[0];
             lookTouch.id = touch.identifier;
@@ -6767,6 +7138,17 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             lookTouch.moved = 0;
           };
           const lookMove = (e: TouchEvent) => {
+            if (e.touches.length >= 2 || lookTouch.pinchActive) {
+              if (e.touches.length >= 2) {
+                e.preventDefault();
+                const distance = getTwoTouchDistance(e.touches);
+                if (lookTouch.pinchLastDistance > 0 && distance > 0) {
+                  setCameraZoomFromInput((lookTouch.pinchLastDistance - distance) * 0.055);
+                }
+                lookTouch.pinchLastDistance = distance;
+              }
+              return;
+            }
             for (let i = 0; i < e.changedTouches.length; i++) {
               const touch = e.changedTouches[i];
               if (touch.identifier === lookTouch.id) {
@@ -6778,13 +7160,16 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             }
           };
           const lookEnd = (e: TouchEvent) => {
+            if (e.touches.length < 2 && lookTouch.pinchActive) {
+              lookTouch.pinchActive = false;
+              lookTouch.pinchLastDistance = 0;
+              lookTouch.id = null;
+              return;
+            }
             for (let i = 0; i < e.changedTouches.length; i++) {
               if (e.changedTouches[i].identifier === lookTouch.id) {
                 const touch = e.changedTouches[i];
                 const elapsed = performance.now() - lookTouch.startTime;
-                // A short, mostly-stationary touch is a tap; anything that traveled
-                // farther or lingered longer was a look-drag and shouldn't also fire an
-                // interaction underneath it.
                 if (roamingActive && elapsed < 350 && lookTouch.moved < 14) {
                   const rect = canvas.getBoundingClientRect();
                   const scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
@@ -6863,7 +7248,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // since there's no mouse-look nuance to fall back on there and a narrower FOV reads
         // like navigating through a straw on a fixed touch camera; desktop sits a touch
         // narrower since free-look mouse control makes the extra width less necessary.
-        const fov = isMobile ? (75 * Math.PI) / 180 : (71 * Math.PI) / 180;
+        const firstPersonFovBlend = Math.max(0, Math.min(1,
+          1 - (currentCameraDistance - CAMERA_FIRST_PERSON_DISTANCE) /
+          (CAMERA_CLOSE_DISTANCE - CAMERA_FIRST_PERSON_DISTANCE)
+        ));
+        const thirdPersonFov = isMobile ? 74 : 72;
+        const firstPersonFov = isMobile ? 78 : 76;
+        const fovDeg = thirdPersonFov + (firstPersonFov - thirdPersonFov) * firstPersonFovBlend;
+        const fov = (fovDeg * Math.PI) / 180;
         // Half-width (in world units, at unit forward distance) of the projection plane —
         // used to cast rays evenly across a flat screen-space plane (tan-based) rather than
         // stepping evenly through angles. Angle-uniform ray stepping is what produces the
@@ -6874,37 +7266,50 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         const halfFovTan = Math.tan(fov / 2);
         const fogDistance = isMobile ? 26 : 22;
 
-        // Third-person follow camera: the ideal spot is directly behind the player along
-        // their current heading. A single backward raycast (same castRayDDA the walls
-        // use) finds how much room is actually behind the player, so the camera never
-        // ends up clipped inside/through a wall — it's pulled in short of it instead.
-        // collidesWithNpc/circleHitsWall then do a final short-step safety pass for
-        // corners or NPC bodies a single straight ray behind the player can miss.
+        // One continuous zoom camera. Collision shortens third-person distance only;
+        // it never pushes the camera through geometry. At the first-person end the camera
+        // sits at the player's eye position, using the same heading and projection system.
+        const zoomT = 1 - Math.exp(-CAMERA_ZOOM_RATE * Math.max(dt, 0));
+        smoothCameraDistance += (targetCameraDistance - smoothCameraDistance) * zoomT;
+        currentCameraDistance = smoothCameraDistance;
+
         const behindAngle = playerAngle + Math.PI;
-        const behindHit = castRayDDA(behindAngle, playerX, playerY);
-        let desiredBackDist = Math.min(CAMERA_BACK_DISTANCE, Math.max(CAMERA_MIN_BACK_DISTANCE, behindHit.dist - CAMERA_CLEARANCE));
-        let idealCamX = playerX + Math.cos(behindAngle) * desiredBackDist;
-        let idealCamY = playerY + Math.sin(behindAngle) * desiredBackDist;
-        let clearanceGuard = 0;
-        while (
-          clearanceGuard < 12 &&
-          desiredBackDist > CAMERA_MIN_BACK_DISTANCE &&
-          (circleHitsWall(idealCamX, idealCamY, CAMERA_COLLIDER_RADIUS) || collidesWithNpc(idealCamX, idealCamY))
-        ) {
-          desiredBackDist -= 0.2;
-          idealCamX = playerX + Math.cos(behindAngle) * desiredBackDist;
-          idealCamY = playerY + Math.sin(behindAngle) * desiredBackDist;
-          clearanceGuard++;
+        let desiredBackDist = currentCameraDistance;
+        if (currentCameraDistance > CAMERA_FIRST_PERSON_DISTANCE + 0.02) {
+          const behindHit = castRayDDA(behindAngle, playerX, playerY);
+          desiredBackDist = Math.min(currentCameraDistance,
+            Math.max(CAMERA_FIRST_PERSON_DISTANCE, behindHit.dist - CAMERA_CLEARANCE));
+          let idealCheckX = playerX + Math.cos(behindAngle) * desiredBackDist;
+          let idealCheckY = playerY + Math.sin(behindAngle) * desiredBackDist;
+          let clearanceGuard = 0;
+          while (
+            clearanceGuard < 16 &&
+            desiredBackDist > CAMERA_FIRST_PERSON_DISTANCE + 0.02 &&
+            (circleHitsWall(idealCheckX, idealCheckY, CAMERA_COLLIDER_RADIUS) || collidesWithNpc(idealCheckX, idealCheckY))
+          ) {
+            desiredBackDist = Math.max(CAMERA_FIRST_PERSON_DISTANCE, desiredBackDist - 0.16);
+            idealCheckX = playerX + Math.cos(behindAngle) * desiredBackDist;
+            idealCheckY = playerY + Math.sin(behindAngle) * desiredBackDist;
+            clearanceGuard++;
+          }
         }
-        // Ease toward that target instead of snapping to it — keeps the view smooth when
-        // desiredBackDist changes frame-to-frame near corners, and smooths ordinary
-        // mouse-look/touch-drag rotation too, on both desktop and mobile.
+        const idealCamX = playerX + Math.cos(behindAngle) * desiredBackDist;
+        const idealCamY = playerY + Math.sin(behindAngle) * desiredBackDist;
         const followT = 1 - Math.exp(-CAMERA_FOLLOW_RATE * Math.max(dt, 0));
         smoothCamX += (idealCamX - smoothCamX) * followT;
         smoothCamY += (idealCamY - smoothCamY) * followT;
         const camX = smoothCamX;
         const camY = smoothCamY;
-        const pitchOffsetPx = h * CAMERA_PITCH;
+
+        const firstPersonBlend = Math.max(0, Math.min(1,
+          (currentCameraDistance - CAMERA_FIRST_PERSON_DISTANCE) /
+          (CAMERA_CLOSE_DISTANCE - CAMERA_FIRST_PERSON_DISTANCE)
+        ));
+        currentCameraHeight = CAMERA_FIRST_PERSON_HEIGHT +
+          (CAMERA_THIRD_PERSON_HEIGHT - CAMERA_FIRST_PERSON_HEIGHT) * firstPersonBlend;
+        currentCameraPitch = CAMERA_PITCH_FIRST +
+          (CAMERA_PITCH_THIRD - CAMERA_PITCH_FIRST) * firstPersonBlend;
+        const pitchOffsetPx = h * currentCameraPitch;
         const horizonY = h / 2 - pitchOffsetPx;
 
         const district = getDistrictAt(playerX, playerY);
@@ -6946,7 +7351,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         ctx!.fillStyle = cachedCeilingBase.base;
         ctx!.fillRect(0, 0, w, horizonY);
 
-        const roofAboveCam = ROOF_HEIGHT - CAMERA_HEIGHT; // > 0 by construction of ROOF_HEIGHT above
+        const roofAboveCam = ROOF_HEIGHT - currentCameraHeight; // > 0 by construction of ROOF_HEIGHT above
         const CEIL_COLUMNS = Math.min(rayCap, isMobile ? 84 : 120);
         const CEIL_ROW_BANDS = 7;
         const CEIL_CELL_SIZE = 2.35; // world units per roof beam/panel cell
@@ -7026,7 +7431,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           // ((h - wallHeight) / 2 - pitchOffsetPx) — wallHeight itself is unaffected by
           // camera height, only where the strip sits on screen is, so walls stay full,
           // solid, and never partially culled just because the camera moved up/back.
-          const wallTop = horizonY + (CAMERA_HEIGHT - 1) * wallHeight;
+          const wallTop = horizonY + (currentCameraHeight - 1) * wallHeight;
           const brightness = Math.max(0, 1 - correctedDist / fogDistance);
           let r: number, g: number, b: number;
           if (result.tile === 2) { r = Math.floor(120 * brightness); g = Math.floor(80 * brightness); b = Math.floor(40 * brightness); }
@@ -7102,7 +7507,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           // Same camera-height-aware placement as the walls above (see wallTop), so every
           // sprite — NPCs, notes, signs, the player's own body — stays correctly grounded
           // against the wall/floor it's standing next to under the new camera position.
-          const drawY = horizonY + (CAMERA_HEIGHT - 1) * size;
+          const drawY = horizonY + (currentCameraHeight - 1) * size;
           const halfWidthPx = Math.max(1, size * 0.28);
           const sampleXs = [screenX - halfWidthPx, screenX, screenX + halfWidthPx];
           for (const sampleX of sampleXs) {
@@ -7141,7 +7546,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           if (transformX > maxDist) return null; // legitimately out of render/fog range
           const screenX = (w / 2) * (1 + (transformY / transformX) / halfFovTan);
           const size = Math.abs(h / transformX);
-          const drawY = horizonY + (CAMERA_HEIGHT - 1) * size;
+          const drawY = horizonY + (currentCameraHeight - 1) * size;
           const fogAlpha = Math.max(0, Math.min(1, 1 - transformX / fogDistance));
           return { screenX, size, drawY, dist: transformX, fogAlpha };
         }
@@ -7536,7 +7941,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // would otherwise come back occluded. Facing is always-back (we're behind them),
         // using their own walk animation state, same as before.
         {
-          const playerProj = projectPlayerSprite(playerX, playerY);
+          const showPlayerBody = currentCameraDistance > CAMERA_CLOSE_DISTANCE * 0.78;
+          const playerProj = showPlayerBody ? projectPlayerSprite(playerX, playerY) : null;
           if (playerProj) {
             const { screenX: pScreenX, size: pSize, drawY: pDrawY, dist: pDist, fogAlpha: pFogAlpha } = playerProj;
             spriteDrawQueue.push({
@@ -7696,7 +8102,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
         lastTime = timestamp;
         if (roamingActive) {
-          if (pointerLocked) { playerAngle += mouseDX * sensitivity; mouseDX = 0; }
+          if (pointerLocked) { playerAngle += mouseDX * sensitivity * cameraSensitivityRef.current; mouseDX = 0; }
           if (touchLookDX !== 0) { playerAngle += touchLookDX * getTouchLookSensitivity(); touchLookDX = 0; }
           playerAngle = playerAngle % (Math.PI * 2);
           let moveX = 0, moveY = 0;
@@ -7739,6 +8145,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         document.removeEventListener('keyup', handleKeyUp);
         document.removeEventListener('mousemove', handleMouseMove);
         canvas.removeEventListener('click', handleCanvasClick);
+        canvas.removeEventListener('wheel', handleWheel);
         document.removeEventListener('pointerlockchange', handlePointerLockChange);
         discoveryBtn.removeEventListener('click', handleDiscoveryTap);
         discoveryBtn.removeEventListener('touchstart', handleDiscoveryTap);
@@ -7759,8 +8166,56 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                 <div className="campus-chip" ref={districtChipRef} />
                 <div className="campus-chip" ref={progressChipRef} />
               </div>
-              <div className="campus-minimap" aria-label="Campus mini-map">
-                <canvas ref={minimapRef} />
+              <div className="campus-map-controls">
+                <div className="campus-minimap" aria-label="Campus mini-map">
+                  <canvas ref={minimapRef} />
+                </div>
+                <div style={{ position: 'relative' }}>
+                  <button
+                    type="button"
+                    className="campus-settings-btn"
+                    aria-label="Campus settings"
+                    aria-expanded={settingsOpen}
+                    onClick={() => setSettingsOpen((open) => !open)}
+                  >
+                    <Settings size={14} strokeWidth={1.8} />
+                  </button>
+                  {settingsOpen && (
+                    <div className="campus-settings-panel" role="dialog" aria-label="Campus settings">
+                      <div className="campus-settings-head">
+                        <div className="campus-settings-title">Campus Settings</div>
+                        <button type="button" className="campus-settings-close" aria-label="Close settings" onClick={() => setSettingsOpen(false)}><X size={13} /></button>
+                      </div>
+                      <div className="campus-settings-row">
+                        <div className="campus-settings-copy">
+                          <strong>Tutorial / How to Play</strong>
+                          <span>Replay the full step-by-step campus walkthrough.</span>
+                        </div>
+                        <button type="button" className="campus-settings-action" onClick={() => { setSettingsOpen(false); onReplayTutorial(); }}>Open</button>
+                      </div>
+                      <div className="campus-settings-row" style={{ display: 'block' }}>
+                        <div className="campus-settings-head" style={{ marginBottom: 2 }}>
+                          <div className="campus-settings-copy">
+                            <strong>Camera Sensitivity</strong>
+                            <span>Adjust how quickly the camera turns.</span>
+                          </div>
+                          <span className="campus-sensitivity-value">{cameraSensitivity.toFixed(2)}×</span>
+                        </div>
+                        <input
+                          className="campus-sensitivity-slider"
+                          type="range"
+                          min={MIN_CAMERA_SENSITIVITY}
+                          max={MAX_CAMERA_SENSITIVITY}
+                          step="0.05"
+                          value={cameraSensitivity}
+                          aria-label="Camera sensitivity"
+                          onChange={(e) => { const value = Number(e.target.value); setCameraSensitivity(value); cameraSensitivityRef.current = value; persistCameraSensitivity(value); }}
+                        />
+                        <div className="campus-sensitivity-scale"><span>Slow</span><span>Default</span><span>Fast</span></div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             <button className="campus-exit-btn" onClick={onExit}><X size={12} /> Exit </button>
@@ -8675,7 +9130,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
   function Profile({
     profile, xp, setAvatar, owned, equipped, quests, studyMinutes, defeatedChallengerIds, subjectMastery, setScreen, onExploreCampus,
-    updateProfileName, updateProfilePassword, notify, onLogout, preferences, updatePreferences,
+    updateProfileName, updateProfilePassword, notify, onLogout, preferences, updatePreferences, onReplayTutorial,
   }: {
     profile: Profile; xp: number; setAvatar: (value: AvatarConfig) => void; owned: string[]; equipped: string | null;
     quests: Quest[]; studyMinutes: number; defeatedChallengerIds: string[]; subjectMastery: Record<string, { correct: number; total: number }>;
@@ -8685,6 +9140,9 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // state, so a toggle here survives a refresh, a logout/login, or a different device —
     // same durability as coins/xp/quests.
     preferences: PlayerPreferences; updatePreferences: (patch: Partial<PlayerPreferences>) => void;
+    // Resets the first-time campus tutorial (stored in localStorage, see
+    // TUTORIAL_STORAGE_KEY) so the player can walk through it again on demand.
+    onReplayTutorial: () => void;
   }) {
     const [editingAvatar, setEditingAvatar] = useState(false);
 
@@ -8944,6 +9402,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             </div>
             <div className="setting-row"><div><strong>Sound effects</strong><span>Play audio cues on focus completion</span></div><button type="button" aria-label="Toggle sound effects" className={`toggle ${preferences.sound ? 'on' : ''}`} onClick={() => { if (preferences.sound) playUiClickSfx(); updatePreferences({ sound: !preferences.sound }); }}><i /></button></div>
             <div className="setting-row"><div><strong>Encounter feedback</strong><span>Show detailed prompts during quiz battles</span></div><button type="button" aria-label="Toggle encounter feedback" className={`toggle ${preferences.encounterFeedback ? 'on' : ''}`} onClick={() => { if (preferences.sound) playUiClickSfx(); updatePreferences({ encounterFeedback: !preferences.encounterFeedback }); }}><i /></button></div>
+            <div className="setting-row"><div><strong>Tutorial / How to Play</strong><span>Review touch controls, movement, camera, zoom, finding quest NPCs, the mini-map, interaction, and quiz battles</span></div><button type="button" className="btn-secondary !px-3 !py-2" onClick={onReplayTutorial}>Open</button></div>
           </div>
         </div>
 
@@ -8954,6 +9413,266 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         <button className="btn-secondary profile-mobile-logout mt-5" onClick={onLogout}>
           <LogOut size={14} /> Log out
         </button>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------------------
+  // TutorialCoach — presentation-only onboarding. On touch devices the tutorial is
+  // intentionally mobile-first: the card stays at the top so the bottom-left movement
+  // stick and the rest of the touch controls remain visible and usable. Each step is
+  // advanced only by the tutorial navigation buttons; touching a control never silently
+  // skips a lesson.
+  function TutorialCoach({ step, replay, onStart, onSkip, onAdvance, onClose, onFinish }: {
+    step: TutorialStepId;
+    replay: boolean;
+    onStart: () => void;
+    onSkip: () => void;
+    onAdvance: (next: TutorialStepId) => void;
+    onClose: () => void;
+    onFinish: () => void;
+  }) {
+    const [isTouchDevice] = useState<boolean>(() =>
+      typeof window !== 'undefined' &&
+      (('ontouchstart' in window) || (navigator.maxTouchPoints ?? 0) > 0)
+    );
+    const [rect, setRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
+
+    const targetSelector: string | null = (() => {
+      switch (step) {
+        case 'movement': return isTouchDevice ? '.campus-joystick-zone' : '.campus-canvas';
+        case 'camera': return isTouchDevice ? null : '.campus-canvas';
+        case 'zoom': return '.campus-canvas';
+        case 'minimap': return '.campus-minimap';
+        case 'quests': return isTouchDevice ? '.campus-minimap' : '.campus-hud-bar';
+        case 'interact': return isTouchDevice ? '.campus-interact-badge' : '.campus-interact-badge';
+        case 'battle': return '.answers';
+        default: return null;
+      }
+    })();
+
+    useEffect(() => {
+      const update = () => {
+        if (isTouchDevice && step === 'camera') {
+          const w = window.innerWidth;
+          const h = window.innerHeight;
+          // The real look layer covers the whole campus, so spotlight a comfortable
+          // right-side gesture area instead of dimming an all-screen rectangle.
+          setRect({
+            left: Math.round(w * 0.44),
+            top: Math.round(h * 0.23),
+            width: Math.max(150, Math.round(w * 0.49)),
+            height: Math.max(150, Math.round(h * 0.48)),
+          });
+          return;
+        }
+        if (!targetSelector) { setRect(null); return; }
+        const el = document.querySelector(targetSelector) as HTMLElement | null;
+        if (!el) { setRect(null); return; }
+        const r = el.getBoundingClientRect();
+        setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+      };
+      update();
+      const interval = window.setInterval(update, 300);
+      window.addEventListener('resize', update);
+      window.addEventListener('orientationchange', update);
+      return () => {
+        window.clearInterval(interval);
+        window.removeEventListener('resize', update);
+        window.removeEventListener('orientationchange', update);
+      };
+    }, [targetSelector, isTouchDevice, step]);
+
+    useEffect(() => {
+      const onKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') onClose();
+        if (e.key === 'ArrowLeft' && step !== 'movement') {
+          const index = TUTORIAL_STEP_ORDER.indexOf(step as Exclude<TutorialStepId, 'inactive' | 'intro'>);
+          if (index > 0) onAdvance(TUTORIAL_STEP_ORDER[index - 1]);
+        }
+        if (e.key === 'ArrowRight') {
+          const index = TUTORIAL_STEP_ORDER.indexOf(step as Exclude<TutorialStepId, 'inactive' | 'intro'>);
+          if (index >= 0 && index < TUTORIAL_STEP_ORDER.length - 1) onAdvance(TUTORIAL_STEP_ORDER[index + 1]);
+          else if (step === 'battle') onFinish();
+        }
+      };
+      window.addEventListener('keydown', onKeyDown);
+      return () => window.removeEventListener('keydown', onKeyDown);
+    }, [step, onAdvance, onClose, onFinish]);
+
+    if (step === 'inactive') return null;
+
+    if (step === 'intro') {
+      return (
+        <div className="modal-overlay tutorial-intro-overlay" role="dialog" aria-modal="true" aria-labelledby="tutorial-intro-title">
+          <div className="modal-card tutorial-intro-card">
+            <div className="tutorial-intro-badge"><Compass size={22} /></div>
+            <h2 id="tutorial-intro-title" className="modal-title">{replay ? 'Tutorial / How to Play' : 'Welcome to the Campus'}</h2>
+            <p className="modal-copy">
+              {replay
+                ? 'A quick touch-friendly walkthrough of movement, camera, zoom, finding quest NPCs, the mini-map, interaction, and quiz battles.'
+                : 'Before you explore, learn the essential touch controls and how to find quest NPCs, follow objectives, and start quiz battles.'}
+            </p>
+            <div className="modal-actions">
+              <button type="button" className="btn-secondary" onClick={replay ? onClose : onSkip}>{replay ? 'Close' : 'Skip Tutorial'}</button>
+              <button type="button" className="btn-primary" onClick={onStart}>Start Tutorial <ChevronRight size={14} /></button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const index = TUTORIAL_STEP_ORDER.indexOf(step as Exclude<TutorialStepId, 'inactive' | 'intro'>);
+    const stepIndex = index + 1;
+    const isLast = index === TUTORIAL_STEP_ORDER.length - 1;
+    const previousStep = index > 0 ? TUTORIAL_STEP_ORDER[index - 1] : null;
+    const nextStep = !isLast ? TUTORIAL_STEP_ORDER[index + 1] : null;
+
+    const content: Record<Exclude<TutorialStepId, 'inactive' | 'intro'>, {
+      title: string;
+      body: string;
+      hint: string;
+      icon: ReactNode;
+      mobileLabel?: string;
+      mobileArrow?: 'up' | 'down' | 'left' | 'right';
+      markerKey?: boolean;
+    }> = {
+      movement: {
+        title: 'Movement',
+        body: isTouchDevice
+          ? 'Use the left stick in the bottom-left corner to walk. Drag the center thumb in the direction you want to move.'
+          : 'Use W A S D or the arrow keys to walk around campus.',
+        hint: isTouchDevice ? 'Touch: drag the left stick' : 'Keyboard: W A S D / Arrow Keys',
+        icon: <Compass size={16} />,
+        mobileLabel: isTouchDevice ? 'LEFT STICK · MOVE' : undefined,
+        mobileArrow: isTouchDevice ? 'down' : undefined,
+      },
+      camera: {
+        title: 'Camera / Look',
+        body: isTouchDevice
+          ? 'Drag the open area on the right side of the screen to look around. Keep your finger off the left stick when turning.'
+          : 'Click and drag the campus view to turn the camera and look around.',
+        hint: isTouchDevice ? 'Touch: drag the open screen area' : 'Mouse: click + drag to look',
+        icon: <Eye size={16} />,
+        mobileLabel: isTouchDevice ? 'DRAG HERE · LOOK AROUND' : undefined,
+        mobileArrow: isTouchDevice ? 'left' : undefined,
+      },
+      zoom: {
+        title: 'Zoom · Third-person ↔ First-person',
+        body: isTouchDevice
+          ? 'Use two fingers to pinch. Pinch out for a wider third-person view; pinch in to move closer until you reach first-person.'
+          : 'Use the mouse wheel or the existing +/- controls. Zoom out for third-person and zoom in for first-person.',
+        hint: isTouchDevice ? 'Touch: two-finger pinch' : 'Mouse: wheel / existing +/- controls',
+        icon: <Crosshair size={16} />,
+      },
+      minimap: {
+        title: 'Mini-map',
+        body: 'The mini-map shows the campus layout and helps you stay oriented. Your player marker shows where you are and the direction you are facing.',
+        hint: 'Watch the map while you move',
+        icon: <MapPin size={16} />,
+        mobileLabel: isTouchDevice ? 'MINI-MAP · ORIENTATION' : undefined,
+        mobileArrow: isTouchDevice ? 'up' : undefined,
+        markerKey: true,
+      },
+      quests: {
+        title: 'Quests · Find the NPC',
+        body: isTouchDevice
+          ? 'Start with the active quest. On the mini-map, the gold dots mark quest NPCs. Walk toward the gold dot, then look for that NPC in the world.'
+          : 'Your active quest tells you what to do next. Use the objective marker and mini-map to locate the correct quest-giver.',
+        hint: isTouchDevice ? 'Gold dot = quest NPC · Follow it on the mini-map' : 'Follow the active objective marker',
+        icon: <BookOpen size={16} />,
+        mobileLabel: isTouchDevice ? 'GOLD DOTS · QUEST NPCS' : undefined,
+        mobileArrow: isTouchDevice ? 'up' : undefined,
+        markerKey: isTouchDevice,
+      },
+      interact: {
+        title: 'Interact with an NPC',
+        body: isTouchDevice
+          ? 'When you are close enough, the small interaction button appears beside the NPC. Tap the actual NPC or interaction button to talk to them and open the quest.'
+          : 'When you are close enough, click the actual NPC or interaction control to start the conversation.',
+        hint: isTouchDevice ? 'Get close → tap the NPC / interaction button' : 'Click the actual NPC / interaction control',
+        icon: <Swords size={16} />,
+        mobileLabel: isTouchDevice ? 'TAP NPC · START QUEST' : undefined,
+        mobileArrow: isTouchDevice ? 'up' : undefined,
+      },
+      battle: {
+        title: 'Quiz Battles',
+        body: isTouchDevice
+          ? 'Read the question, tap one answer, and continue through the encounter. Your result contributes to your academic mastery.'
+          : 'Read each question carefully and choose the answer you believe is correct. Your result contributes to your academic mastery.',
+        hint: isTouchDevice ? 'Tap an answer → continue the encounter' : 'Read → choose an answer → continue',
+        icon: <Brain size={16} />,
+      },
+    };
+
+    const current = content[step as Exclude<TutorialStepId, 'inactive' | 'intro'>];
+
+    return (
+      <div className="tutorial-layer" aria-live="polite">
+        {rect && (
+          <div
+            className="tutorial-spotlight"
+            style={{
+              top: rect.top - 8,
+              left: rect.left - 8,
+              width: rect.width + 16,
+              height: rect.height + 16
+            }}
+          />
+        )}
+
+        {isTouchDevice && current.mobileLabel && rect && (
+          <div
+            className="tutorial-mobile-label"
+            data-arrow={current.mobileArrow || 'up'}
+            style={{
+              ...(current.mobileArrow === 'down'
+                ? { left: Math.max(12, rect.left + 8), top: rect.top + rect.height + 12 }
+                : current.mobileArrow === 'left'
+                  ? { left: Math.max(12, rect.left - 128), top: Math.max(12, rect.top + rect.height * 0.45) }
+                  : { left: Math.max(12, rect.left + 8), top: Math.max(12, rect.top - 30) })
+            }}
+          >
+            {current.mobileLabel}
+          </div>
+        )}
+
+        <div className="tutorial-card" role="dialog" aria-modal="false" aria-label={`Tutorial step ${stepIndex} of ${TUTORIAL_STEP_ORDER.length}: ${current.title}`}>
+          <div className="tutorial-card-head">
+            <span className="tutorial-step-count">Step {stepIndex} of {TUTORIAL_STEP_ORDER.length}</span>
+            <button type="button" className="tutorial-close-link" onClick={replay ? onClose : onSkip}>{replay ? 'Close' : 'Skip Tutorial'}</button>
+          </div>
+
+          <h3 className="tutorial-card-title" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            {current.icon}{current.title}
+          </h3>
+
+          <p className="tutorial-card-body">{current.body}</p>
+
+          {current.markerKey ? (
+            <div className="tutorial-marker-key" aria-label="Mini-map marker key">
+              <span><i className="tutorial-marker-dot gold" /> Quest NPC</span>
+              <span><i className="tutorial-marker-dot cyan" /> Guide</span>
+              <span><i className="tutorial-marker-dot coral" /> Gate</span>
+            </div>
+          ) : null}
+
+          <div className="tutorial-control-hint">{current.hint}</div>
+
+          <div className="tutorial-card-foot">
+            <div className="tutorial-nav">
+              {previousStep ? (
+                <button type="button" className="btn-secondary" onClick={() => onAdvance(previousStep)}>Previous</button>
+              ) : <span />}
+
+              {isLast ? (
+                <button type="button" className="btn-primary" onClick={onFinish}>Finish <Check size={14} /></button>
+              ) : (
+                <button type="button" className="btn-primary" onClick={() => onAdvance(nextStep!)}>Next <ChevronRight size={14} /></button>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -9073,6 +9792,55 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     }, [screen, questStage]);
     const [foundChallenger, setFoundChallenger] = useState<CampusChallenger | null>(null);
     const [questReturnPosition, setQuestReturnPosition] = useState<CampusReturnPosition | null>(null);
+
+    // ---------------------------------------------------------------------------------
+    // First-time campus tutorial. `tutorialCompleted` is read once from localStorage and
+    // persisted back whenever the player finishes or skips it, so — per spec — it never
+    // shows again on its own after that unless explicitly reset (see the "Replay
+    // tutorial" control passed into Profile below). `tutorialStep` drives what
+    // <TutorialCoach> renders; refs mirror the two pieces of state the transition effect
+    // below needs to read without re-running on every unrelated re-render.
+    // ---------------------------------------------------------------------------------
+    const [tutorialCompleted, setTutorialCompletedState] = useState<boolean>(() => readTutorialCompleted());
+    const [tutorialStep, setTutorialStep] = useState<TutorialStepId>('inactive');
+    const [tutorialReplay, setTutorialReplay] = useState(false);
+    const tutorialStepRef = useRef<TutorialStepId>('inactive');
+    useEffect(() => { tutorialStepRef.current = tutorialStep; }, [tutorialStep]);
+    const tutorialCompletedRef = useRef(tutorialCompleted);
+    useEffect(() => { tutorialCompletedRef.current = tutorialCompleted; }, [tutorialCompleted]);
+    // True once the intro prompt has been shown for the current "session" of roaming
+    // (reset whenever the player backs out to the quest list), so it offers the tutorial
+    // again next time they explore instead of nagging mid-session.
+    const tutorialSeenIntroRef = useRef(false);
+    const markTutorialCompleted = () => { persistTutorialCompleted(true); setTutorialCompletedState(true); };
+
+    // Lets the player explicitly replay the tutorial (e.g. from Profile settings) even
+    // after it's been completed/skipped before.
+    const resetTutorial = () => {
+      // Replay is temporary: never erase the player's first-time completion state.
+      // This lets "Tutorial / How to Play" work at any time without making the onboarding
+      // pop up again automatically on the next campus visit.
+      setTutorialReplay(true);
+      tutorialSeenIntroRef.current = true;
+      setTutorialStep('intro');
+    };
+
+    // The tutorial is only automatically opened when the player first enters roaming.
+    // After completion/skip, it never reopens automatically; replay is explicitly launched
+    // by the Tutorial / How to Play control. No gameplay subsystem is modified here.
+    useEffect(() => {
+      const currentStep = tutorialStepRef.current;
+      if (questStage === 'list') {
+        if (!tutorialCompletedRef.current) tutorialSeenIntroRef.current = false;
+        if (currentStep !== 'inactive' && !tutorialReplay) setTutorialStep('inactive');
+        return;
+      }
+      if (questStage === 'roaming' && !tutorialCompletedRef.current && !tutorialSeenIntroRef.current) {
+        tutorialSeenIntroRef.current = true;
+        setTutorialReplay(false);
+        setTutorialStep('intro');
+      }
+    }, [questStage, tutorialReplay]);
     // Set the instant a tier's 4th and final quest is cleared for the first time (see
     // completeBattle's newlyMasteredTierIndex) — drives the TierCompleteModal prompt
     // below. nextTier is null only for the last tier (Mastery), where there's nothing
@@ -9646,6 +10414,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                   notify={notify}
                   soundEnabled={game.preferences.sound}
                   onReward={(coins, xp) => updateAccountData((acc) => ({ ...acc, game: { ...acc.game, coins: acc.game.coins + coins, xp: acc.game.xp + xp } }))}
+                  onReplayTutorial={resetTutorial}
                 />
               )}
               {screen === 'quests' && questStage === 'briefing' && foundChallenger && (
@@ -9675,11 +10444,31 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                   onLogout={() => setLogoutConfirmOpen(true)}
                   preferences={game.preferences}
                   updatePreferences={updatePreferences}
+                  onReplayTutorial={resetTutorial}
                 />
               )}
             </div>
           </div>
           <Toasts items={toasts} onDismiss={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} onClearAll={() => setToasts([])} />
+          {tutorialStep !== 'inactive' && (
+            <TutorialCoach
+              step={tutorialStep}
+              replay={tutorialReplay}
+              onStart={() => setTutorialStep('movement')}
+              onSkip={() => {
+                if (!tutorialReplay) markTutorialCompleted();
+                setTutorialReplay(false);
+                setTutorialStep('inactive');
+              }}
+              onAdvance={(next) => setTutorialStep(next)}
+              onClose={() => { setTutorialReplay(false); setTutorialStep('inactive'); }}
+              onFinish={() => {
+                if (!tutorialReplay) markTutorialCompleted();
+                setTutorialReplay(false);
+                setTutorialStep('inactive');
+              }}
+            />
+          )}
           {logoutConfirmOpen && (
             <LogoutConfirmModal onConfirm={logout} onCancel={() => setLogoutConfirmOpen(false)} />
           )}
