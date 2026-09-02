@@ -11,7 +11,7 @@ import {
   updateProfile as updateAuthProfile, updatePassword as updateAuthPassword,
   reauthenticateWithCredential, EmailAuthProvider, fetchSignInMethodsForEmail, type User,
 } from 'firebase/auth';
-import { doc, getDoc, getDocFromCache, setDoc } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 
 // Preconnect to the Google Fonts domains as early as JS execution allows — the actual
 // font request only fires later, via @import inside the injected <style> tag below, but
@@ -4662,7 +4662,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   };
   type ShopItem = { id: string; name: string; copy: string; price: number; icon: typeof Crosshair; category: 'Gear' | 'Consumables' | 'Cosmetics'; requiredQuestId?: string };
   type PlayerPreferences = { sound: boolean; encounterFeedback: boolean };
-  type GameState = { coins: number; xp: number; quests: Quest[]; owned: string[]; equipped: string | null; studyMinutes: number; activityDates: string[]; subjectMastery: Record<string, { correct: number; total: number }>; defeatedChallengerIds: string[]; challengerScores: Record<string, ChallengerScore>; preferences: PlayerPreferences; questionHistory: QuestionHistoryEntry[]; tutorialCompleted: boolean; tutorialStarted: boolean };
+  type GameState = { coins: number; xp: number; quests: Quest[]; owned: string[]; equipped: string | null; studyMinutes: number; activityDates: string[]; subjectMastery: Record<string, { correct: number; total: number }>; defeatedChallengerIds: string[]; challengerScores: Record<string, ChallengerScore>; preferences: PlayerPreferences; questionHistory: QuestionHistoryEntry[]; tutorialCompleted: boolean; tutorialStarted: boolean;
+    // Everything the player has ever actually found in the campus — a quest-giver
+    // tapped/talked to (whether or not that run was later passed), a lost note picked
+    // up, a guide's hint triggered. Persisted so the "X/24 DISCOVERED" HUD chip reflects
+    // real, accumulated progress instead of resetting to 0 every time the campus scene
+    // remounts (e.g. right after finishing a battle).
+    discoveredChallengerIds: string[]; discoveredNoteIds: string[]; discoveredGuideIds: string[] };
   // No `password` field anymore — Firebase Auth owns credentials entirely; this is now
   // purely the Firestore document shape for `players/{uid}`.
   type StoredAccount = { profile: Profile; game: GameState };
@@ -4849,7 +4855,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     const derivedName = authUser?.displayName?.trim() || authUser?.email?.split('@')[0] || 'Player';
     return { name: derivedName, email: authUser?.email ?? '', strand: 'STEM', avatar: makeDefaultAvatar() };
   };
-  const makeFreshGameState = (): GameState => ({ coins: 0, xp: 0, quests: initialQuests.map((quest) => ({ ...quest })), owned: [], equipped: null, studyMinutes: 0, activityDates: [], subjectMastery: {}, defeatedChallengerIds: [], challengerScores: {}, preferences: { sound: true, encounterFeedback: true }, questionHistory: [], tutorialCompleted: false, tutorialStarted: false });
+  const makeFreshGameState = (): GameState => ({ coins: 0, xp: 0, quests: initialQuests.map((quest) => ({ ...quest })), owned: [], equipped: null, studyMinutes: 0, activityDates: [], subjectMastery: {}, defeatedChallengerIds: [], challengerScores: {}, preferences: { sound: true, encounterFeedback: true }, questionHistory: [], tutorialCompleted: false, tutorialStarted: false, discoveredChallengerIds: [], discoveredNoteIds: [], discoveredGuideIds: [] });
   const getInitials = (name: string) => name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'PL';
 
   const toISODate = (date: Date) => {
@@ -4890,6 +4896,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       subjectMastery: data.game.subjectMastery ?? {},
       defeatedChallengerIds: data.game.defeatedChallengerIds ?? [],
       challengerScores: data.game.challengerScores ?? {},
+      // Backfill for accounts saved before campus-discovery persistence existed. Any
+      // challenger already defeated obviously was also discovered, so it's unioned in
+      // here — otherwise a returning player who'd already cleared districts would see
+      // their "X/24 DISCOVERED" count regress below their real, already-earned progress.
+      discoveredChallengerIds: Array.from(new Set([...(data.game.discoveredChallengerIds ?? []), ...(data.game.defeatedChallengerIds ?? [])])),
+      discoveredNoteIds: data.game.discoveredNoteIds ?? [],
+      discoveredGuideIds: data.game.discoveredGuideIds ?? [],
       preferences: { sound: data.game.preferences?.sound ?? true, encounterFeedback: data.game.preferences?.encounterFeedback ?? true },
       questionHistory: data.game.questionHistory ?? [],
       // Existing accounts created before account-scoped tutorial persistence are treated
@@ -4908,20 +4921,26 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // is still in flight. Rejects (not "throws" a real error) when this device has never
   // synced this doc before — e.g. a brand-new device — which is expected and handled by
   // the caller falling through to the server read.
-  const loadPlayerDocFromCache = async (uid: string): Promise<StoredAccount | null> => {
-    try {
-      const snap = await getDocFromCache(doc(db, 'players', uid));
-      if (!snap.exists()) return null;
-      return normalizeStoredAccount(snap.data() as StoredAccount);
-    } catch {
-      return null;
-    }
-  };
-  const loadPlayerDoc = async (uid: string): Promise<StoredAccount | null> => {
-    const snap = await getDoc(doc(db, 'players', uid));
-    if (!snap.exists()) return null;
-    return normalizeStoredAccount(snap.data() as StoredAccount);
-  };
+  // Real-time subscription to `players/{uid}` — every NPC/challenger status, quest/tier
+  // status, and current-objective field lives inside this one document, so subscribing to
+  // it (instead of one-off getDoc reads) is what makes ALL of those — map markers,
+  // checkmarks, lock/unlock state, glowing paths — update live across tabs/devices for THIS
+  // account without a refresh, while staying completely invisible to every other account:
+  // the listener is opened on this exact uid and torn down the instant that uid changes
+  // (see the effect below), so nothing from one player's doc can ever bleed into another's
+  // session. onSnapshot delivers the on-device cache first (near-instant paint, same as the
+  // old one-off getDocFromCache read) and then re-fires any time the doc changes — either
+  // our own writes echoing back, or a genuine change made elsewhere (another tab, another
+  // device).
+  const subscribeToPlayerDoc = (
+    uid: string,
+    onChange: (data: StoredAccount | null) => void,
+    onError: (err: unknown) => void
+  ) => onSnapshot(
+    doc(db, 'players', uid),
+    (snap) => onChange(snap.exists() ? normalizeStoredAccount(snap.data() as StoredAccount) : null),
+    onError
+  );
   // { merge: true } so a save always merges into whatever's already on the server/cache
   // instead of blowing it away — belt-and-suspenders alongside the app's own optimistic,
   // full-snapshot local state (every updater below spreads the previous state rather than
@@ -6361,25 +6380,9 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // furnishes, with an aisle deliberately left clear from each entrance to the back wall.
   type CampusProp = { id: string; x: number; y: number; glyph: string; sway?: boolean };
   const CAMPUS_PROPS: CampusProp[] = [
-    // Outdoor landscaping — trees, lamps, planters, the plaza's own dressing.
-    { id: 'prop_1', x: 1.5, y: 6.5, glyph: '🌳', sway: true },
-    { id: 'prop_2', x: 11.5, y: 6.5, glyph: '🌳', sway: true },
-    { id: 'prop_3', x: 3.5, y: 5.3, glyph: '💡' },
-    { id: 'prop_4', x: 9.5, y: 5.3, glyph: '💡' },
-    { id: 'prop_5', x: 3.5, y: 9.3, glyph: '🪴', sway: true },
-    { id: 'prop_6', x: 9.5, y: 9.3, glyph: '🌳', sway: true },
-    { id: 'prop_9', x: 6.5, y: 9.3, glyph: '🪴', sway: true },
-    { id: 'prop_11', x: 6.5, y: 3.5, glyph: '🌳', sway: true },
-    // Extra dressing for the Peaks/Citadel shared plaza (rows 1-3) and the open
-    // corridor along row 12 — both were left almost entirely bare once the dead
-    // eastern columns were trimmed off the map, so a few more trees/lamps/planters
-    // keep the now-tighter floor from reading as empty without touching any wall or
-    // collision tile.
-    { id: 'prop_12', x: 12.5, y: 1.6, glyph: '🌳', sway: true },
-    { id: 'prop_13', x: 14.5, y: 2.6, glyph: '💡' },
-    { id: 'prop_14', x: 11.5, y: 3.4, glyph: '🪴', sway: true },
-    { id: 'prop_15', x: 13.5, y: 12.5, glyph: '🌳', sway: true },
-    { id: 'prop_16', x: 15.5, y: 12.5, glyph: '💡' },
+    // Outdoor landscaping (trees, lamps, planters) has been removed campus-wide — the
+    // open plazas and corridors are left clear of decorative billboards; only real
+    // furniture inside actual rooms remains below.
     // Laboratory interior (row 2) — equipment along the back wall, walking space kept
     // clear between it and the open south entrance.
     { id: 'prop_lab_1', x: 2.5, y: 2.4, glyph: '🧪' },
@@ -6401,14 +6404,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     { id: 'prop_lib_table', x: 8.3, y: 10.7, glyph: '📖' },
     { id: 'prop_lib_chair', x: 8.3, y: 11.7, glyph: '🪑' },
     // Advanced Wing / Expert Enclave / Mastery Vault — the three tier halls added
-    // alongside the new wall layout above (see CAMPUS_MAP) were bare rectangles even
-    // once walled; a couple of lamps/plants/banners per hall, kept clear of the col-8
-    // spine and every NPC tile, is enough to read as a furnished building instead of
-    // an empty box.
-    { id: 'prop_adv_1', x: 5.5, y: 16.5, glyph: '💡' },
-    { id: 'prop_adv_2', x: 11.5, y: 16.5, glyph: '🪴', sway: true },
+    // alongside the new wall layout above (see CAMPUS_MAP). Lamps/planters were
+    // trimmed out along with the rest of the outdoor dressing; only the non-plant,
+    // non-lamp landmark props remain, kept clear of the col-8 spine and every NPC tile.
     { id: 'prop_exp_1', x: 5.5, y: 21.5, glyph: '🗺️' },
-    { id: 'prop_exp_2', x: 11.5, y: 21.5, glyph: '💡' },
     { id: 'prop_mas_1', x: 5.5, y: 26.5, glyph: '🏆' },
     { id: 'prop_mas_2', x: 11.5, y: 26.5, glyph: '✨' },
   ];
@@ -6443,7 +6442,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // foreshorten it by viewing angle. See the `signs.forEach` render pass below.
   const SIGN_NORMALS: Record<CampusSign['side'], [number, number]> = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] };
 
-  function CampusExplorer({ level, strand, avatar, defeatedIds, initialPosition, onChallengerFound, onExit, notify, soundEnabled, onReward, onReplayTutorial }: { level: number; strand: string; avatar: AvatarConfig; defeatedIds: string[]; initialPosition?: CampusReturnPosition | null; onChallengerFound: (challenger: CampusChallenger, position: CampusReturnPosition) => void; onExit: () => void; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void; soundEnabled: boolean; onReward: (coins: number, xp: number) => void; onReplayTutorial: () => void }) {
+  function CampusExplorer({ level, strand, avatar, defeatedIds, discoveredChallengerIds, discoveredNoteIds, discoveredGuideIds, initialPosition, onChallengerFound, onExit, notify, soundEnabled, onReward, onDiscover, onReplayTutorial }: { level: number; strand: string; avatar: AvatarConfig; defeatedIds: string[]; discoveredChallengerIds: string[]; discoveredNoteIds: string[]; discoveredGuideIds: string[]; initialPosition?: CampusReturnPosition | null; onChallengerFound: (challenger: CampusChallenger, position: CampusReturnPosition) => void; onExit: () => void; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void; soundEnabled: boolean; onReward: (coins: number, xp: number) => void; onDiscover: (kind: 'challenger' | 'note' | 'guide', id: string) => void; onReplayTutorial: () => void }) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const worldRef = useRef<HTMLDivElement | null>(null);
     const promptRef = useRef<HTMLDivElement | null>(null);
@@ -6469,6 +6468,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     soundEnabledRef.current = soundEnabled;
     const onRewardRef = useRef(onReward);
     onRewardRef.current = onReward;
+    const onDiscoverRef = useRef(onDiscover);
+    onDiscoverRef.current = onDiscover;
     // The player's live customization (appearance) — kept current via ref so the render
     // loop's closure (set up once, see the effect below) always draws whatever's equipped
     // right now, including a change made just before entering the campus.
@@ -6499,6 +6500,58 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const mapWidth = map[0].length;
       const mapHeight = map.length;
       const challengers = CAMPUS_CHALLENGERS.map((c) => ({ ...c, active: true }));
+
+      // Once a challenger is genuinely cleared (a real pass — see completeBattle's
+      // accuracy gate — not just an attempt), it should stop physically standing in the
+      // corridor it was guarding. Each finished NPC gets a nearby open spot picked out
+      // for it (nearest-first ring of candidate offsets around its original spawn,
+      // rejecting anything that lands inside a wall) and then plays a short one-time
+      // "step aside" walk from its spawn point to that spot. Already-finished challengers
+      // from a previous visit are placed at their spot immediately, with no replay of the
+      // walk every time the player wanders back through.
+      const RETREAT_CLEARANCE = 0.4;
+      const RETREAT_DURATION_MS = 1100;
+      const RETREAT_CANDIDATE_OFFSETS: [number, number][] = [
+        [0.9, 0], [-0.9, 0], [0, 0.9], [0, -0.9],
+        [0.9, 0.9], [-0.9, 0.9], [0.9, -0.9], [-0.9, -0.9],
+        [1.5, 0], [-1.5, 0], [0, 1.5], [0, -1.5],
+      ];
+      const npcRetreat = new Map<string, { homeX: number; homeY: number; targetX: number; targetY: number; startedAt: number | null; settled: boolean }>();
+      challengers.forEach((term) => {
+        const homeX = term.x, homeY = term.y;
+        let target = { x: homeX, y: homeY };
+        for (const [ox, oy] of RETREAT_CANDIDATE_OFFSETS) {
+          const tx = homeX + ox, ty = homeY + oy;
+          if (!circleHitsWall(tx, ty, RETREAT_CLEARANCE)) { target = { x: tx, y: ty }; break; }
+        }
+        const alreadyFinished = defeatedIdsRef.current.includes(term.id);
+        npcRetreat.set(term.id, {
+          homeX, homeY, targetX: target.x, targetY: target.y,
+          startedAt: alreadyFinished ? -Infinity : null,
+          settled: alreadyFinished,
+        });
+        if (alreadyFinished) { term.x = target.x; term.y = target.y; }
+      });
+      const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+      // Called once per frame, before collision/render use challengers' positions this
+      // frame, so a newly-finished NPC's walk-off is picked up the instant it clears.
+      function updateNpcRetreats(now: number) {
+        challengers.forEach((term) => {
+          const r = npcRetreat.get(term.id);
+          if (!r || r.settled) return;
+          if (!defeatedIdsRef.current.includes(term.id)) return;
+          if (r.startedAt === null) r.startedAt = now;
+          const elapsed = now - r.startedAt;
+          if (elapsed >= RETREAT_DURATION_MS) {
+            term.x = r.targetX; term.y = r.targetY;
+            r.settled = true;
+            return;
+          }
+          const t = easeOutCubic(Math.max(0, elapsed / RETREAT_DURATION_MS));
+          term.x = r.homeX + (r.targetX - r.homeX) * t;
+          term.y = r.homeY + (r.targetY - r.homeY) * t;
+        });
+      }
 
       // Fixed-orientation radar, Mobile Legends-style: north/south/east/west never
       // rotate with the camera — only the player's own heading marker turns. The grid,
@@ -6709,9 +6762,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // renders as open ground immediately instead of a wall that only clears once
       // checkGateUnlock happens to run.
       gates.forEach((gate) => { if (gate.open) map[gate.y][gate.x] = 0; });
-      const collectedNotes = new Set<string>();
-      const triggeredGuides = new Set<string>();
-      const signaledIds = new Set<string>();
+      // Seeded from persisted account progress (see GameState.discovered*Ids), not
+      // started empty — otherwise every remount (which happens on every single quest
+      // exit/re-entry) would forget everything the player has ever found and the
+      // "X/24 DISCOVERED" HUD chip would read stale/reset instead of the player's real,
+      // accumulated progress.
+      const collectedNotes = new Set<string>(discoveredNoteIds);
+      const triggeredGuides = new Set<string>(discoveredGuideIds);
+      const signaledIds = new Set<string>(discoveredChallengerIds);
       let currentDistrictId: string | null = null;
       let lastProgressCount = -1;
       // Minimap redraw throttle. The radar is a HUD element, not the main raycast view,
@@ -6720,8 +6778,9 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // difference, which matters most on mobile GPUs.
       let lastMiniMapDrawAt = 0;
       const MINIMAP_REDRAW_INTERVAL_MS = 33;
-      // "Discovered" = every signal pinged, note picked up, guide met — a simple, honest
-      // count of how much of this run's world the player has actually found so far.
+      // "Discovered" = every signal pinged, note picked up, guide met, persisted across
+      // visits (see the seeded Sets above) — a simple, honest, real-time count of how
+      // much of the whole campus the player has actually found so far, not just this run.
       const totalDiscoverable = challengers.length + notes.length + guides.length;
 
       const checkGateUnlock = () => {
@@ -7064,6 +7123,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // appears only after the player actually interacts with the quest-giver.
         if (!signaledIds.has(target.id)) {
           signaledIds.add(target.id);
+          onDiscoverRef.current('challenger', target.id);
           roamingActive = false;
           hideFieldUi();
           if (document.pointerLockElement === canvas) document.exitPointerLock();
@@ -7088,12 +7148,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const interactNote = (note: (typeof notes)[number]) => {
         if (collectedNotes.has(note.id)) return;
         collectedNotes.add(note.id);
+        onDiscoverRef.current('note', note.id);
         pushDiscovery({ title: `✦ HINT — ${note.title}`, body: note.hint, duration: 4500 });
       };
 
       const interactGuide = (guide: (typeof guides)[number]) => {
         if (triggeredGuides.has(guide.id)) return;
         triggeredGuides.add(guide.id);
+        onDiscoverRef.current('guide', guide.id);
         const line = guide.lines[Math.floor(Math.random() * guide.lines.length)];
         if (guide.reward) {
           onRewardRef.current(guide.reward.coins, guide.reward.xp);
@@ -8459,6 +8521,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const NPC_MIN_SEPARATION = PLAYER_RADIUS + NPC_RADIUS;
       function collidesWithNpc(nx: number, ny: number) {
         for (const term of challengers) {
+          // A genuinely cleared challenger (see completeBattle's accuracy gate) has
+          // already stepped aside — or is actively stepping aside, see
+          // updateNpcRetreats() — so it should never block movement, even mid-walk.
+          if (defeatedIdsRef.current.includes(term.id)) continue;
           if (Math.hypot(nx - term.x, ny - term.y) < NPC_MIN_SEPARATION) return true;
         }
         for (const guide of guides) {
@@ -8472,6 +8538,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       function gameLoop(timestamp: number) {
         const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
         lastTime = timestamp;
+        updateNpcRetreats(timestamp);
         if (roamingActive) {
           if (pointerLocked) { playerAngle += mouseDX * sensitivity * cameraSensitivityRef.current; mouseDX = 0; }
           if (touchLookDX !== 0) { playerAngle += touchLookDX * getTouchLookSensitivity(); touchLookDX = 0; }
@@ -10102,55 +10169,70 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         return;
       }
       let cancelled = false;
+      // True once this uid's subscription has delivered (and acted on) its first snapshot —
+      // i.e. the same "authoritative resolution" moment the old Phase 2 getDoc represented.
+      // Every fire after that is a genuine real-time update (our own write echoing back, or
+      // a change from another tab/device on THIS SAME account) and is applied directly so
+      // NPC status, quest/tier status, and every derived marker/checkmark/lock/glow stay in
+      // sync without a refresh.
+      let initialResolved = false;
       setAccountLoading(true);
-      // Phase 1 (instant paint): try the on-device cache first so a returning player sees
-      // their real progress immediately — no network wait, no flash of empty/default state
-      // — while Phase 2 below confirms against the server in the background. Skipped (a
-      // no-op) the very first time this device ever sees this player, since nothing is
-      // cached yet; Phase 2 alone covers that case.
-      loadPlayerDocFromCache(authUser.uid).then((cached) => {
-        if (cancelled || !cached || accountDataRef.current) return;
-        setAccountData(cached);
-        setAccountLoading(false);
-      });
-      // Phase 2 (authoritative): the real network read. Reconciles with whatever Phase 1
-      // painted (or the temporary-profile fallback below) using the same rule either way —
-      // see localProgressStartedRef.
-      loadPlayerDoc(authUser.uid).then(async (existing) => {
-        if (cancelled) return;
-        // This can resolve *after* the player has already started interacting with data
-        // Phase 1 (or the loading-fallback timeout) put on screen. If so, `existing` is now
-        // the stale copy — accepting it here would silently erase that progress the instant
-        // this resolved, which is exactly the kind of loss this persistence layer exists to
-        // prevent. Once local progress has started, local always wins: push it to Firestore
-        // (merged, never a blind overwrite — see savePlayerDoc) instead of adopting the read.
-        if (localProgressStartedRef.current) {
-          const authoritative = accountDataRef.current ?? { profile: makeDefaultProfile(authUser), game: makeFreshGameState() };
-          await savePlayerDoc(authUser.uid, authoritative);
-          if (!cancelled) setAccountLoading(false);
-          return;
-        }
-        if (existing) {
-          // Migrate legacy account documents that predate the account-scoped tutorial flag.
-          // They are intentionally considered old/returning users, so never show onboarding
-          // merely because the field is absent. Persist the migration so future sessions are
-          // deterministic and independent of this device's localStorage.
-          const normalizedExisting = normalizeStoredAccount(existing);
-          if (existing.game.tutorialCompleted === undefined) {
-            await savePlayerDoc(authUser.uid, normalizedExisting);
+      const unsubscribe = subscribeToPlayerDoc(
+        authUser.uid,
+        (existing) => {
+          if (cancelled) return;
+          if (!initialResolved) {
+            initialResolved = true;
+            // This can resolve *after* the player has already started interacting with data
+            // the loading-fallback timeout put on screen. If so, `existing` is now the stale
+            // copy — accepting it here would silently erase that progress the instant this
+            // resolved, which is exactly the kind of loss this persistence layer exists to
+            // prevent. Once local progress has started, local always wins: push it to
+            // Firestore (merged, never a blind overwrite — see savePlayerDoc) instead of
+            // adopting the read.
+            if (localProgressStartedRef.current) {
+              const authoritative = accountDataRef.current ?? { profile: makeDefaultProfile(authUser), game: makeFreshGameState() };
+              savePlayerDoc(authUser.uid, authoritative).finally(() => {
+                if (!cancelled) setAccountLoading(false);
+              });
+              return;
+            }
+            if (existing) {
+              // Migrate legacy account documents that predate the account-scoped tutorial
+              // flag. They are intentionally considered old/returning users, so never show
+              // onboarding merely because the field is absent. Persist the migration so
+              // future sessions are deterministic and independent of this device's
+              // localStorage.
+              if (existing.game.tutorialCompleted === undefined) {
+                savePlayerDoc(authUser.uid, existing);
+              }
+              setAccountData(existing);
+            } else {
+              // Auth account exists but no Firestore doc yet (e.g. it was deleted, or this
+              // is the moment right after signup — see completeSignup below, which writes
+              // the doc itself so this branch is mostly a safety net for edge cases).
+              const fresh: StoredAccount = { profile: makeDefaultProfile(authUser), game: makeFreshGameState() };
+              savePlayerDoc(authUser.uid, fresh);
+              setAccountData(fresh);
+            }
+            setAccountLoading(false);
+            return;
           }
-          setAccountData(normalizedExisting);
-        } else {
-          // Auth account exists but no Firestore doc yet (e.g. it was deleted, or this
-          // is the moment right after signup — see completeSignup below, which writes
-          // the doc itself so this branch is mostly a safety net for edge cases).
-          const fresh: StoredAccount = { profile: makeDefaultProfile(authUser), game: makeFreshGameState() };
-          await savePlayerDoc(authUser.uid, fresh);
-          if (!cancelled) setAccountData(fresh);
+          // Real-time path: this account's saved progress just changed (a background write
+          // of ours settling, or — critically for the "no refresh needed" requirement — a
+          // change made from another tab/device while this session was already open). Apply
+          // it directly so every screen re-derives from the fresh, single authoritative
+          // state. `existing` is never adopted here if it's null (doc briefly missing mid
+          // write) so an in-flight local session is never blanked out.
+          if (existing) setAccountData(existing);
+        },
+        (err) => {
+          if (cancelled) return;
+          console.error('Player progress subscription error', err);
+          setAccountLoading(false);
         }
-        if (!cancelled) setAccountLoading(false);
-      });
-      return () => { cancelled = true; };
+      );
+      return () => { cancelled = true; unsubscribe(); };
     }, [authUser]);
 
     const [screen, setScreen] = useState<Screen>('dashboard');
@@ -10597,6 +10679,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const xpReward = Math.round(baseXp * accuracy);
       const coinReward = Math.round(baseCoins * accuracy);
       const scorePct = Math.round(accuracy * 100);
+      // A run only actually clears the challenger — checkmark, walking away, freeing up
+      // the corridor it was guarding — once accuracy clears this bar. Below it, the run
+      // still pays out its proportional XP/coins above (so practice attempts aren't
+      // worthless), but the NPC stays "not yet answered": no check/status icon, and it
+      // keeps physically blocking the path exactly like an un-attempted one would.
+      const QUEST_PASS_ACCURACY = 0.6;
+      const passedThisRun = accuracy >= QUEST_PASS_ACCURACY;
 
       // Quests can be retried without limit (see interactNpc), but only the single best
       // run for a given quest ever counts — retries never stack rewards on top of each
@@ -10644,10 +10733,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // challenger is defeated for the very first time; nextDefeatedIds mirrors exactly
       // what updateAccountData is about to persist below.
       const alreadyDefeatedBeforeThisBattle = foundChallenger ? game.defeatedChallengerIds.includes(foundChallenger.id) : true;
-      const nextDefeatedIds = foundChallenger && !alreadyDefeatedBeforeThisBattle
+      const nextDefeatedIds = foundChallenger && !alreadyDefeatedBeforeThisBattle && passedThisRun
         ? [...game.defeatedChallengerIds, foundChallenger.id]
         : game.defeatedChallengerIds;
-      const newlyMasteredTierIndex = !alreadyDefeatedBeforeThisBattle && foundChallenger
+      const newlyMasteredTierIndex = !alreadyDefeatedBeforeThisBattle && passedThisRun && foundChallenger
         ? QUEST_TIERS.findIndex((tier) => tier.challengerIds.includes(foundChallenger.id) && isTierMastered(tier, nextDefeatedIds))
         : -1;
 
@@ -10667,7 +10756,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             coins: acc.game.coins + coinGained,
             subjectMastery,
             questionHistory: [...(acc.game.questionHistory ?? []), ...history].slice(-500),
-            defeatedChallengerIds: foundChallenger && !alreadyDefeated
+            defeatedChallengerIds: foundChallenger && !alreadyDefeated && passedThisRun
               ? [...acc.game.defeatedChallengerIds, foundChallenger.id]
               : acc.game.defeatedChallengerIds,
             challengerScores: foundChallenger && nextChallengerScore
@@ -10677,9 +10766,9 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         };
       });
       notify(
-        'Quest cleared',
+        passedThisRun ? 'Quest cleared' : 'Not quite a pass',
         isNewBest
-          ? `New best: ${correctCount}/${totalQuestions} (${scorePct}%) — received +${xpGained} XP and +${coinGained} credits.${accuracy < 1 ? ` (Max is +${baseXp} XP / +${baseCoins} credits for a perfect score.)` : ''}`
+          ? `New best: ${correctCount}/${totalQuestions} (${scorePct}%) — received +${xpGained} XP and +${coinGained} credits.${passedThisRun ? (accuracy < 1 ? ` (Max is +${baseXp} XP / +${baseCoins} credits for a perfect score.)` : '') : ` Score at least ${Math.round(QUEST_PASS_ACCURACY * 100)}% to clear this district.`}`
           : `Scored ${correctCount}/${totalQuestions} (${scorePct}%) — your best score is still ${Math.round(previousBestAccuracy * 100)}%, so no additional reward this time. Retry anytime to beat it.`
       );
       if (game.preferences.sound) playRewardSfx();
@@ -10823,11 +10912,21 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                   strand={profile.strand}
                   avatar={profile.avatar}
                   defeatedIds={defeatedChallengerIds}
+                  discoveredChallengerIds={game.discoveredChallengerIds ?? []}
+                  discoveredNoteIds={game.discoveredNoteIds ?? []}
+                  discoveredGuideIds={game.discoveredGuideIds ?? []}
                   onChallengerFound={(challenger, position) => { setFoundChallenger(challenger); setQuestReturnPosition(position); setQuestStage('briefing'); }}
                   onExit={() => { setQuestReturnPosition(null); setQuestStage('list'); }}
                   notify={notify}
                   soundEnabled={game.preferences.sound}
                   onReward={(coins, xp) => updateAccountData((acc) => ({ ...acc, game: { ...acc.game, coins: acc.game.coins + coins, xp: acc.game.xp + xp } }))}
+                  onDiscover={(kind, id) => updateAccountData((acc) => {
+                    const key: 'discoveredChallengerIds' | 'discoveredNoteIds' | 'discoveredGuideIds' =
+                      kind === 'challenger' ? 'discoveredChallengerIds' : kind === 'note' ? 'discoveredNoteIds' : 'discoveredGuideIds';
+                    const current = acc.game[key] ?? [];
+                    if (current.includes(id)) return acc;
+                    return { ...acc, game: { ...acc.game, [key]: [...current, id] } };
+                  })}
                   onReplayTutorial={resetTutorial}
                 />
               )}
