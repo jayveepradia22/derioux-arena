@@ -3701,8 +3701,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
        smaller and more tightly packed — a smaller, more minimal radar, nothing else.
        align-self: flex-start now applies at every width, not just the two narrow
        breakpoints below, so it never grows even if the chip row above is very wide. */
-    width: 108px;
-    max-width: 108px;
+    width: 138px;
+    max-width: 138px;
     align-self: flex-start;
     aspect-ratio: 2.3 / 1; /* short, wide strip — never stretches tall — the canvas
                                always fills this exactly; see the player-tracked
@@ -3839,14 +3839,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   }
   @media (max-width: 700px) {
     .campus-map-controls { gap: 4px; }
-    .campus-minimap { width: 68px; max-width: 68px; }
+    .campus-minimap { width: 84px; max-width: 84px; }
     .campus-settings-btn { width: 22px; height: 22px; flex-basis: 22px; border-radius: 50%; }
     .campus-settings-btn svg { width: 11px; height: 11px; }
     .campus-settings-panel { top: 27px; width: min(250px, calc(100vw - 18px)); padding: 10px; }
   }
   @media (max-width: 430px) {
     .campus-map-controls { gap: 3px; }
-    .campus-minimap { width: 56px; max-width: 56px; }
+    .campus-minimap { width: 68px; max-width: 68px; }
     .campus-settings-btn { width: 20px; height: 20px; flex-basis: 20px; border-radius: 50%; }
     .campus-settings-btn svg { width: 10px; height: 10px; }
     .campus-settings-panel { top: 24px; width: min(238px, calc(100vw - 12px)); padding: 9px; border-radius: 10px; }
@@ -3894,7 +3894,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
        match the chip row's width — keeps the same short, wide proportions as
        desktop (never a tall square) so it stays a tight, unobtrusive HUD element
        that takes up very little screen space. */
-    .campus-minimap { width: 68px; max-width: 68px; aspect-ratio: 2.3 / 1; border-radius: 6px; align-self: flex-start; }
+    .campus-minimap { width: 84px; max-width: 84px; aspect-ratio: 2.3 / 1; border-radius: 6px; align-self: flex-start; }
     .campus-exit-btn { padding: 4px 6px; font-size: 8px; border-radius: 5px; gap: 3px; }
   }
   @media (max-width: 430px) {
@@ -3902,7 +3902,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     .campus-hud-left { max-width: calc(100% - 48px); gap: 3px; }
     .campus-hud-row { gap: 3px; }
     .campus-hud-row .campus-chip { padding: 2px 4px; font-size: 6px; border-radius: 4px; }
-    .campus-minimap { width: 56px; max-width: 56px; aspect-ratio: 2.3 / 1; border-radius: 5px; align-self: flex-start; }
+    .campus-minimap { width: 68px; max-width: 68px; aspect-ratio: 2.3 / 1; border-radius: 5px; align-self: flex-start; }
     .campus-exit-btn { padding: 3px 5px; font-size: 7px; border-radius: 4px; gap: 2px; }
   }
 
@@ -7025,10 +7025,22 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       function setCameraZoomFromInput(delta: number) {
         if (!Number.isFinite(delta) || delta === 0) return;
         const direction = delta > 0 ? 1 : -1; // wheel down / pinch inward = zoom out
-        const magnitude = Math.min(Math.abs(delta), 5);
-        targetCameraDistance = clampCameraDistance(
-          targetCameraDistance + direction * Math.max(0.12, targetCameraDistance * 0.075) * magnitude
-        );
+        // Normalize instead of scaling directly off the raw event magnitude. Wheel deltaY
+        // in particular is NOT a consistent unit across devices/browsers — anywhere from
+        // ~3 (line-mode) to 100+ (pixel-mode trackpads/mice) for what the user experiences
+        // as one single scroll "tick" — so scaling zoom off it directly let one wheel tick
+        // (or one noisy pinch sample) swing targetCameraDistance across a large fraction of
+        // its whole ~6.4-unit range in a single step. That's what produced the jarring
+        // "camera snaps between close/far, character pops in and out, briefly clips through
+        // walls" flicker: currentCameraDistance chases that target and crosses the
+        // showPlayerBody / first-person thresholds almost instantly. Clamping the magnitude
+        // to a normalized 0..1 range first, then applying a small fixed-size step, makes
+        // every input source feel like a smooth, consistent nudge no matter how large the
+        // raw delta was — a real sustained scroll/pinch still zooms normally over several
+        // events, it just can no longer leap the whole range in one.
+        const magnitude = Math.min(Math.abs(delta), 5) / 5;
+        const step = Math.max(0.05, targetCameraDistance * 0.02) * magnitude;
+        targetCameraDistance = clampCameraDistance(targetCameraDistance + direction * step);
       }
 
       let leftJoy = { active: false, id: null as number | null, dx: 0, dy: 0 };
@@ -7623,6 +7635,20 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         const followT = 1 - Math.exp(-CAMERA_FOLLOW_RATE * Math.max(dt, 0));
         smoothCamX += (idealCamX - smoothCamX) * followT;
         smoothCamY += (idealCamY - smoothCamY) * followT;
+        // The exponential follow above is what gives the camera its trailing feel, but it
+        // means the camera doesn't actually sit at idealCamX/Y — it lags a step behind,
+        // sliding toward it each frame. idealCamX/Y is guaranteed wall-clear (see the
+        // clearance loop above), but the straight-line path the lagging camera slides
+        // along to catch up isn't: rounding a wall corner, that path can cut through the
+        // corner for a frame or two even though both endpoints are clear, which is the
+        // "camera glitches past a wall" behavior. Rather than let the lag itself clip
+        // through geometry, snap it straight to the known-clear ideal position on exactly
+        // those frames — everywhere else the smoothing is untouched, so normal follow feel
+        // is unaffected.
+        if (circleHitsWall(smoothCamX, smoothCamY, CAMERA_COLLIDER_RADIUS)) {
+          smoothCamX = idealCamX;
+          smoothCamY = idealCamY;
+        }
         const camX = smoothCamX;
         const camY = smoothCamY;
 
