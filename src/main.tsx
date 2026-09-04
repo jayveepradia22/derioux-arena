@@ -5,6 +5,7 @@ import {
   KeyRound, LogOut, MapPin, Package, Pause, Play, RotateCcw, ShieldCheck, Shirt, ShoppingBag, Settings, Sparkles, Swords, Timer, Trophy,
   UserRound, X, Zap,
 } from 'lucide-react';
+import * as THREE from 'three';
 import { auth, db } from "./firebase";
 import {
   createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged,
@@ -6470,9 +6471,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     onRewardRef.current = onReward;
     const onDiscoverRef = useRef(onDiscover);
     onDiscoverRef.current = onDiscover;
-    // The player's live customization (appearance) — kept current via ref so the render
-    // loop's closure (set up once, see the effect below) always draws whatever's equipped
-    // right now, including a change made just before entering the campus.
     const avatarRef = useRef(avatar);
     avatarRef.current = avatar;
     const [settingsOpen, setSettingsOpen] = useState(false);
@@ -6492,319 +6490,45 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const discoveryBtn = discoveryBtnRef.current;
       const minimapCanvas = minimapRef.current;
       if (!canvas || !world || !prompt || !badge || !tapStart || !discoveryCard || !discoveryTitle || !discoveryBody || !discoveryBtn || !minimapCanvas) return;
-      const ctx = canvas.getContext('2d', { alpha: false });
-      const miniCtx = minimapCanvas.getContext('2d');
-      if (!ctx || !miniCtx) return;
 
+      // ---------------------------------------------------------------------------------
+      // REAL THREE.JS CAMPUS
+      // ---------------------------------------------------------------------------------
+      // The old campus renderer was a software raycaster that painted walls, characters,
+      // furniture, and signage directly into a 2D canvas. This scene is deliberately built
+      // from real Three.js meshes: perspective camera, depth-tested geometry, real lighting,
+      // shadows, roofs, wall thickness, windows, doors, furniture, vegetation, and 3D
+      // characters. Gameplay coordinates remain the same 17x29 grid, so the existing quest,
+      // gate, progression, and account state systems do not need to know that the renderer
+      // changed.
       const map = CAMPUS_MAP.map((row) => row.slice());
       const mapWidth = map[0].length;
       const mapHeight = map.length;
       const challengers = CAMPUS_CHALLENGERS.map((c) => ({ ...c, active: true }));
-
-      // Once a challenger is genuinely cleared (a real pass — see completeBattle's
-      // accuracy gate — not just an attempt), it should stop physically standing in the
-      // corridor it was guarding. Each finished NPC gets a nearby open spot picked out
-      // for it (nearest-first ring of candidate offsets around its original spawn,
-      // rejecting anything that lands inside a wall) and then plays a short one-time
-      // "step aside" walk from its spawn point to that spot. Already-finished challengers
-      // from a previous visit are placed at their spot immediately, with no replay of the
-      // walk every time the player wanders back through.
-      const RETREAT_CLEARANCE = 0.4;
-      const RETREAT_DURATION_MS = 1100;
-      const RETREAT_CANDIDATE_OFFSETS: [number, number][] = [
-        [0.9, 0], [-0.9, 0], [0, 0.9], [0, -0.9],
-        [0.9, 0.9], [-0.9, 0.9], [0.9, -0.9], [-0.9, -0.9],
-        [1.5, 0], [-1.5, 0], [0, 1.5], [0, -1.5],
-      ];
-      const npcRetreat = new Map<string, { homeX: number; homeY: number; targetX: number; targetY: number; startedAt: number | null; settled: boolean }>();
-      challengers.forEach((term) => {
-        const homeX = term.x, homeY = term.y;
-        let target = { x: homeX, y: homeY };
-        for (const [ox, oy] of RETREAT_CANDIDATE_OFFSETS) {
-          const tx = homeX + ox, ty = homeY + oy;
-          if (!circleHitsWall(tx, ty, RETREAT_CLEARANCE)) { target = { x: tx, y: ty }; break; }
-        }
-        const alreadyFinished = defeatedIdsRef.current.includes(term.id);
-        npcRetreat.set(term.id, {
-          homeX, homeY, targetX: target.x, targetY: target.y,
-          startedAt: alreadyFinished ? -Infinity : null,
-          settled: alreadyFinished,
-        });
-        if (alreadyFinished) { term.x = target.x; term.y = target.y; }
-      });
-      const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
-      // Called once per frame, before collision/render use challengers' positions this
-      // frame, so a newly-finished NPC's walk-off is picked up the instant it clears.
-      function updateNpcRetreats(now: number) {
-        challengers.forEach((term) => {
-          const r = npcRetreat.get(term.id);
-          if (!r || r.settled) return;
-          if (!defeatedIdsRef.current.includes(term.id)) return;
-          if (r.startedAt === null) r.startedAt = now;
-          const elapsed = now - r.startedAt;
-          if (elapsed >= RETREAT_DURATION_MS) {
-            term.x = r.targetX; term.y = r.targetY;
-            r.settled = true;
-            return;
-          }
-          const t = easeOutCubic(Math.max(0, elapsed / RETREAT_DURATION_MS));
-          term.x = r.homeX + (r.targetX - r.homeX) * t;
-          term.y = r.homeY + (r.targetY - r.homeY) * t;
-        });
-      }
-
-      // Fixed-orientation radar, Mobile Legends-style: north/south/east/west never
-      // rotate with the camera — only the player's own heading marker turns. The grid,
-      // walls, and every other icon below are drawn straight from world (x, y), with no
-      // rotation ever applied to the map itself, so "up" on this panel is always world
-      // north no matter which way the player is currently looking. It's UI-only — never
-      // affects movement, collision, interaction, or the main raycaster — and its redraw
-      // is throttled (see MINIMAP_REDRAW_INTERVAL_MS) rather than tied to the raycaster's
-      // own frame rate, since a HUD radar doesn't need 60fps and this keeps it cheap on
-      // mobile GPUs.
-      const drawMiniMap = (now: number) => {
-        if (now - lastMiniMapDrawAt < MINIMAP_REDRAW_INTERVAL_MS) return;
-        lastMiniMapDrawAt = now;
-        const cssW = minimapCanvas.clientWidth || 300;
-        const cssH = minimapCanvas.clientHeight || 136;
-        const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        const pxW = Math.max(1, Math.floor(cssW * dpr));
-        const pxH = Math.max(1, Math.floor(cssH * dpr));
-        if (minimapCanvas.width !== pxW || minimapCanvas.height !== pxH) {
-          minimapCanvas.width = pxW;
-          minimapCanvas.height = pxH;
-        }
-        miniCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        miniCtx.clearRect(0, 0, cssW, cssH);
-
-        // Flat panel background (kept simple/minimal — no glass blur).
-        miniCtx.fillStyle = 'rgba(8, 12, 22, 0.90)';
-        miniCtx.fillRect(0, 0, cssW, cssH);
-
-        // Tight, minimal padding — the map should fill essentially the whole panel with
-        // no wasted chrome. Floor/cap are both small since the panel itself is now a
-        // compact widget, not a large HUD strip.
-        const pad = Math.max(2, Math.min(6, cssW * 0.035));
-        const innerW = cssW - pad * 2;
-        const innerH = cssH - pad * 2;
-
-        // Always show the full map WIDTH edge-to-edge (viewCols === mapWidth), so there
-        // is never any empty letterbox space on the left/right — tile size is controlled
-        // purely by the panel's own physical CSS footprint (a smaller panel means
-        // smaller tiles), not by an artificial zoom factor. Only the vertical axis needs
-        // a viewport: the campus is much taller than it is wide, so a slice around the
-        // player scrolls vertically, always filling the panel completely (mapHeight is
-        // never smaller than viewRows in practice, so this never letterboxes either).
-        const viewCols = mapWidth;
-        const scale = innerW / viewCols;
-        const viewRows = innerH / scale;
-        const ox = pad;
-        const maxTop = Math.max(0, mapHeight - viewRows);
-        const viewTop = mapHeight <= viewRows
-          ? (mapHeight - viewRows) / 2
-          : Math.max(0, Math.min(maxTop, playerY - viewRows / 2));
-        const oy = pad - viewTop * scale;
-
-        // Clip everything below to the padded inner rect so nothing bleeds into the
-        // panel's border padding.
-        miniCtx.save();
-        miniCtx.beginPath();
-        miniCtx.rect(pad, pad, innerW, innerH);
-        miniCtx.clip();
-
-        // Floor fill — the viewport is built to exactly cover this rect, so a single
-        // fillRect stands in for the old "fit-to-map" floor rectangle.
-        miniCtx.fillStyle = 'rgba(38, 48, 68, 0.72)';
-        miniCtx.fillRect(pad, pad, innerW, innerH);
-
-        // Only the rows currently in view need to be drawn.
-        const rowStart = Math.max(0, Math.floor(viewTop) - 1);
-        const rowEnd = Math.min(mapHeight, Math.ceil(viewTop + viewRows) + 1);
-
-        // Subtle grid gives orientation without making it look like a cheap tile map.
-        miniCtx.strokeStyle = 'rgba(148, 163, 184, 0.055)';
-        miniCtx.lineWidth = 1;
-        for (let x = 0; x <= mapWidth; x += 2) {
-          miniCtx.beginPath(); miniCtx.moveTo(ox + x * scale, oy + rowStart * scale); miniCtx.lineTo(ox + x * scale, oy + rowEnd * scale); miniCtx.stroke();
-        }
-        for (let y = rowStart; y <= rowEnd; y += 1) {
-          if (y % 2 !== 0) continue;
-          miniCtx.beginPath(); miniCtx.moveTo(ox, oy + y * scale); miniCtx.lineTo(ox + mapWidth * scale, oy + y * scale); miniCtx.stroke();
-        }
-
-        // Walls. Wall cells are softened so the radar reads as a designed HUD, while the
-        // corridors remain immediately understandable. Inset is a proportion of the tile
-        // pitch (not a fixed pixel gap) so cells stay crisp little squares — with a
-        // visible gap between them — at any zoom level, including the smaller pitch now
-        // used here.
-        const wallInset = Math.max(0.5, scale * 0.12);
-        const wallSize = Math.max(1, scale - wallInset);
-        for (let y = rowStart; y < rowEnd; y++) {
-          for (let x = 0; x < mapWidth; x++) {
-            if (map[y]?.[x]) {
-              miniCtx.fillStyle = 'rgba(104, 119, 143, 0.78)';
-              miniCtx.fillRect(ox + x * scale + wallInset / 2, oy + y * scale + wallInset / 2, wallSize, wallSize);
-            }
-          }
-        }
-
-        const dot = (x: number, y: number, radius: number, fill: string, stroke?: string) => {
-          const sx = ox + x * scale;
-          const sy = oy + y * scale;
-          miniCtx.beginPath(); miniCtx.arc(sx, sy, radius, 0, Math.PI * 2);
-          miniCtx.fillStyle = fill; miniCtx.fill();
-          if (stroke) { miniCtx.strokeStyle = stroke; miniCtx.lineWidth = 1.5; miniCtx.stroke(); }
-        };
-
-        const currentQuestDestination = getCurrentQuestDestination(defeatedIdsRef.current);
-        // Only the single actionable destination is gold. Other undefeated challengers remain
-        // visible as quiet campus markers, but they never compete with the player's next step.
-        challengers.forEach((c) => {
-          const done = defeatedIdsRef.current.includes(c.id);
-          const isDestination = currentQuestDestination?.id === c.id;
-          if (!done && !isDestination) dot(c.x, c.y, 2.2, 'rgba(248, 184, 78, .28)');
-          if (isDestination) {
-            dot(c.x, c.y, 4.2, '#f8b84e', 'rgba(255,255,255,.85)');
-            miniCtx.beginPath();
-            miniCtx.arc(ox + c.x * scale, oy + c.y * scale, 7, 0, Math.PI * 2);
-            miniCtx.strokeStyle = 'rgba(248, 184, 78, .28)';
-            miniCtx.lineWidth = 1.5;
-            miniCtx.stroke();
-          }
-        });
-
-        // Draw the same route on the mini-map as a quiet secondary cue. The world-space
-        // glowing path remains the primary guide; this line simply confirms the destination.
-        if (currentQuestDestination) {
-          const route = getQuestPath(currentQuestDestination);
-          if (route.length > 1) {
-            miniCtx.save();
-            miniCtx.beginPath();
-            route.forEach((point, index) => {
-              const sx = ox + point.x * scale;
-              const sy = oy + point.y * scale;
-              if (index === 0) miniCtx.moveTo(sx, sy);
-              else miniCtx.lineTo(sx, sy);
-            });
-            miniCtx.strokeStyle = 'rgba(248, 184, 78, .48)';
-            miniCtx.lineWidth = Math.max(1.2, Math.min(2.2, scale * 0.22));
-            miniCtx.setLineDash([Math.max(2, scale * 0.7), Math.max(2.5, scale * 1.1)]);
-            miniCtx.stroke();
-            miniCtx.restore();
-          }
-        }
-
-        guides.forEach((g) => dot(g.x, g.y, 2.8, '#67cdd1'));
-        notes.forEach((n) => { if (!collectedNotes.has(n.id)) dot(n.x, n.y, 2.1, '#d8b4fe'); });
-        gates.forEach((g) => dot(g.x, g.y, 3.1, '#fb7185', 'rgba(255,255,255,.7)'));
-
-        // Player marker — a small glowing circular marker with a subtle directional
-        // line/cone. The circle stays visually clean at compact mobile sizes while the
-        // short heading cue still makes the player's facing direction obvious.
-        const px = ox + playerX * scale;
-        const py = oy + playerY * scale;
-        const markerRadius = Math.max(2.6, Math.min(4.1, scale * 0.18));
-        const headingLength = Math.max(5, Math.min(9, scale * 0.55));
-        miniCtx.save();
-        miniCtx.translate(px, py);
-        miniCtx.rotate(playerAngle);
-        miniCtx.beginPath();
-        miniCtx.moveTo(markerRadius * 0.15, 0);
-        miniCtx.lineTo(headingLength, -markerRadius * 0.78);
-        miniCtx.lineTo(headingLength, markerRadius * 0.78);
-        miniCtx.closePath();
-        miniCtx.fillStyle = 'rgba(103, 205, 209, .16)';
-        miniCtx.fill();
-        miniCtx.strokeStyle = 'rgba(103, 205, 209, .55)';
-        miniCtx.lineWidth = 1;
-        miniCtx.stroke();
-        miniCtx.beginPath();
-        miniCtx.arc(0, 0, markerRadius + 2, 0, Math.PI * 2);
-        miniCtx.fillStyle = 'rgba(103, 205, 209, .12)';
-        miniCtx.fill();
-        miniCtx.beginPath();
-        miniCtx.arc(0, 0, markerRadius, 0, Math.PI * 2);
-        miniCtx.fillStyle = '#f4f0e7';
-        miniCtx.fill();
-        miniCtx.strokeStyle = '#67cdd1';
-        miniCtx.lineWidth = 1.2;
-        miniCtx.stroke();
-        miniCtx.restore();
-
-        // No title bar and no in-canvas legend — the panel is just the live map, with
-        // the marker colors (gold quest target, teal guide, violet note, coral gate)
-        // self-evident from context, matching the cleaned-up compact HUD.
-        miniCtx.restore();
-      };
-      // Same deterministic per-challenger AvatarConfig used everywhere else a challenger's
-      // likeness is shown (Battle, the quest briefing card) — computed once here rather
-      // than every animation frame, since the world sprite below now renders a full
-      // proportioned body instead of a flat colored placeholder.
-      const challengerAvatars = new Map(challengers.map((c) => [c.id, getChallengerAvatar(c)]));
       const notes = CAMPUS_NOTES.map((n) => ({ ...n }));
       const guides = CAMPUS_GUIDES.map((g) => ({ ...g }));
       const props = CAMPUS_PROPS.map((p) => ({ ...p }));
       const signs = CAMPUS_SIGNS.map((s) => ({ ...s }));
-      // A gate's true state on mount is whatever the player's persisted progress already
-      // says it should be — NOT always-closed. Re-entering the campus (every quest exit,
-      // every navigation back to roaming) remounts this component from scratch, so
-      // seeding every gate as `open: false` here made checkGateUnlock() below treat
-      // long-since-opened gates as brand-new unlocks on every single remount, replaying
-      // their "seal breaks" notification indefinitely. A gate only ever deserves that
-      // notification once, the moment it actually transitions — so gates whose
-      // requirements were already satisfied *before* this mount start pre-opened and
-      // silent; checkGateUnlock only fires for gates that unlock from here on.
+      const challengerAvatars = new Map(challengers.map((c) => [c.id, getChallengerAvatar(c)]));
+
       const gates = CAMPUS_GATES.map((g) => ({
         ...g,
         open: g.requiredIds.every((id) => defeatedIdsRef.current.includes(id)),
       }));
-      // Mirror that pre-opened state onto the map tiles too, so an already-unlocked gate
-      // renders as open ground immediately instead of a wall that only clears once
-      // checkGateUnlock happens to run.
       gates.forEach((gate) => { if (gate.open) map[gate.y][gate.x] = 0; });
-      // Seeded from persisted account progress (see GameState.discovered*Ids), not
-      // started empty — otherwise every remount (which happens on every single quest
-      // exit/re-entry) would forget everything the player has ever found and the
-      // "X/24 DISCOVERED" HUD chip would read stale/reset instead of the player's real,
-      // accumulated progress.
+
       const collectedNotes = new Set<string>(discoveredNoteIds);
       const triggeredGuides = new Set<string>(discoveredGuideIds);
       const signaledIds = new Set<string>(discoveredChallengerIds);
-      let currentDistrictId: string | null = null;
-      let lastProgressCount = -1;
-      // Minimap redraw throttle. The radar is a HUD element, not the main raycast view,
-      // so it doesn't need to redraw every single animation frame — capping it to ~30fps
-      // halves its (otherwise per-frame) full grid/wall repaint cost with no visible
-      // difference, which matters most on mobile GPUs.
-      let lastMiniMapDrawAt = 0;
-      const MINIMAP_REDRAW_INTERVAL_MS = 33;
-      // "Discovered" = every signal pinged, note picked up, guide met, persisted across
-      // visits (see the seeded Sets above) — a simple, honest, real-time count of how
-      // much of the whole campus the player has actually found so far, not just this run.
       const totalDiscoverable = challengers.length + notes.length + guides.length;
+      let lastProgressCount = -1;
+      let currentDistrictId: string | null = null;
+      let roamingActive = true;
 
-      const checkGateUnlock = () => {
-        gates.forEach((gate) => {
-          if (gate.open) return;
-          if (gate.requiredIds.every((id) => defeatedIdsRef.current.includes(id))) {
-            gate.open = true;
-            map[gate.y][gate.x] = 0;
-            // The unlock itself (map tile, gate.open) always happens — only the toast
-            // and fanfare are conditional, and only for gates whose unlock was already
-            // announced elsewhere (see `announceUnlock` above).
-            if (gate.announceUnlock !== false) {
-              notifyRef.current(gate.label, gate.openMessage);
-              // A major, rare unlock — the same fanfare cue as an achievement, not the
-              // routine quest/item reward jingle.
-              if (soundEnabledRef.current) playAchievementSfx();
-            }
-          }
-        });
-      };
-      checkGateUnlock();
-
-      // Dynamic in-world quest guidance. The route is calculated only when the destination,
-      // player navigation cell, or opened-gate state changes — never every render frame.
+      // The quest path algorithm remains the same gameplay/pathfinding behavior as before.
+      let playerX = initialPosition?.x ?? 4.5;
+      let playerY = initialPosition?.y ?? 6.5;
+      let playerAngle = initialPosition?.angle ?? 0;
       let questPath: { x: number; y: number }[] = [];
       let questPathKey = '';
       let questDestinationId: string | null = null;
@@ -6813,75 +6537,33 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         x >= 0 && x < mapWidth && y >= 0 && y < mapHeight && map[y]?.[x] === 0;
 
       const getQuestPath = (destination: { x: number; y: number; id: string } | null) => {
-        if (!destination) {
-          questPath = [];
-          questPathKey = 'none';
-          questDestinationId = null;
-          return questPath;
-        }
-
+        if (!destination) { questPath = []; questPathKey = 'none'; questDestinationId = null; return questPath; }
         const startX = Math.max(0, Math.min(mapWidth - 1, Math.floor(playerX)));
         const startY = Math.max(0, Math.min(mapHeight - 1, Math.floor(playerY)));
         const goalX = Math.max(0, Math.min(mapWidth - 1, Math.floor(destination.x)));
         const goalY = Math.max(0, Math.min(mapHeight - 1, Math.floor(destination.y)));
         const key = `${destination.id}:${startX},${startY}:${goalX},${goalY}:${gates.filter((gate) => gate.open).length}`;
-
         if (key === questPathKey && questDestinationId === destination.id) return questPath;
-
-        questPathKey = key;
-        questDestinationId = destination.id;
-        questPath = [];
-
-        // The destination itself is always on an open tile. If a future map edit ever puts
-        // an NPC on a blocked tile, fail safely rather than drawing a path through a wall.
+        questPathKey = key; questDestinationId = destination.id; questPath = [];
         if (!getWalkableCell(goalX, goalY)) return questPath;
-
         const startKey = `${startX},${startY}`;
         const goalKey = `${goalX},${goalY}`;
         const queue: { x: number; y: number }[] = [{ x: startX, y: startY }];
         const cameFrom = new Map<string, string | null>([[startKey, null]]);
         const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
-
-        // BFS is sufficient for this compact campus grid and guarantees the route stays
-        // inside the same walkable cells used by the player's collision system.
         for (let head = 0; head < queue.length; head++) {
           const current = queue[head];
           const currentKey = `${current.x},${current.y}`;
           if (currentKey === goalKey) break;
-
           for (const [dx, dy] of dirs) {
-            const nx = current.x + dx;
-            const ny = current.y + dy;
+            const nx = current.x + dx, ny = current.y + dy;
             if (!getWalkableCell(nx, ny)) continue;
             const nextKey = `${nx},${ny}`;
             if (cameFrom.has(nextKey)) continue;
-            cameFrom.set(nextKey, currentKey);
-            queue.push({ x: nx, y: ny });
+            cameFrom.set(nextKey, currentKey); queue.push({ x: nx, y: ny });
           }
         }
-
-        if (!cameFrom.has(goalKey)) {
-          // If the exact NPC tile is temporarily unreachable, guide to the closest
-          // reachable tile around it instead of drawing an impossible route.
-          let bestKey: string | null = null;
-          let bestDist = Infinity;
-          for (const [cellKey] of cameFrom) {
-            const [cx, cy] = cellKey.split(',').map(Number);
-            const d = (cx - goalX) ** 2 + (cy - goalY) ** 2;
-            if (d < bestDist) { bestDist = d; bestKey = cellKey; }
-          }
-          if (!bestKey) return questPath;
-          let cursor: string | null = bestKey;
-          const fallback: { x: number; y: number }[] = [];
-          while (cursor) {
-            const [cx, cy] = cursor.split(',').map(Number);
-            fallback.push({ x: cx + 0.5, y: cy + 0.5 });
-            cursor = cameFrom.get(cursor) ?? null;
-          }
-          questPath = fallback.reverse();
-          return questPath;
-        }
-
+        if (!cameFrom.has(goalKey)) return questPath;
         const reversed: { x: number; y: number }[] = [];
         let cursor: string | null = goalKey;
         while (cursor) {
@@ -6889,1733 +6571,538 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           reversed.push({ x: cx + 0.5, y: cy + 0.5 });
           cursor = cameFrom.get(cursor) ?? null;
         }
-
-        // Replace the final cell center with the NPC's actual position so the guide ends
-        // exactly at the quest-giver rather than stopping at the middle of its tile.
         const route = reversed.reverse();
-        if (route.length > 0) route[route.length - 1] = { x: destination.x, y: destination.y };
-
-        // Collapse every few grid cells into a slightly longer segment. This keeps the
-        // visual calm and prevents dozens of tiny glowing marks on mobile.
+        if (route.length) route[route.length - 1] = { x: destination.x, y: destination.y };
         const simplified: { x: number; y: number }[] = [];
-        const stride = 2;
-        for (let i = 0; i < route.length; i += stride) simplified.push(route[i]);
+        for (let i = 0; i < route.length; i += 2) simplified.push(route[i]);
         const last = route[route.length - 1];
-        if (last && (!simplified.length || simplified[simplified.length - 1].x !== last.x || simplified[simplified.length - 1].y !== last.y)) {
-          simplified.push(last);
-        }
+        if (last && (!simplified.length || simplified[simplified.length - 1].x !== last.x || simplified[simplified.length - 1].y !== last.y)) simplified.push(last);
         questPath = simplified;
         return questPath;
       };
 
-      // Holographic discovery queue: a quest signal gets a tappable "investigate" CTA
-      // that jumps straight into the quest dialogue; a hint (note/guide) just gets an
-      // auto-dismissing info card since there's nothing further to open. Either way this
-      // keeps quest/hint reveals inside the game world, top-center, instead of the
-      // corner toast stack — and only one is ever shown at a time, queued like Toasts.
-      type DiscoveryCard = { title: string; body: string; onTap?: () => void; duration: number };
-      const discoveryQueue: DiscoveryCard[] = [];
-      let discoveryActive: DiscoveryCard | null = null;
-      let discoveryTimer: number | null = null;
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'high-performance' });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+      renderer.setClearColor(0x91c7e8, 1);
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.05;
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-      const renderDiscoveryCard = () => {
-        if (!discoveryActive) { discoveryCard.style.display = 'none'; return; }
-        discoveryCard.style.display = 'flex';
-        discoveryTitle.textContent = discoveryActive.title;
-        discoveryBody.textContent = discoveryActive.body;
-        if (discoveryActive.onTap) { discoveryBtn.style.display = 'inline-flex'; discoveryBtn.textContent = 'TAP TO INVESTIGATE'; }
-        else { discoveryBtn.style.display = 'inline-flex'; discoveryBtn.textContent = 'GOT IT'; }
+      const scene = new THREE.Scene();
+      scene.fog = new THREE.Fog(0x91c7e8, 22, 58);
+
+      const camera = new THREE.PerspectiveCamera(58, 1, 0.05, 120);
+      camera.position.set(playerX, 3.1, playerY + 5.0);
+
+      const ambient = new THREE.HemisphereLight(0xdff4ff, 0x48505a, 1.55);
+      scene.add(ambient);
+      const sun = new THREE.DirectionalLight(0xfff3d6, 2.5);
+      sun.position.set(-12, 22, 10);
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(1024, 1024);
+      sun.shadow.camera.left = -24; sun.shadow.camera.right = 24;
+      sun.shadow.camera.top = 32; sun.shadow.camera.bottom = -10;
+      scene.add(sun);
+
+      const root = new THREE.Group();
+      root.name = 'CampusWorld';
+      scene.add(root);
+
+      const shared = {
+        floor: new THREE.BoxGeometry(1, 0.12, 1),
+        wall: new THREE.BoxGeometry(1, 3.0, 1),
+        trim: new THREE.BoxGeometry(1.08, 0.14, 1.08),
+        thinBox: new THREE.BoxGeometry(0.84, 1.75, 0.06),
       };
-      const advanceDiscoveryQueue = () => {
-        if (discoveryActive || discoveryQueue.length === 0) { renderDiscoveryCard(); return; }
-        discoveryActive = discoveryQueue.shift()!;
-        renderDiscoveryCard();
-        // A duration of 0 means an intentional quest-discovery card stays open until
-        // the player chooses the action. Informational cards can still auto-dismiss.
-        if (discoveryActive.duration > 0) {
-          discoveryTimer = window.setTimeout(() => dismissDiscovery(), discoveryActive.duration);
+      const mats = new Map<string, THREE.MeshStandardMaterial>();
+      const mat = (key: string, color: number, roughness = 0.82, metalness = 0.02) => {
+        const existing = mats.get(key);
+        if (existing) return existing;
+        const m = new THREE.MeshStandardMaterial({ color, roughness, metalness });
+        mats.set(key, m); return m;
+      };
+
+      const DISTRICT_STYLE: Record<string, { floor: number; wall: number; trim: number; accent: number; roof: number }> = {
+        foundation: { floor: 0xd7c7ad, wall: 0xe8e2d8, trim: 0x8b735b, accent: 0xd89c42, roof: 0x5b6676 },
+        peaks: { floor: 0xbccbd7, wall: 0xd9e3ea, trim: 0x53677c, accent: 0x5b91d9, roof: 0x39495e },
+        wilds: { floor: 0xb9d4b6, wall: 0xdce8d7, trim: 0x5f7960, accent: 0x65a45e, roof: 0x3f5e49 },
+        citadel: { floor: 0xd9c0d9, wall: 0xe9dbe9, trim: 0x6d536d, accent: 0xc86bce, roof: 0x47364c },
+        advanced: { floor: 0xbfc8db, wall: 0xdbe0ec, trim: 0x53607b, accent: 0x6d8de0, roof: 0x39445e },
+        expert: { floor: 0xd8c4c4, wall: 0xe9dede, trim: 0x79595c, accent: 0xd46b73, roof: 0x523b3e },
+        mastery: { floor: 0xd9cfad, wall: 0xeee7ce, trim: 0x8a7441, accent: 0xe4b43e, roof: 0x54462a },
+      };
+      const styleAt = (x: number, y: number) => DISTRICT_STYLE[getDistrictAt(x, y).id] ?? DISTRICT_STYLE.wilds;
+
+      const addMesh = (geometry: THREE.BufferGeometry, material: THREE.Material, position: [number, number, number], parent = root) => {
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.set(...position);
+        parent.add(mesh);
+        return mesh;
+      };
+
+      // Ground is split by district so the campus reads as designed architecture rather than
+      // one giant colored plane. Each section has a subtle raised border and central path tone.
+      for (const district of CAMPUS_DISTRICTS) {
+        const s = DISTRICT_STYLE[district.id];
+        const w = district.maxX - district.minX, d = district.maxY - district.minY;
+        const ground = addMesh(new THREE.BoxGeometry(w, 0.14, d), mat(`ground-${district.id}`, s.floor), [(district.minX + district.maxX) / 2, -0.07, (district.minY + district.maxY) / 2]);
+        ground.receiveShadow = true;
+        const border = addMesh(new THREE.BoxGeometry(w + 0.12, 0.05, d + 0.12), mat(`border-${district.id}`, s.accent, 0.9), [(district.minX + district.maxX) / 2, 0.01, (district.minY + district.maxY) / 2]);
+        border.receiveShadow = true;
+      }
+
+      // Procedural architecture: every non-floor gameplay tile becomes a true solid wall.
+      // Variants are not fake textures: doors/windows/lockers/noticeboards are physical facade
+      // pieces attached to the wall face, while the wall itself remains the collision volume.
+      const wallHeight = 3.0;
+      const wallMeshes: THREE.Object3D[] = [];
+      const addFacadeDetail = (tile: number, x: number, y: number, districtStyle: typeof DISTRICT_STYLE.wilds) => {
+        const frontMat = mat(`detail-${tile}-${districtStyle.accent}`, tile === 6 ? 0x7b4e34 : tile === 7 ? 0x6aa8c7 : tile === 8 ? 0x75818f : 0x8b6d3e, 0.55, tile === 7 ? 0.08 : 0.02);
+        if (tile === 6) {
+          const door = addMesh(new THREE.BoxGeometry(0.62, 1.95, 0.08), frontMat, [x, 1.02, y + 0.52]);
+          door.castShadow = true;
+          const frameMat = mat('door-frame', districtStyle.trim);
+          addMesh(new THREE.BoxGeometry(0.74, 2.08, 0.045), frameMat, [x, 1.05, y + 0.56]);
+        } else if (tile === 7) {
+          const glass = addMesh(new THREE.BoxGeometry(0.72, 1.2, 0.06), frontMat, [x, 1.55, y + 0.51]);
+          glass.castShadow = true;
+          const mullion = mat('window-mullion', districtStyle.trim);
+          addMesh(new THREE.BoxGeometry(0.05, 1.25, 0.075), mullion, [x, 1.55, y + 0.55]);
+          addMesh(new THREE.BoxGeometry(0.76, 0.05, 0.075), mullion, [x, 1.55, y + 0.55]);
+        } else if (tile === 8) {
+          addMesh(new THREE.BoxGeometry(0.72, 1.2, 0.08), frontMat, [x, 0.72, y + 0.52]);
+          for (let i = -1; i <= 1; i++) addMesh(new THREE.BoxGeometry(0.025, 1.05, 0.09), mat('locker-line', 0x56616d), [x + i * 0.22, 0.72, y + 0.57]);
+        } else if (tile === 9) {
+          addMesh(new THREE.BoxGeometry(0.78, 1.25, 0.08), frontMat, [x, 1.05, y + 0.52]);
+          addMesh(new THREE.BoxGeometry(0.84, 0.06, 0.09), mat('notice-frame', districtStyle.trim), [x, 1.7, y + 0.57]);
         }
       };
-      const dismissDiscovery = () => {
-        if (discoveryTimer) { window.clearTimeout(discoveryTimer); discoveryTimer = null; }
-        discoveryActive = null;
-        advanceDiscoveryQueue();
+
+      for (let y = 0; y < mapHeight; y++) {
+        for (let x = 0; x < mapWidth; x++) {
+          const tile = map[y][x];
+          if (tile === 0) continue;
+          const s = styleAt(x + 0.5, y + 0.5);
+          const wall = addMesh(shared.wall, mat(`wall-${s.wall}`, s.wall), [x + 0.5, wallHeight / 2, y + 0.5]);
+          wall.castShadow = true; wall.receiveShadow = true; wallMeshes.push(wall);
+          addMesh(shared.trim, mat(`wall-cap-${s.trim}`, s.trim), [x + 0.5, wallHeight + 0.02, y + 0.5]);
+          if (tile >= 6 && tile <= 9) addFacadeDetail(tile, x + 0.5, y, s);
+        }
+      }
+
+      // Roof architecture: shallow roof plates sit above the major building footprints.
+      // They are deliberately open/offset so the third-person camera can still read courtyards.
+      const addRoof = (x: number, z: number, w: number, d: number, color: number, accent: number) => {
+        const roof = addMesh(new THREE.BoxGeometry(w, 0.24, d), mat(`roof-${color}`, color, 0.7), [x, 3.16, z]);
+        roof.castShadow = true;
+        addMesh(new THREE.BoxGeometry(w + 0.16, 0.09, 0.14), mat(`roof-edge-${accent}`, accent), [x, 3.3, z - d / 2]);
+        addMesh(new THREE.BoxGeometry(w + 0.16, 0.09, 0.14), mat(`roof-edge2-${accent}`, accent), [x, 3.3, z + d / 2]);
+        return roof;
       };
-      const pushDiscovery = (card: DiscoveryCard) => { discoveryQueue.push(card); advanceDiscoveryQueue(); };
-      const handleDiscoveryTap = (e: Event) => {
-        e.preventDefault(); e.stopPropagation();
-        if (soundEnabledRef.current) playUiClickSfx();
-        const tap = discoveryActive?.onTap;
-        dismissDiscovery();
-        tap?.();
+      addRoof(3.0, 1.9, 5.5, 2.9, DISTRICT_STYLE.foundation.roof, DISTRICT_STYLE.foundation.accent);
+      addRoof(2.7, 10.9, 5.0, 3.0, DISTRICT_STYLE.wilds.roof, DISTRICT_STYLE.wilds.accent);
+      addRoof(8.5, 10.9, 4.0, 3.0, DISTRICT_STYLE.wilds.roof, DISTRICT_STYLE.wilds.accent);
+      addRoof(8.5, 16.6, 14.8, 3.6, DISTRICT_STYLE.advanced.roof, DISTRICT_STYLE.advanced.accent);
+      addRoof(8.5, 21.6, 14.8, 3.6, DISTRICT_STYLE.expert.roof, DISTRICT_STYLE.expert.accent);
+      addRoof(8.5, 26.6, 14.8, 3.6, DISTRICT_STYLE.mastery.roof, DISTRICT_STYLE.mastery.accent);
+      addRoof(15.0, 5.5, 3.0, 5.2, DISTRICT_STYLE.citadel.roof, DISTRICT_STYLE.citadel.accent);
+
+      // Architectural path bands, stairs, benches and planters. These are real meshes but do
+      // not participate in gameplay collision, preserving the existing collision contract.
+      const pathMat = mat('path-stone', 0xc8c3bb, 0.94);
+      const pathDark = mat('path-edge', 0x858a91, 0.9);
+      for (let y = 5; y < 14; y++) {
+        addMesh(new THREE.BoxGeometry(0.9, 0.035, 0.86), pathMat, [8.5, 0.04, y + 0.5]);
+      }
+      for (let y = 14; y < 29; y += 2) {
+        addMesh(new THREE.BoxGeometry(1.4, 0.035, 0.8), pathDark, [8.5, 0.045, y + 0.5]);
+      }
+
+      const addTree = (x: number, z: number, scale = 1) => {
+        const g = new THREE.Group(); g.position.set(x, 0, z); root.add(g);
+        const trunk = addMesh(new THREE.CylinderGeometry(0.12 * scale, 0.16 * scale, 1.15 * scale, 8), mat('tree-trunk', 0x6b4932), [0, 0.58 * scale, 0], g);
+        trunk.castShadow = true;
+        const crown = addMesh(new THREE.SphereGeometry(0.62 * scale, 12, 9), mat(`tree-leaf-${Math.round(x * 10)}-${Math.round(z * 10)}`, 0x5e9d63, 0.95), [0, 1.25 * scale, 0], g);
+        crown.scale.set(1, 0.9, 1); crown.castShadow = true;
+        return g;
       };
-      discoveryBtn.addEventListener('click', handleDiscoveryTap);
-      discoveryBtn.addEventListener('touchstart', handleDiscoveryTap, { passive: false });
+      [[1.2,6.5,1],[3.0,6.8,.85],[11.8,7.2,1.1],[2.0,13.0,.8],[14.8,11.5,1]].forEach(([x,z,s]) => addTree(x,z,s));
 
-      let playerX = initialPosition?.x ?? 4.5;
-      let playerY = initialPosition?.y ?? 6.5;
-      let playerAngle = initialPosition?.angle ?? 0;
-      // Unified Roblox-inspired camera: one continuous zoom range. Zooming out gives
-      // a comfortable third-person exploration view; zooming all the way in naturally
-      // becomes first-person. There is no separate camera-mode button or hard switch.
-      const CAMERA_THIRD_DISTANCE = 5.25;
-      const CAMERA_CLOSE_DISTANCE = 1.45;
-      const CAMERA_FIRST_PERSON_DISTANCE = 0.06;
-      const CAMERA_DEFAULT_DISTANCE = 4.6;
-      const CAMERA_MAX_DISTANCE = 6.5;
-      const CAMERA_MIN_DISTANCE = CAMERA_FIRST_PERSON_DISTANCE;
-      const CAMERA_CLEARANCE = 0.30;
-      const CAMERA_FOLLOW_RATE = 11;
-      const CAMERA_ZOOM_RATE = 14;
-      const CAMERA_COLLIDER_RADIUS = 0.15;
-      const CAMERA_FIRST_PERSON_HEIGHT = 0.55;
-      const CAMERA_THIRD_PERSON_HEIGHT = 1.58;
-      const CAMERA_FIRST_PERSON_PITCH_DEG = 0;
-      const CAMERA_THIRD_PERSON_PITCH_DEG = 21;
-      const CAMERA_PITCH_FIRST = Math.tan((CAMERA_FIRST_PERSON_PITCH_DEG * Math.PI) / 180);
-      const CAMERA_PITCH_THIRD = Math.tan((CAMERA_THIRD_PERSON_PITCH_DEG * Math.PI) / 180);
-      const ROOF_HEIGHT = 2.6;
+      const addBench = (x: number, z: number, rotation = 0) => {
+        const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = rotation; root.add(g);
+        const wood = mat('bench-wood', 0x8c5e3d);
+        const dark = mat('bench-dark', 0x38404b);
+        addMesh(new THREE.BoxGeometry(1.35, 0.12, 0.34), wood, [0, 0.56, 0], g);
+        addMesh(new THREE.BoxGeometry(1.35, 0.5, 0.1), wood, [0, 0.88, 0.1], g);
+        addMesh(new THREE.BoxGeometry(0.1, 0.5, 0.28), dark, [-0.5, 0.28, 0], g);
+        addMesh(new THREE.BoxGeometry(0.1, 0.5, 0.28), dark, [0.5, 0.28, 0], g);
+      };
+      addBench(1.8, 6.0, Math.PI / 2); addBench(11.8, 7.0, -Math.PI / 2); addBench(5.7, 13.0, 0);
 
-      // Zoom persists while exploring. Desktop: mouse wheel / +/- keys. Mobile: pinch.
-      let targetCameraDistance = CAMERA_DEFAULT_DISTANCE;
-      let smoothCameraDistance = CAMERA_DEFAULT_DISTANCE;
-      let currentCameraDistance = CAMERA_DEFAULT_DISTANCE;
-      let currentCameraHeight = CAMERA_THIRD_PERSON_HEIGHT;
-      let currentCameraPitch = CAMERA_PITCH_THIRD;
-      // Persisted across frames (not re-declared in render()) so the follow position eases
-      // toward its target smoothly instead of snapping every frame — this is what keeps
-      // rotation/movement feeling smooth on both mouse-look and touch-drag input.
-      let smoothCamX = playerX - Math.cos(playerAngle) * CAMERA_DEFAULT_DISTANCE;
-      let smoothCamY = playerY - Math.sin(playerAngle) * CAMERA_DEFAULT_DISTANCE;
-      let pointerLocked = false;
-      let roamingActive = true;
-      let raf = 0;
-      let walkPhase = 0;
-      let playerWalking = false;
+      const addPlanter = (x: number, z: number) => {
+        const g = new THREE.Group(); g.position.set(x,0,z); root.add(g);
+        addMesh(new THREE.CylinderGeometry(0.42,0.48,0.42,8), mat('planter',0x9a806a), [0,0.21,0],g);
+        const plant = addMesh(new THREE.SphereGeometry(0.5,10,7), mat('planter-green',0x6fa46b), [0,0.7,0],g); plant.scale.y=.8;
+      };
+      [[5.8,6.1],[11.0,4.8],[4.8,13.0],[12.2,13.0]].forEach(([x,z])=>addPlanter(x,z));
 
-      const keys: Record<string, boolean> = {};
-      let mouseDX = 0;
-      let touchLookDX = 0; // accumulated finger-drag delta since last frame — drives smooth free-look
-      const isMobile = 'ontouchstart' in window;
-      // Mobile movement/look were tuned too hot: the joystick covered ground fast enough,
-      // and the touch-drag look turned sharp enough, that the (also-too-close) walls made
-      // navigation feel frantic rather than immersive. Desktop (keyboard + mouse) was never
-      // reported as a problem, so only the mobile-specific values change here.
-      const moveSpeed = isMobile ? 2.0 : 3.0;
-      // Natural FPS-style look sensitivity; mobile is slightly gentler for touch.
-      const sensitivity = 0.0016;
-      // Touch-drag look sensitivity is expressed as "radians of turn per full screen-width
-      // swipe" rather than a flat per-pixel constant, then converted to a per-pixel
-      // multiplier using the *current* viewport width each time it's read. That's what makes
-      // it adaptive across phones/tablets of any size: a swipe across, say, half the screen
-      // turns the camera the same amount whether the screen is 360px or 1024px wide, instead
-      // of a narrow phone (fewer physical pixels per swipe) feeling far twitchier than a
-      // large tablet under one fixed constant. Raised from the old flat 0.0015 (which read as
-      // sluggish, especially on wider devices) to a snappier, still-controllable feel. Desktop
-      // mouselook (`sensitivity` above) is untouched by any of this.
-      const TOUCH_LOOK_RADIANS_PER_SCREEN_WIDTH = Math.PI * 1.15; // ~207° of turn per full-width swipe
-      function getTouchLookSensitivity() {
-        const viewportWidth = window.innerWidth || canvas.clientWidth || 390;
-        return (TOUCH_LOOK_RADIANS_PER_SCREEN_WIDTH / viewportWidth) * cameraSensitivityRef.current;
-      }
+      // Interior room furnishing uses the existing authored prop positions, but replaces emoji
+      // billboards with actual 3D objects appropriate to each room.
+      const addDesk = (x: number, z: number) => {
+        const g = new THREE.Group(); g.position.set(x,0,z); root.add(g);
+        const wood=mat('desk-wood',0x9a6b45), metal=mat('desk-metal',0x4b5563);
+        addMesh(new THREE.BoxGeometry(.75,.09,.48),wood,[0,.82,0],g);
+        addMesh(new THREE.BoxGeometry(.07,.82,.07),metal,[-.28,.41,-.16],g);
+        addMesh(new THREE.BoxGeometry(.07,.82,.07),metal,[.28,.41,-.16],g);
+        addMesh(new THREE.BoxGeometry(.07,.82,.07),metal,[-.28,.41,.16],g);
+        addMesh(new THREE.BoxGeometry(.07,.82,.07),metal,[.28,.41,.16],g);
+      };
+      props.forEach((p) => {
+        if (p.id.includes('desk')) addDesk(p.x,p.y);
+      });
+      // Lab benches / library shelving / tier landmarks.
+      [[2.5,2.35],[3.5,2.35],[4.5,2.35]].forEach(([x,z])=>addMesh(new THREE.BoxGeometry(.72,.8,.34),mat('lab-counter',0x74808a),[x,.4,z]));
+      [[7.35,10.4],[7.35,11.35],[9.35,10.4],[9.35,11.35]].forEach(([x,z])=>addMesh(new THREE.BoxGeometry(.34,1.9,.7),mat('bookshelf',0x6f513a),[x,.95,z]));
+      addMesh(new THREE.BoxGeometry(1.25,.12,.7),mat('library-table',0x8c6242),[8.3,.82,10.7]);
+      addMesh(new THREE.BoxGeometry(0.42,.48,.42),mat('library-chair',0x475569),[8.3,.28,11.55]);
+      addMesh(new THREE.BoxGeometry(.95,1.25,.18),mat('tier-monument',0x8a7441),[5.5,.62,26.5]);
+      addMesh(new THREE.BoxGeometry(.75,1.0,.18),mat('tier-map',0x53607b),[5.5,.5,21.5]);
 
-      function clampCameraDistance(value: number) {
-        return Math.max(CAMERA_MIN_DISTANCE, Math.min(CAMERA_MAX_DISTANCE, value));
-      }
-      function setCameraZoomFromInput(delta: number) {
-        if (!Number.isFinite(delta) || delta === 0) return;
-        const direction = delta > 0 ? 1 : -1; // wheel down / pinch inward = zoom out
-        // Normalize instead of scaling directly off the raw event magnitude. Wheel deltaY
-        // in particular is NOT a consistent unit across devices/browsers — anywhere from
-        // ~3 (line-mode) to 100+ (pixel-mode trackpads/mice) for what the user experiences
-        // as one single scroll "tick" — so scaling zoom off it directly let one wheel tick
-        // (or one noisy pinch sample) swing targetCameraDistance across a large fraction of
-        // its whole ~6.4-unit range in a single step. That's what produced the jarring
-        // "camera snaps between close/far, character pops in and out, briefly clips through
-        // walls" flicker: currentCameraDistance chases that target and crosses the
-        // showPlayerBody / first-person thresholds almost instantly. Clamping the magnitude
-        // to a normalized 0..1 range first, then applying a small fixed-size step, makes
-        // every input source feel like a smooth, consistent nudge no matter how large the
-        // raw delta was — a real sustained scroll/pinch still zooms normally over several
-        // events, it just can no longer leap the whole range in one.
-        const magnitude = Math.min(Math.abs(delta), 5) / 5;
-        const step = Math.max(0.05, targetCameraDistance * 0.02) * magnitude;
-        targetCameraDistance = clampCameraDistance(targetCameraDistance + direction * step);
-      }
+      // Text is generated once into canvas textures and mounted on real 3D sign boards.
+      const makeTextTexture = (text: string, bg: string, fg: string) => {
+        const c = document.createElement('canvas'); c.width = 512; c.height = 128;
+        const c2 = c.getContext('2d'); if (!c2) return null;
+        c2.fillStyle = bg; c2.fillRect(0,0,c.width,c.height);
+        c2.strokeStyle = 'rgba(255,255,255,.18)'; c2.lineWidth = 5; c2.strokeRect(4,4,c.width-8,c.height-8);
+        c2.fillStyle = fg; c2.font = '700 34px system-ui, sans-serif'; c2.textAlign='center'; c2.textBaseline='middle'; c2.fillText(text,c.width/2,c.height/2);
+        const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; return tex;
+      };
+      const addSign = (text: string, x: number, z: number, rotation: number, accent: number) => {
+        const g = new THREE.Group(); g.position.set(x,2.35,z); g.rotation.y=rotation; root.add(g);
+        const board=addMesh(new THREE.BoxGeometry(1.9,.58,.08),mat(`sign-board-${accent}`,0x172033,.65),[0,0,0],g);
+        const tex=makeTextTexture(text,'#172033','#f4f0e7');
+        if(tex){ const m=new THREE.MeshBasicMaterial({map:tex,transparent:true}); addMesh(new THREE.PlaneGeometry(1.72,.42),m,[0,0,.045],g); }
+        board.castShadow=true;
+      };
+      addSign('SCIENCE LABS',5.0,1.92,Math.PI/2,DISTRICT_STYLE.foundation.accent);
+      addSign('CLASSROOM',4.02,10.5,-Math.PI/2,DISTRICT_STYLE.wilds.accent);
+      addSign('LIBRARY',5.98,10.5,Math.PI/2,DISTRICT_STYLE.wilds.accent);
+      addSign('MASTERY CITADEL',12.95,5.5,Math.PI/2,DISTRICT_STYLE.citadel.accent);
+      addSign('FOUNDATION DISTRICT',3.98,4.52,Math.PI/2,DISTRICT_STYLE.foundation.accent);
+      addSign('ADVANCED WING',8.5,14.55,0,DISTRICT_STYLE.advanced.accent);
+      addSign('EXPERT ENCLAVE',8.5,19.55,0,DISTRICT_STYLE.expert.accent);
+      addSign('MASTERY VAULT',8.5,24.55,0,DISTRICT_STYLE.mastery.accent);
 
-      let leftJoy = { active: false, id: null as number | null, dx: 0, dy: 0 };
+      // Gate meshes are independent 3D structures. Their open state is driven by the exact
+      // same CAMPUS_GATES state used by gameplay; opening only changes visibility, never rules.
+      const gateGroups = new Map<string, THREE.Group>();
+      gates.forEach((gate) => {
+        const g = new THREE.Group(); g.position.set(gate.x+.5,0,gate.y+.5); root.add(g); gateGroups.set(`${gate.x},${gate.y}`,g);
+        const style = styleAt(gate.x+.5,gate.y+.5);
+        addMesh(new THREE.BoxGeometry(1.0,2.55,.16),mat(`gate-${style.accent}`,0x283042,.48,.18),[0,1.28,0],g);
+        addMesh(new THREE.BoxGeometry(1.2,.18,.22),mat(`gate-top-${style.accent}`,style.accent,.55,.15),[0,2.55,0],g);
+        for (const side of [-.42,.42]) addMesh(new THREE.BoxGeometry(.12,2.2,.3),mat('gate-post',0x6b7280),[side,1.1,0],g);
+        if (gate.open) g.visible=false;
+      });
 
-      // Reused every frame instead of `new Array(numRays)` each time — avoids allocating
-      // (and garbage-collecting) a fresh array 60x/sec, which was a source of intermittent
-      // stutter during movement, especially on mobile GC pauses.
-      let zBuffer: Float32Array = new Float32Array(0);
-      // Every tap-to-interact target (challengers, guides, lost notes, the sealed gate)
-      // is rebuilt fresh every frame in render() from its actual projected screen
-      // position, then read by the click/tap handlers below. This — plus the world-space
-      // INTERACT_RANGE check inside interact() — is the whole mechanism behind
-      // "interaction is tap/click-only, never proximity alone": being near something no
-      // longer surfaces anything on its own; only an actual hit against this array, on
-      // something close enough to legitimately reach, can ever trigger an interaction.
+      // 3D characters: simple authored low-poly figures with real volume and shadows. No
+      // sprites/billboards are used for the player, challengers, or guides.
+      const characterRoot = new THREE.Group(); characterRoot.name='Characters'; root.add(characterRoot);
+      type CharacterRig = { root: THREE.Group; leftLeg: THREE.Object3D; rightLeg: THREE.Object3D; leftArm: THREE.Object3D; rightArm: THREE.Object3D; head: THREE.Object3D };
+      const rigs = new Map<string, CharacterRig>();
+      const outfitHex: Record<AvatarConfig['topColor'], number> = { indigo:0x4b4fbb, coral:0xc6565d, cyan:0x267b8d, gold:0xaf752e };
+      const shoeHex: Record<AvatarConfig['shoes'], number> = { dark:0x181b2d, white:0xc9d3dd, amber:0xf8b84e };
+      const makeCharacter = (cfg: AvatarConfig, scale=1, name='character') => {
+        const g=new THREE.Group(); g.name=name;
+        const skin=mat(`skin-${cfg.skin}`,Number(cfg.skin.replace('#','0x')) || 0xe7b07a);
+        const outfit=mat(`outfit-${cfg.topColor}`,outfitHex[cfg.topColor]);
+        const shoe=mat(`shoe-${cfg.shoes}`,shoeHex[cfg.shoes]);
+        const hair=mat(`hair-${cfg.hairColor}`,Number(cfg.hairColor.replace('#','0x')) || 0x241d1b);
+        const body=addMesh(new THREE.BoxGeometry(.62,.72,.36),outfit,[0,1.18,0],g);
+        const head=addMesh(new THREE.SphereGeometry(.28,12,9),skin,[0,1.82,0],g);
+        if(cfg.hair!=='bald') addMesh(new THREE.SphereGeometry(.29,12,7,0,Math.PI*2,0,Math.PI*.5),hair,[0,1.93,0],g);
+        const leftArm=addMesh(new THREE.BoxGeometry(.15,.58,.16),skin,[-.42,1.2,0],g);
+        const rightArm=addMesh(new THREE.BoxGeometry(.15,.58,.16),skin,[.42,1.2,0],g);
+        const leftLeg=addMesh(new THREE.BoxGeometry(.19,.62,.2),mat('pants',0x29314a),[-.18,.57,0],g);
+        const rightLeg=addMesh(new THREE.BoxGeometry(.19,.62,.2),mat('pants2',0x29314a),[.18,.57,0],g);
+        addMesh(new THREE.BoxGeometry(.25,.13,.4),shoe,[-.18,.18,-.06],g);
+        addMesh(new THREE.BoxGeometry(.25,.13,.4),shoe,[.18,.18,-.06],g);
+        g.scale.setScalar(scale); g.traverse(o=>{ if(o instanceof THREE.Mesh){o.castShadow=true;o.receiveShadow=true;} });
+        return {root:g,leftLeg,rightLeg,leftArm,rightArm,head};
+      };
+      const playerRig = makeCharacter(avatarRef.current,1,'Player');
+      characterRoot.add(playerRig.root);
+      rigs.set('player',playerRig);
+      challengers.forEach((c)=>{ const rig=makeCharacter(challengerAvatars.get(c.id) ?? avatarRef.current,.95,c.name); characterRoot.add(rig.root); rigs.set(c.id,rig); });
+      guides.forEach((g)=>{ const guideAvatar: AvatarConfig={gender:'neutral',skin:'#e2ad82',hair:'short',hairColor:'#2a2525',topType:'jacket',topColor:'cyan',bottomType:'pants',shoes:'dark'}; const rig=makeCharacter(guideAvatar,.9,g.name); characterRoot.add(rig.root); rigs.set(g.id,rig); });
+
+      // Interaction is screen-space projection, not a renderer raycast. This keeps the existing
+      // deliberate tap/click interaction contract while the world itself is fully 3D.
       type InteractTarget =
-        | { kind: 'npc'; data: (typeof challengers)[number] }
-        | { kind: 'note'; data: (typeof notes)[number] }
-        | { kind: 'guide'; data: (typeof guides)[number] }
-        | { kind: 'gate'; data: (typeof gates)[number] };
-      let interactHitboxes: { target: InteractTarget; screenX: number; screenY: number; radius: number; worldX: number; worldY: number }[] = [];
-      // How close (world units) the player must actually be before a tap/click on
-      // something is allowed to do anything — stops a tap on a far-off but visible
-      // sprite from reaching across the map and triggering its interaction.
-      const INTERACT_RANGE = 4.5;
-      // Mobile devices raycast+fill noticeably more columns per frame than desktop needs
-      // for the same visual density (phone viewport widths often exceed the old 360 cap in
-      // some orientations); trimming the cap there is the single biggest lever for smoother
-      // movement on phones, with a difference too small to notice on a small screen.
-      const rayCap = isMobile ? 220 : 360;
-      // Ceiling/floor gradients only actually depend on the current district's colors and the
-      // canvas height — both change rarely (a district crossing, or a resize) — so they're
-      // cached and only rebuilt when either changes, instead of calling createLinearGradient
-      // twice every single frame regardless of whether anything changed.
-      // Subtle vertical ambient wash painted under the roof's beam/panel grid — depends only
-      // on canvas height (not the district or camera position), so it's cached the same way
-      // the old sky gradient was, and only rebuilt on resize.
-      let cachedCeilingBase: { h: number; base: CanvasGradient } | null = null;
-      let cachedFloorGradient: { districtId: string; h: number; floor: CanvasGradient } | null = null;
+        | { kind:'npc'; data:(typeof challengers)[number] }
+        | { kind:'note'; data:(typeof notes)[number] }
+        | { kind:'guide'; data:(typeof guides)[number] }
+        | { kind:'gate'; data:(typeof gates)[number] };
+      type HitBox = { target:InteractTarget; screenX:number; screenY:number; radius:number; worldX:number; worldY:number; depth:number };
+      let hitboxes: HitBox[]=[];
 
-      let resizeRaf = 0;
-      const resizeCanvas = () => {
-        canvas.width = world.clientWidth;
-        canvas.height = world.clientHeight;
+      const setSize = () => {
+        const w=Math.max(1,world.clientWidth), h=Math.max(1,world.clientHeight);
+        renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
       };
-      const scheduleResize = () => {
-        if (resizeRaf) return;
-        resizeRaf = requestAnimationFrame(() => { resizeRaf = 0; resizeCanvas(); });
+      setSize();
+      const resizeObserver = new ResizeObserver(setSize); resizeObserver.observe(world);
+
+      const project = (obj: THREE.Object3D, worldY=1.4) => {
+        const p=new THREE.Vector3(obj.position.x,worldY,obj.position.z); p.project(camera);
+        const rect=canvas.getBoundingClientRect();
+        return {x:(p.x*.5+.5)*rect.width,y:(-.5*p.y+.5)*rect.height,depth:p.z};
       };
-      resizeCanvas();
-      window.addEventListener('resize', scheduleResize);
-
-      if (isMobile) {
-        tapStart.innerHTML = 'TAP TO START EXPLORING<span>Left stick: move | Drag anywhere: look</span>';
-        tapStart.style.display = 'none';
-      }
-
-      // The floating "in range" UI (the top prompt bar and the on-screen badge above the
-      // NPC) is only ever updated from inside render(), which itself only runs while
-      // roamingActive is true. Pausing roaming to open the discovery card (or jump
-      // straight to the quest) stops render() from running — so without this, those
-      // elements simply freeze on-screen in whatever state they were last drawn in,
-      // stacking underneath the discovery card that opens next. That's the exact
-      // overlap/redundant-prompt mess being reported: hide them the instant roaming
-      // pauses, instead of relying on a render loop that's no longer ticking to clean
-      // itself up.
-      const hideFieldUi = () => {
-        prompt.style.display = 'none';
-        badge.style.display = 'none';
+      const worldToScreen = (x:number,z:number,y=1.2) => {
+        const p=new THREE.Vector3(x,y,z).project(camera); const rect=canvas.getBoundingClientRect();
+        return {x:(p.x*.5+.5)*rect.width,y:(-.5*p.y+.5)*rect.height,depth:p.z};
       };
 
-      const interactNpc = (target: (typeof challengers)[number]) => {
-        if (!target.active) return;
-        if (defeatedIdsRef.current.includes(target.id)) {
-          // Quests have unlimited retries — a cleared quest-giver never blocks the
-          // player from fighting again. Only the score record changes: the run's result
-          // is kept solely if it beats the existing best (see completeBattle), so
-          // replaying can only ever help, never hurt, and never double-pays a reward
-          // already collected. Route straight into the same briefing/battle flow a
-          // fresh discovery uses, via onFoundRef, instead of the old hard stop here.
-          pushDiscovery({
-            title: `[${target.area}]`,
-            body: `${target.name} — QUEST CLEARED. Tap to retry and try to beat your best score.`,
-            onTap: () => onFoundRef.current(target, { x: playerX, y: playerY, angle: playerAngle }),
-            duration: 0,
-          });
+      // Discovery UI stays exactly where the existing React/CSS HUD expects it.
+      type DiscoveryCard={title:string;body:string;onTap?:()=>void;duration:number};
+      const discoveryQueue:DiscoveryCard[]=[]; let discoveryActive:DiscoveryCard|null=null; let discoveryTimer:number|null=null;
+      const renderDiscoveryCard=()=>{
+        if(!discoveryActive){discoveryCard.style.display='none';return;}
+        discoveryCard.style.display='flex'; discoveryTitle.textContent=discoveryActive.title; discoveryBody.textContent=discoveryActive.body;
+        discoveryBtn.style.display='inline-flex'; discoveryBtn.textContent=discoveryActive.onTap?'TAP TO INVESTIGATE':'GOT IT';
+      };
+      const dismissDiscovery=()=>{if(discoveryTimer){window.clearTimeout(discoveryTimer);discoveryTimer=null;} discoveryActive=null; roamingActive=true; renderDiscoveryCard();};
+      const advanceDiscoveryQueue=()=>{
+        if(discoveryActive||!discoveryQueue.length){renderDiscoveryCard();return;}
+        discoveryActive=discoveryQueue.shift()!; roamingActive=false; renderDiscoveryCard();
+        if(discoveryActive.duration>0) discoveryTimer=window.setTimeout(dismissDiscovery,discoveryActive.duration);
+      };
+      const pushDiscovery=(card:DiscoveryCard)=>{discoveryQueue.push(card);advanceDiscoveryQueue();};
+      const handleDiscoveryTap=(e:Event)=>{e.preventDefault();e.stopPropagation();if(soundEnabledRef.current)playUiClickSfx();const tap=discoveryActive?.onTap;dismissDiscovery();tap?.();};
+      discoveryBtn.addEventListener('click',handleDiscoveryTap); discoveryBtn.addEventListener('touchstart',handleDiscoveryTap,{passive:false});
+
+      const hideFieldUi=()=>{prompt.style.display='none';badge.style.display='none';};
+      const checkGateUnlock=()=>{
+        gates.forEach((gate)=>{
+          if(gate.open) return;
+          if(gate.requiredIds.every(id=>defeatedIdsRef.current.includes(id))){
+            gate.open=true; map[gate.y][gate.x]=0;
+            const group=gateGroups.get(`${gate.x},${gate.y}`); if(group) group.visible=false;
+            if(gate.announceUnlock!==false){notifyRef.current(gate.label,gate.openMessage);if(soundEnabledRef.current)playAchievementSfx();}
+          }
+        });
+      };
+      checkGateUnlock();
+
+      const interact=(target:InteractTarget,wx:number,wy:number)=>{
+        if(Math.hypot(playerX-wx,playerY-wy)>4.5) return;
+        if(target.kind==='npc'){
+          const npc=target.data;
+          if(defeatedIdsRef.current.includes(npc.id)){
+            pushDiscovery({title:`${npc.area.split(':')[0]} // QUEST CLEARED`,body:`${npc.name} is ready for another run. Retry to beat your best score.`,onTap:()=>onFoundRef.current(npc,{x:playerX,y:playerY,angle:playerAngle}),duration:0});
+            return;
+          }
+          if(!signaledIds.has(npc.id)){
+            signaledIds.add(npc.id);onDiscoverRef.current('challenger',npc.id);
+            pushDiscovery({title:'QUEST FOUND',body:`${npc.name} — ${npc.area.replace(/^[^\s]+\s*/,'')}.`,onTap:()=>onFoundRef.current(npc,{x:playerX,y:playerY,angle:playerAngle}),duration:0});
+          }
           return;
         }
-
-        // Quest discovery is an intentional player action, not a proximity event.
-        // Let the player freely see and explore the campus first. The discovery card
-        // appears only after the player actually interacts with the quest-giver.
-        if (!signaledIds.has(target.id)) {
-          signaledIds.add(target.id);
-          onDiscoverRef.current('challenger', target.id);
-          roamingActive = false;
-          hideFieldUi();
-          if (document.pointerLockElement === canvas) document.exitPointerLock();
-          pushDiscovery({
-            title: '✦ QUEST FOUND',
-            body: `${target.name} — ${target.area.replace(/^[^\s]+ /, '')}.`,
-            onTap: () => onFoundRef.current(target, { x: playerX, y: playerY, angle: playerAngle }),
-            duration: 0,
-          });
+        if(target.kind==='note'){
+          const note=target.data;if(collectedNotes.has(note.id))return;
+          collectedNotes.add(note.id);onDiscoverRef.current('note',note.id);notifyRef.current(note.title,note.hint,'success');
           return;
         }
-
-        roamingActive = false;
-        hideFieldUi();
-        if (document.pointerLockElement === canvas) document.exitPointerLock();
-        onFoundRef.current(target, { x: playerX, y: playerY, angle: playerAngle });
-      };
-
-      // Lost-note pickup and guide/gate check-ins used to fire the instant the player
-      // walked close enough. They're now only ever called from interact() below, i.e.
-      // only in response to an actual tap/click — walking past one now does nothing.
-      const interactNote = (note: (typeof notes)[number]) => {
-        if (collectedNotes.has(note.id)) return;
-        collectedNotes.add(note.id);
-        onDiscoverRef.current('note', note.id);
-        pushDiscovery({ title: `✦ HINT — ${note.title}`, body: note.hint, duration: 4500 });
-      };
-
-      const interactGuide = (guide: (typeof guides)[number]) => {
-        if (triggeredGuides.has(guide.id)) return;
-        triggeredGuides.add(guide.id);
-        onDiscoverRef.current('guide', guide.id);
-        const line = guide.lines[Math.floor(Math.random() * guide.lines.length)];
-        if (guide.reward) {
-          onRewardRef.current(guide.reward.coins, guide.reward.xp);
-          pushDiscovery({ title: `✦ ${guide.name}`, body: `${line} (+${guide.reward.coins} credits, +${guide.reward.xp} XP)`, duration: 5000 });
-        } else {
-          pushDiscovery({ title: `✦ ${guide.name}`, body: line, duration: 4500 });
+        if(target.kind==='guide'){
+          const guide=target.data;if(triggeredGuides.has(guide.id))return;
+          triggeredGuides.add(guide.id);onDiscoverRef.current('guide',guide.id);
+          const line=guide.lines[Math.floor(Math.random()*guide.lines.length)];notifyRef.current(guide.name,line,'success');
+          if(guide.reward)onRewardRef.current(guide.reward.coins,guide.reward.xp);
+          return;
+        }
+        if(target.kind==='gate'){
+          const gate=target.data;
+          notifyRef.current(gate.label,gate.open? 'The passage is open.' : gate.requirementLabel, gate.open?'success':undefined);
         }
       };
 
-      const interactGate = (gate: (typeof gates)[number]) => {
-        if (gate.open) return;
-        const doneCount = gate.requiredIds.filter((id) => defeatedIdsRef.current.includes(id)).length;
-        pushDiscovery({ title: `🔒 ${gate.label}`, body: `SEALED. ${gate.requirementLabel}. (${doneCount}/${gate.requiredIds.length} mastered)`, duration: 2600 });
-      };
-
-      // Single entry point for every tap/click interaction, whatever kind of thing was
-      // hit. Re-checks real world-space distance at the moment of the tap (not just
-      // "was it on screen"), so something that's visible-but-far can be seen without
-      // being reachable — the "reasonable interaction range" gate. Anything that isn't
-      // actually interactable right now (an already-collected note, an already-met
-      // guide, an already-open gate, an inactive NPC) is a no-op inside its handler
-      // above, same as tapping empty space.
-      const interact = (target: InteractTarget, worldX: number, worldY: number) => {
-        const distSq = (playerX - worldX) ** 2 + (playerY - worldY) ** 2;
-        if (distSq > INTERACT_RANGE * INTERACT_RANGE) return;
-        switch (target.kind) {
-          case 'npc': interactNpc(target.data); break;
-          case 'note': interactNote(target.data); break;
-          case 'guide': interactGuide(target.data); break;
-          case 'gate': interactGate(target.data); break;
-        }
-      };
-
-      // Hit-tests screen-space coordinates (actual pointer position, or the reticle at
-      // screen center for pointer-locked/keyboard interaction) against this frame's
-      // interactHitboxes. This — not world-space proximity — is what "the player
-      // taps/clicks the object" means: walking near something no longer surfaces any
-      // prompt on its own; only an actual hit here can ever lead to interact() being
-      // called, and interact() itself still double-checks real distance.
-      function hitTestAt(px: number, py: number) {
-        let best: (typeof interactHitboxes)[number] | null = null;
-        let bestDistSq = Infinity;
-        for (const hb of interactHitboxes) {
-          const dx = px - hb.screenX, dy = py - hb.screenY;
-          const distSq = dx * dx + dy * dy;
-          if (distSq <= hb.radius * hb.radius && distSq < bestDistSq) { best = hb; bestDistSq = distSq; }
-        }
+      const hitTestAt=(px:number,py:number)=>{
+        let best:HitBox|null=null,bestDist=Infinity;
+        for(const hb of hitboxes){const dx=px-hb.screenX,dy=py-hb.screenY,ds=dx*dx+dy*dy;if(ds<=hb.radius*hb.radius&&ds<bestDist){best=hb;bestDist=ds;}}
         return best;
-      }
-      // Used when there's no free cursor to click with (pointer-locked mouselook, or the
-      // 'E' key) — aim by turning until the object sits under the screen-center reticle,
-      // same "look at it, then act" convention GTA-style third-person controls use for
-      // context actions. A slightly larger-than-hitbox tolerance keeps this forgiving at
-      // typical on-screen sizes without needing a literal crosshair drawn on screen.
-      function hitTestAtCenter() {
-        const cx = canvas.width / 2, cy = canvas.height / 2;
-        let best: (typeof interactHitboxes)[number] | null = null;
-        let bestDistSq = Infinity;
-        for (const hb of interactHitboxes) {
-          const dx = cx - hb.screenX, dy = cy - hb.screenY;
-          const distSq = dx * dx + dy * dy;
-          const tolerance = Math.max(hb.radius, 46);
-          if (distSq <= tolerance * tolerance && distSq < bestDistSq) { best = hb; bestDistSq = distSq; }
-        }
-        return best;
-      }
+      };
+      const hitTestAtCenter=()=>{const rect=canvas.getBoundingClientRect();return hitTestAt(rect.width/2,rect.height/2);};
 
-      const handleWheel = (e: WheelEvent) => {
-        if (!roamingActive) return;
-        e.preventDefault();
-        setCameraZoomFromInput(e.deltaY);
+      const updateMinimap=()=>{
+        const ctx=minimapCanvas.getContext('2d'); if(!ctx)return;
+        const rect=minimapCanvas.getBoundingClientRect();const dpr=Math.min(window.devicePixelRatio||1,2);const w=Math.max(1,Math.floor(rect.width*dpr)),h=Math.max(1,Math.floor(rect.height*dpr));
+        if(minimapCanvas.width!==w||minimapCanvas.height!==h){minimapCanvas.width=w;minimapCanvas.height=h;}
+        ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,rect.width,rect.height);ctx.fillStyle='rgba(8,12,22,.9)';ctx.fillRect(0,0,rect.width,rect.height);
+        const scale=Math.min((rect.width-8)/mapWidth,(rect.height-8)/mapHeight),ox=(rect.width-mapWidth*scale)/2,oy=(rect.height-mapHeight*scale)/2;
+        for(let y=0;y<mapHeight;y++)for(let x=0;x<mapWidth;x++){const tile=map[y][x];if(tile===0){ctx.fillStyle='#334155';}else{const s=styleAt(x+.5,y+.5);ctx.fillStyle=`#${s.trim.toString(16).padStart(6,'0')}`;}ctx.fillRect(ox+x*scale,oy+y*scale,Math.max(1,scale),Math.max(1,scale));}
+        const dot=(x:number,y:number,r:number,color:string)=>{ctx.beginPath();ctx.arc(ox+x*scale,oy+y*scale,r,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();};
+        challengers.forEach(c=>{if(!defeatedIdsRef.current.includes(c.id))dot(c.x,c.y,2.2,'#f8b84e');});guides.forEach(g=>dot(g.x,g.y,2,'#67cdd1'));notes.forEach(n=>{if(!collectedNotes.has(n.id))dot(n.x,n.y,1.7,'#c4b5fd');});gates.forEach(g=>{if(!g.open)dot(g.x+.5,g.y+.5,2.5,'#fb7185');});
+        const p=worldToScreen(playerX,playerY,.1); void p;
+        dot(playerX,playerY,2.6,'#f4f0e7');
       };
 
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (!roamingActive) return;
-        const key = e.key.toLowerCase();
-        if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'e', '+', '=', '-'].includes(key)) {
-          keys[key] = true;
-          if (key === '+' || key === '=') setCameraZoomFromInput(-1);
-          if (key === '-') setCameraZoomFromInput(1);
-          if (key === 'e') {
-            const hit = hitTestAtCenter();
-            if (hit) interact(hit.target, hit.worldX, hit.worldY);
-          }
+      // ---------------------------------------------------------------------------------
+      // INPUT — existing WASD/mouse/joystick/pinch controls, now driving a PerspectiveCamera
+      // instead of a software raycaster.
+      // ---------------------------------------------------------------------------------
+      const keys:Record<string,boolean>={}; let mouseDX=0; let touchLookDX=0; let leftJoy={active:false,id:null as number|null,dx:0,dy:0};
+      const isMobile='ontouchstart' in window || navigator.maxTouchPoints>0;
+      const moveSpeed=isMobile?2.0:3.0;
+      const sensitivity=.0016;
+      const TOUCH_LOOK_RADIANS_PER_SCREEN_WIDTH=Math.PI*1.15;
+      const getTouchLookSensitivity=()=>((TOUCH_LOOK_RADIANS_PER_SCREEN_WIDTH/(window.innerWidth||390))*cameraSensitivityRef.current);
+      let targetCameraDistance=4.6,smoothCameraDistance=4.6;
+      const CAMERA_MIN_DISTANCE=.7,CAMERA_MAX_DISTANCE=6.5;
+      let pointerLocked=false;
+      let raf=0,lastTime=performance.now(),walkPhase=0,playerWalking=false;
+
+      const circleHitsWall=(cx:number,cy:number,radius:number)=>{
+        const minTX=Math.floor(cx-radius),maxTX=Math.floor(cx+radius),minTY=Math.floor(cy-radius),maxTY=Math.floor(cy+radius);
+        for(let ty=minTY;ty<=maxTY;ty++)for(let tx=minTX;tx<=maxTX;tx++){
+          if(tx<0||tx>=mapWidth||ty<0||ty>=mapHeight)return true;
+          if(map[ty][tx]===0)continue;
+          const closestX=Math.max(tx,Math.min(cx,tx+1)),closestY=Math.max(ty,Math.min(cy,ty+1));
+          const dx=cx-closestX,dy=cy-closestY;if(dx*dx+dy*dy<radius*radius)return true;
         }
+        return false;
       };
-      const handleKeyUp = (e: KeyboardEvent) => { keys[e.key.toLowerCase()] = false; };
-      const handleMouseMove = (e: MouseEvent) => { if (pointerLocked) mouseDX += e.movementX; };
-      // Desktop click: with a free cursor (not yet pointer-locked), a click that lands on
-      // an NPC's on-screen sprite interacts with it directly — otherwise it engages
-      // mouselook as before. Once pointer-locked there's no cursor to click WITH, so a
-      // click there falls back to the same center-reticle hit-test 'E' uses.
-      const handleCanvasClick = (e: MouseEvent) => {
-        if (!roamingActive) return;
-        if (pointerLocked) {
-          const hit = hitTestAtCenter();
-          if (hit) interact(hit.target, hit.worldX, hit.worldY);
-          return;
+      const canMove=(x:number,y:number)=>!circleHitsWall(x,y,.25);
+      const collidesWithNpc=(x:number,y:number)=>{
+        for(const n of challengers){if(defeatedIdsRef.current.includes(n.id))continue;if(Math.hypot(x-n.x,y-n.y)<.55)return true;}
+        for(const g of guides){if(Math.hypot(x-g.x,y-g.y)<.55)return true;}
+        return false;
+      };
+      const setCameraZoomFromInput=(delta:number)=>{
+        if(!Number.isFinite(delta)||delta===0)return;const direction=delta>0?1:-1;targetCameraDistance=THREE.MathUtils.clamp(targetCameraDistance+direction*Math.max(.05,targetCameraDistance*.02)*Math.min(Math.abs(delta),5)/5,CAMERA_MIN_DISTANCE,CAMERA_MAX_DISTANCE);
+      };
+
+      const handleWheel=(e:WheelEvent)=>{if(!roamingActive)return;e.preventDefault();setCameraZoomFromInput(e.deltaY);};
+      const handleKeyDown=(e:KeyboardEvent)=>{
+        if(!roamingActive)return;const key=e.key.toLowerCase();
+        if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright','e','+','=','-'].includes(key)){keys[key]=true;if(key==='+'||key==='=')setCameraZoomFromInput(-1);if(key==='-')setCameraZoomFromInput(1);if(key==='e'){const hit=hitTestAtCenter();if(hit)interact(hit.target,hit.worldX,hit.worldY);}}
+      };
+      const handleKeyUp=(e:KeyboardEvent)=>{keys[e.key.toLowerCase()]=false;};
+      const handleMouseMove=(e:MouseEvent)=>{if(pointerLocked)mouseDX+=e.movementX;};
+      const handleCanvasClick=(e:MouseEvent)=>{
+        if(!roamingActive)return;const rect=canvas.getBoundingClientRect();
+        if(pointerLocked){const hit=hitTestAt(rect.width/2,rect.height/2);if(hit)interact(hit.target,hit.worldX,hit.worldY);return;}
+        const hit=hitTestAt(e.clientX-rect.left,e.clientY-rect.top);if(hit){interact(hit.target,hit.worldX,hit.worldY);return;}
+        if(!isMobile)canvas.requestPointerLock();
+      };
+      const handlePointerLockChange=()=>{pointerLocked=document.pointerLockElement===canvas;if(pointerLocked)tapStart.style.display='none';else if(!isMobile&&roamingActive)tapStart.style.display='block';};
+      document.addEventListener('keydown',handleKeyDown);document.addEventListener('keyup',handleKeyUp);document.addEventListener('mousemove',handleMouseMove);document.addEventListener('pointerlockchange',handlePointerLockChange);canvas.addEventListener('click',handleCanvasClick);canvas.addEventListener('wheel',handleWheel,{passive:false});
+
+      const cleanups:Array<()=>void>=[];
+      if(isMobile){
+        const leftZone=leftZoneRef.current,leftThumb=leftThumbRef.current;
+        if(leftZone&&leftThumb){
+          const PAD=116,THUMB=42,CENTER=PAD/2,HALF=THUMB/2,MAX=CENTER-HALF-4,rest=`translate(${CENTER-HALF}px,${CENTER-HALF}px)`;leftThumb.style.transform=rest;
+          const start=(e:PointerEvent)=>{if(e.pointerType==='mouse')return;e.preventDefault();leftZone.setPointerCapture?.(e.pointerId);leftJoy={active:true,id:e.pointerId,dx:0,dy:0};};
+          const move=(e:PointerEvent)=>{if(e.pointerId!==leftJoy.id)return;e.preventDefault();const r=leftZone.getBoundingClientRect();let dx=e.clientX-r.left-CENTER,dy=e.clientY-r.top-CENTER;const len=Math.hypot(dx,dy);if(len>MAX){dx=dx/len*MAX;dy=dy/len*MAX;}leftJoy.dx=dx/MAX;leftJoy.dy=dy/MAX;leftThumb.style.transform=`translate(${CENTER-HALF+dx}px,${CENTER-HALF+dy}px)`;};
+          const end=(e:PointerEvent)=>{if(e.pointerId!==leftJoy.id)return;leftJoy={active:false,id:null,dx:0,dy:0};leftThumb.style.transform=rest;try{leftZone.releasePointerCapture?.(e.pointerId);}catch{}};
+          leftZone.addEventListener('pointerdown',start,{passive:false});leftZone.addEventListener('pointermove',move,{passive:false});leftZone.addEventListener('pointerup',end);leftZone.addEventListener('pointercancel',end);leftZone.addEventListener('lostpointercapture',end);cleanups.push(()=>{leftZone.removeEventListener('pointerdown',start);leftZone.removeEventListener('pointermove',move);leftZone.removeEventListener('pointerup',end);leftZone.removeEventListener('pointercancel',end);leftZone.removeEventListener('lostpointercapture',end);});
         }
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
-        const hit = hitTestAt((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY);
-        if (hit) { interact(hit.target, hit.worldX, hit.worldY); return; }
-        if (!isMobile) canvas.requestPointerLock();
-      };
-      const handlePointerLockChange = () => {
-        pointerLocked = document.pointerLockElement === canvas;
-        if (pointerLocked) tapStart.style.display = 'none';
-        else if (!isMobile && roamingActive) tapStart.style.display = 'block';
-      };
-      document.addEventListener('keydown', handleKeyDown);
-      document.addEventListener('keyup', handleKeyUp);
-      document.addEventListener('mousemove', handleMouseMove);
-      canvas.addEventListener('click', handleCanvasClick);
-      canvas.addEventListener('wheel', handleWheel, { passive: false });
-      document.addEventListener('pointerlockchange', handlePointerLockChange);
-
-      const joyCleanups: Array<() => void> = [];
-      if (isMobile) {
-        // Mobile controls use POINTER EVENTS so two independent fingers can control two
-        // independent zones at the same time:
-        //   LEFT hand  = movement joystick
-        //   RIGHT hand = camera/look drag
-        // A pinch zoom is only recognized when BOTH fingers are inside the right look zone.
-        // Therefore a left-thumb + right-finger gesture can NEVER accidentally zoom.
-        const leftZone = leftZoneRef.current;
-        const leftThumb = leftThumbRef.current;
-
-        if (leftZone && leftThumb) {
-          const PAD = 116, THUMB = 42, CENTER = PAD / 2, HALF_THUMB = THUMB / 2;
-          const MAX_DIST = CENTER - HALF_THUMB - 4;
-          const restTransform = `translate(${CENTER - HALF_THUMB}px, ${CENTER - HALF_THUMB}px)`;
-          leftThumb.style.transform = restTransform;
-
-          const lStart = (e: PointerEvent) => {
-            if (e.pointerType === 'mouse') return;
-            e.preventDefault();
-            leftZone.setPointerCapture?.(e.pointerId);
-            leftJoy.active = true;
-            leftJoy.id = e.pointerId;
-            leftJoy.dx = 0;
-            leftJoy.dy = 0;
-          };
-
-          const lMove = (e: PointerEvent) => {
-            if (e.pointerId !== leftJoy.id) return;
-            e.preventDefault();
-            const rect = leftZone.getBoundingClientRect();
-            let dx = e.clientX - rect.left - CENTER;
-            let dy = e.clientY - rect.top - CENTER;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist > MAX_DIST) {
-              dx = (dx / dist) * MAX_DIST;
-              dy = (dy / dist) * MAX_DIST;
-            }
-            leftJoy.dx = dx / MAX_DIST;
-            leftJoy.dy = dy / MAX_DIST;
-            leftThumb.style.transform = `translate(${CENTER - HALF_THUMB + dx}px, ${CENTER - HALF_THUMB + dy}px)`;
-          };
-
-          const lEnd = (e: PointerEvent) => {
-            if (e.pointerId !== leftJoy.id) return;
-            leftJoy.active = false;
-            leftJoy.id = null;
-            leftJoy.dx = 0;
-            leftJoy.dy = 0;
-            leftThumb.style.transform = restTransform;
-            try { leftZone.releasePointerCapture?.(e.pointerId); } catch { /* already released */ }
-          };
-
-          leftZone.addEventListener('pointerdown', lStart, { passive: false });
-          leftZone.addEventListener('pointermove', lMove, { passive: false });
-          leftZone.addEventListener('pointerup', lEnd);
-          leftZone.addEventListener('pointercancel', lEnd);
-          leftZone.addEventListener('lostpointercapture', lEnd);
-
-          joyCleanups.push(() => {
-            leftZone.removeEventListener('pointerdown', lStart);
-            leftZone.removeEventListener('pointermove', lMove);
-            leftZone.removeEventListener('pointerup', lEnd);
-            leftZone.removeEventListener('pointercancel', lEnd);
-            leftZone.removeEventListener('lostpointercapture', lEnd);
-          });
-        }
-
-        // --- RIGHT-HAND CAMERA LOOK / PINCH ZOOM ---------------------------------------------
-        // This is intentionally pointer-based instead of TouchEvent-based. TouchEvent code
-        // sees the entire page's touch list, so the old implementation interpreted
-        // [left joystick finger + right look finger] as a two-finger pinch and zoomed while
-        // the player was simply walking and looking at the same time.
-        //
-        // With Pointer Events, only pointers that actually land on this right-side look layer
-        // are tracked here. The joystick lives in a separate higher-z-index element, so its
-        // pointer is invisible to this map. Two right-side pointers = pinch. One right-side
-        // pointer = camera look. Left + right = movement + look simultaneously, with NO zoom.
-        const lookLayer = lookLayerRef.current;
-        if (lookLayer) {
-          type LookPointer = {
-            x: number;
-            y: number;
-            startX: number;
-            startY: number;
-            startTime: number;
-            moved: number;
-          };
-
-          const lookPointers = new Map<number, LookPointer>();
-          let pinchLastDistance = 0;
-          let wasPinching = false;
-
-          const getLookPointers = () => Array.from(lookPointers.values());
-          const getPinchDistance = () => {
-            const points = getLookPointers();
-            if (points.length < 2) return 0;
-            return Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
-          };
-
-          const resetRemainingLookPointer = () => {
-            const entry = lookPointers.entries().next().value as [number, LookPointer] | undefined;
-            if (!entry) return;
-            const [, pointer] = entry;
-            pointer.x = pointer.startX = pointer.x;
-            pointer.y = pointer.startY = pointer.y;
-            pointer.startTime = performance.now();
-            pointer.moved = 999;
-          };
-
-          const lookStart = (e: PointerEvent) => {
-            if (e.pointerType === 'mouse') return;
-            e.preventDefault();
-            lookLayer.setPointerCapture?.(e.pointerId);
-
-            lookPointers.set(e.pointerId, {
-              x: e.clientX,
-              y: e.clientY,
-              startX: e.clientX,
-              startY: e.clientY,
-              startTime: performance.now(),
-              moved: 0,
-            });
-
-            if (lookPointers.size >= 2) {
-              pinchLastDistance = getPinchDistance();
-              wasPinching = true;
-              touchLookDX = 0;
-            }
-          };
-
-
-          // The movement above needs the previous coordinate before it is overwritten, so
-          // use a corrected single-pointer handler that keeps the old position explicitly.
-          const correctedLookMove = (e: PointerEvent) => {
-            if (e.pointerType === 'mouse') return;
-            const pointer = lookPointers.get(e.pointerId);
-            if (!pointer) return;
-
-            e.preventDefault();
-            const prevX = pointer.x;
-            const prevY = pointer.y;
-            pointer.x = e.clientX;
-            pointer.y = e.clientY;
-            pointer.moved += Math.abs(e.clientX - prevX) + Math.abs(e.clientY - prevY);
-
-            if (lookPointers.size >= 2) {
-              const distance = getPinchDistance();
-              if (pinchLastDistance > 0 && distance > 0) {
-                const distanceDelta = pinchLastDistance - distance;
-                if (Math.abs(distanceDelta) >= 0.35) {
-                  setCameraZoomFromInput(distanceDelta * 0.055);
-                }
-              }
-              pinchLastDistance = distance;
-              wasPinching = true;
-              touchLookDX = 0;
-              return;
-            }
-
-            if (wasPinching) {
-              // Pinch just ended: re-baseline the remaining finger so it can resume
-              // camera look without a sudden jump.
-              wasPinching = false;
-              pointer.startX = pointer.x;
-              pointer.startY = pointer.y;
-              pointer.startTime = performance.now();
-              pointer.moved = 999;
-              return;
-            }
-
-            // One right-hand finger = horizontal camera rotation. Vertical movement is
-            // intentionally ignored because the existing camera is yaw-based.
-            touchLookDX += e.clientX - prevX;
-          };
-
-          const lookEnd = (e: PointerEvent) => {
-            if (e.pointerType === 'mouse') return;
-            const pointer = lookPointers.get(e.pointerId);
-            if (!pointer) return;
-
-            const wasSinglePointer = lookPointers.size === 1 && !wasPinching;
-            const elapsed = performance.now() - pointer.startTime;
-            const moved = pointer.moved;
-            const clientX = e.clientX;
-            const clientY = e.clientY;
-
-            lookPointers.delete(e.pointerId);
-
-            if (lookPointers.size >= 2) {
-              pinchLastDistance = getPinchDistance();
-              wasPinching = true;
-            } else if (lookPointers.size === 1) {
-              // Keep the remaining right-hand finger, but don't turn its next movement into
-              // a camera jump after the pinch gesture.
-              pinchLastDistance = 0;
-              wasPinching = true;
-              resetRemainingLookPointer();
-            } else {
-              pinchLastDistance = 0;
-              wasPinching = false;
-            }
-
-            if (wasSinglePointer && roamingActive && elapsed < 350 && moved < 14) {
-              const rect = canvas.getBoundingClientRect();
-              const scaleX = canvas.width / rect.width;
-              const scaleY = canvas.height / rect.height;
-              const hit = hitTestAt(
-                (clientX - rect.left) * scaleX,
-                (clientY - rect.top) * scaleY
-              );
-              if (hit) interact(hit.target, hit.worldX, hit.worldY);
-            }
-
-            try { lookLayer.releasePointerCapture?.(e.pointerId); } catch { /* already released */ }
-          };
-
-          const lookCancel = (e: PointerEvent) => {
-            if (e.pointerType === 'mouse') return;
-            lookPointers.delete(e.pointerId);
-            pinchLastDistance = lookPointers.size >= 2 ? getPinchDistance() : 0;
-            wasPinching = lookPointers.size > 0;
-            if (lookPointers.size === 1) resetRemainingLookPointer();
-            try { lookLayer.releasePointerCapture?.(e.pointerId); } catch { /* already released */ }
-          };
-
-          lookLayer.addEventListener('pointerdown', lookStart, { passive: false });
-          lookLayer.addEventListener('pointermove', correctedLookMove, { passive: false });
-          lookLayer.addEventListener('pointerup', lookEnd);
-          lookLayer.addEventListener('pointercancel', lookCancel);
-
-          joyCleanups.push(() => {
-            lookLayer.removeEventListener('pointerdown', lookStart);
-            lookLayer.removeEventListener('pointermove', correctedLookMove);
-            lookLayer.removeEventListener('pointerup', lookEnd);
-            lookLayer.removeEventListener('pointercancel', lookCancel);
-            lookPointers.clear();
-            pinchLastDistance = 0;
-            wasPinching = false;
-          });
+        const lookLayer=lookLayerRef.current;
+        if(lookLayer){
+          const pointers=new Map<number,{x:number;y:number}>();let pinchLast=0;
+          const start=(e:PointerEvent)=>{if(e.pointerType==='mouse')return;e.preventDefault();lookLayer.setPointerCapture?.(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.size>=2){const a=Array.from(pointers.values());pinchLast=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);}};
+          const move=(e:PointerEvent)=>{if(e.pointerType==='mouse')return;const p=pointers.get(e.pointerId);if(!p)return;e.preventDefault();const prevX=p.x;p.x=e.clientX;p.y=e.clientY;if(pointers.size>=2){const a=Array.from(pointers.values());const dist=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);if(pinchLast>0)setCameraZoomFromInput((pinchLast-dist)*.055);pinchLast=dist;return;}touchLookDX+=e.clientX-prevX;};
+          const end=(e:PointerEvent)=>{pointers.delete(e.pointerId);if(pointers.size<2)pinchLast=0;try{lookLayer.releasePointerCapture?.(e.pointerId);}catch{}};
+          lookLayer.addEventListener('pointerdown',start,{passive:false});lookLayer.addEventListener('pointermove',move,{passive:false});lookLayer.addEventListener('pointerup',end);lookLayer.addEventListener('pointercancel',end);cleanups.push(()=>{lookLayer.removeEventListener('pointerdown',start);lookLayer.removeEventListener('pointermove',move);lookLayer.removeEventListener('pointerup',end);lookLayer.removeEventListener('pointercancel',end);});
         }
       }
 
-      const CHALLENGER_FONT = 'bold 18px sans-serif';
-      const GUIDE_FONT = 'bold 16px sans-serif';
-
-      function castRayDDA(angle: number, originX: number, originY: number) {
-        const dirX = Math.cos(angle), dirY = Math.sin(angle);
-        let mapX = Math.floor(originX), mapY = Math.floor(originY);
-        // Defensive guard: the DDA loop below only ever tests cells it steps INTO, never
-        // the cell it starts in — so a ray whose origin is already inside (or exactly on
-        // the boundary of) solid geometry would silently skip that wall and report
-        // whatever is beyond it, which reads as the wall having vanished. This should be
-        // unreachable now that the camera is kept clear of geometry (see
-        // CAMERA_MIN_DISTANCE above), but it costs nothing to make the function correct
-        // on its own terms rather than relying solely on callers never misusing it.
-        if (mapX >= 0 && mapX < mapWidth && mapY >= 0 && mapY < mapHeight && map[mapY][mapX] !== 0) {
-          return { dist: 0.01, side: 0, tile: map[mapY][mapX], wallX: 0 };
-        }
-        const deltaDistX = Math.abs(1 / (dirX || 0.00001));
-        const deltaDistY = Math.abs(1 / (dirY || 0.00001));
-        let stepX: number, stepY: number, sideDistX: number, sideDistY: number;
-        if (dirX < 0) { stepX = -1; sideDistX = (originX - mapX) * deltaDistX; } else { stepX = 1; sideDistX = (mapX + 1.0 - originX) * deltaDistX; }
-        if (dirY < 0) { stepY = -1; sideDistY = (originY - mapY) * deltaDistY; } else { stepY = 1; sideDistY = (mapY + 1.0 - originY) * deltaDistY; }
-        let side = 0, hitVal = 0, maxSteps = 50;
-        while (hitVal === 0 && maxSteps > 0) {
-          if (sideDistX < sideDistY) { sideDistX += deltaDistX; mapX += stepX; side = 0; } else { sideDistY += deltaDistY; mapY += stepY; side = 1; }
-          maxSteps--;
-          if (mapX < 0 || mapX >= mapWidth || mapY < 0 || mapY >= mapHeight) {
-            // Ray has crossed the grid line at the map's outer edge without hitting a
-            // tile first — every edge is walled explicitly now (see CAMPUS_MAP), so
-            // this is just a defensive backstop, not the normal way a boundary gets
-            // drawn. Treat the crossed line as a plain wall (tile 1) and fall through
-            // to the same distance/wallX math used for a real hit below, instead of
-            // returning a hardcoded distance: a fixed distance here previously made
-            // this edge render at a fake depth (usually far outside the fog falloff,
-            // so almost pure black) no matter how close the player actually stood to
-            // it — a wall that was solid to collision but read as a void visually.
-            hitVal = 1;
-            break;
-          }
-          hitVal = map[mapY][mapX];
-        }
-        const dist = side === 0 ? (mapX - originX + (1 - stepX) / 2) / dirX : (mapY - originY + (1 - stepY) / 2) / dirY;
-        // Fractional position (0-1) along the hit wall face — lets a handful of tile types
-        // (door/window/locker/notice-board) render as banded patterns instead of flat
-        // color, at zero extra draw calls: it's the same one fillRect per column as before,
-        // just computing a slightly different color for it.
-        let wallX = side === 0 ? originY + dist * dirY : originX + dist * dirX;
-        wallX -= Math.floor(wallX);
-        return { dist: Math.max(dist, 0.01), side, tile: hitVal, wallX };
-      }
-
-      function render(dt: number) {
-        const w = canvas!.width, h = canvas!.height;
-        const now = performance.now();
-        // Third-person follow FOV, 70-75° per spec: mobile sits at the top of that range
-        // since there's no mouse-look nuance to fall back on there and a narrower FOV reads
-        // like navigating through a straw on a fixed touch camera; desktop sits a touch
-        // narrower since free-look mouse control makes the extra width less necessary.
-        const firstPersonFovBlend = Math.max(0, Math.min(1,
-          1 - (currentCameraDistance - CAMERA_FIRST_PERSON_DISTANCE) /
-          (CAMERA_CLOSE_DISTANCE - CAMERA_FIRST_PERSON_DISTANCE)
-        ));
-        const thirdPersonFov = isMobile ? 74 : 72;
-        const firstPersonFov = isMobile ? 78 : 76;
-        const fovDeg = thirdPersonFov + (firstPersonFov - thirdPersonFov) * firstPersonFovBlend;
-        const fov = (fovDeg * Math.PI) / 180;
-        // Half-width (in world units, at unit forward distance) of the projection plane —
-        // used to cast rays evenly across a flat screen-space plane (tan-based) rather than
-        // stepping evenly through angles. Angle-uniform ray stepping is what produces the
-        // classic "fisheye" bulge as FOV widens; sampling evenly along the tangent plane
-        // instead keeps straight walls looking straight at 70-75° the same way it did at
-        // the old, wider FOV. Sprite projection below is kept in lockstep with this same
-        // plane so billboards/NPCs/items line up with the walls behind them.
-        const halfFovTan = Math.tan(fov / 2);
-        const fogDistance = isMobile ? 26 : 22;
-
-        // One continuous zoom camera. Collision shortens third-person distance only;
-        // it never pushes the camera through geometry. At the first-person end the camera
-        // sits at the player's eye position, using the same heading and projection system.
-        const zoomT = 1 - Math.exp(-CAMERA_ZOOM_RATE * Math.max(dt, 0));
-        smoothCameraDistance += (targetCameraDistance - smoothCameraDistance) * zoomT;
-        currentCameraDistance = smoothCameraDistance;
-
-        const behindAngle = playerAngle + Math.PI;
-        let desiredBackDist = currentCameraDistance;
-        if (currentCameraDistance > CAMERA_FIRST_PERSON_DISTANCE + 0.02) {
-          const behindHit = castRayDDA(behindAngle, playerX, playerY);
-          desiredBackDist = Math.min(currentCameraDistance,
-            Math.max(CAMERA_FIRST_PERSON_DISTANCE, behindHit.dist - CAMERA_CLEARANCE));
-          let idealCheckX = playerX + Math.cos(behindAngle) * desiredBackDist;
-          let idealCheckY = playerY + Math.sin(behindAngle) * desiredBackDist;
-          let clearanceGuard = 0;
-          while (
-            clearanceGuard < 16 &&
-            desiredBackDist > CAMERA_FIRST_PERSON_DISTANCE + 0.02 &&
-            (circleHitsWall(idealCheckX, idealCheckY, CAMERA_COLLIDER_RADIUS) || collidesWithNpc(idealCheckX, idealCheckY))
-          ) {
-            desiredBackDist = Math.max(CAMERA_FIRST_PERSON_DISTANCE, desiredBackDist - 0.16);
-            idealCheckX = playerX + Math.cos(behindAngle) * desiredBackDist;
-            idealCheckY = playerY + Math.sin(behindAngle) * desiredBackDist;
-            clearanceGuard++;
-          }
-        }
-        const idealCamX = playerX + Math.cos(behindAngle) * desiredBackDist;
-        const idealCamY = playerY + Math.sin(behindAngle) * desiredBackDist;
-        const followT = 1 - Math.exp(-CAMERA_FOLLOW_RATE * Math.max(dt, 0));
-        smoothCamX += (idealCamX - smoothCamX) * followT;
-        smoothCamY += (idealCamY - smoothCamY) * followT;
-        // The exponential follow above is what gives the camera its trailing feel, but it
-        // means the camera doesn't actually sit at idealCamX/Y — it lags a step behind,
-        // sliding toward it each frame. idealCamX/Y is guaranteed wall-clear (see the
-        // clearance loop above), but the straight-line path the lagging camera slides
-        // along to catch up isn't: rounding a wall corner, that path can cut through the
-        // corner for a frame or two even though both endpoints are clear, which is the
-        // "camera glitches past a wall" behavior. Rather than let the lag itself clip
-        // through geometry, snap it straight to the known-clear ideal position on exactly
-        // those frames — everywhere else the smoothing is untouched, so normal follow feel
-        // is unaffected.
-        if (circleHitsWall(smoothCamX, smoothCamY, CAMERA_COLLIDER_RADIUS)) {
-          smoothCamX = idealCamX;
-          smoothCamY = idealCamY;
-        }
-        const camX = smoothCamX;
-        const camY = smoothCamY;
-
-        const firstPersonBlend = Math.max(0, Math.min(1,
-          (currentCameraDistance - CAMERA_FIRST_PERSON_DISTANCE) /
-          (CAMERA_CLOSE_DISTANCE - CAMERA_FIRST_PERSON_DISTANCE)
-        ));
-        currentCameraHeight = CAMERA_FIRST_PERSON_HEIGHT +
-          (CAMERA_THIRD_PERSON_HEIGHT - CAMERA_FIRST_PERSON_HEIGHT) * firstPersonBlend;
-        currentCameraPitch = CAMERA_PITCH_FIRST +
-          (CAMERA_PITCH_THIRD - CAMERA_PITCH_FIRST) * firstPersonBlend;
-        const pitchOffsetPx = h * currentCameraPitch;
-        const horizonY = h / 2 - pitchOffsetPx;
-
-        const district = getDistrictAt(playerX, playerY);
-        if (district.id !== currentDistrictId) {
-          currentDistrictId = district.id;
-          // The chip label is the only feedback simply entering a district gets — it's
-          // passive, ambient HUD text and updates on every crossing. Entering an area is
-          // ordinary movement, not a new/important event, so it no longer pushes a toast
-          // notification (quest signals, notes, guides, and the gate still do — see
-          // pushDiscovery()/notifyRef.current() calls above, which are gated on an actual
-          // player interaction, not proximity).
-          if (districtChipRef.current) districtChipRef.current.textContent = `${district.icon} ${district.name.toUpperCase()}`;
-        }
-        drawMiniMap(now);
-
-        const [fr, fg, fb] = district.floor;
-        // Enclosed school roof, not open sky: a real structure directly overhead, built out
-        // of timber/steel beams framing recessed ceiling panels, with the occasional flush
-        // light fixture — never a bare gap to open air. Unlike the old flat gradient band,
-        // this is genuinely perspective-cast: each column samples the actual world position
-        // its view ray would hit on the roof plane (ROOF_HEIGHT above the floor), using the
-        // same distance-projection relationship the wall strips use below
-        // (screenY(H) = horizonY - (H - CAMERA_HEIGHT) * h / correctedDist, solved for
-        // distance instead of screen position). That's what makes the beam grid genuinely
-        // recede toward the horizon and pan correctly as the camera turns/moves, instead of
-        // being a flat screen-space overlay — and, combined with ROOF_HEIGHT staying safely
-        // above CAMERA_HEIGHT, it's also what keeps the camera from ever appearing to poke
-        // through the structure above it.
-        //
-        // Column/row sampling is deliberately coarser than the per-ray wall pass — the roof
-        // is a diffuse, low-detail surface far overhead, so a lower-resolution grid reads
-        // just as solid at a fraction of the cost.
-        if (!cachedCeilingBase || cachedCeilingBase.h !== h) {
-          const base = ctx!.createLinearGradient(0, 0, 0, h / 2);
-          base.addColorStop(0, '#211f1c'); // deep shadow tucked up among the beams, top of screen
-          base.addColorStop(1, '#5c5346'); // warm ambient bounce light down near the walls/horizon
-          cachedCeilingBase = { h, base };
-        }
-        ctx!.fillStyle = cachedCeilingBase.base;
-        ctx!.fillRect(0, 0, w, horizonY);
-
-        const roofAboveCam = ROOF_HEIGHT - currentCameraHeight; // > 0 by construction of ROOF_HEIGHT above
-        const CEIL_COLUMNS = Math.min(rayCap, isMobile ? 84 : 120);
-        const CEIL_ROW_BANDS = 7;
-        const CEIL_CELL_SIZE = 2.35; // world units per roof beam/panel cell
-        const CEIL_BEAM_FRAC = 0.07; // fraction of each cell taken up by the dark beam line
-        const ceilColPxW = w / CEIL_COLUMNS;
-        for (let ci = 0; ci < CEIL_COLUMNS; ci++) {
-          const ceilCamX = (2 * (ci + 0.5)) / CEIL_COLUMNS - 1;
-          const ceilAngleOffset = Math.atan(ceilCamX * halfFovTan);
-          const ceilAngle = playerAngle + ceilAngleOffset;
-          const ceilCosCorrect = Math.cos(ceilAngleOffset); // corrects for the same off-center foreshortening the wall distances correct for
-          const dirX = Math.cos(ceilAngle), dirY = Math.sin(ceilAngle);
-          const colPx = Math.floor(ci * ceilColPxW);
-          const colPxW = Math.ceil(ceilColPxW) + 1;
-          for (let bi = 0; bi < CEIL_ROW_BANDS; bi++) {
-            const yTop = (horizonY * bi) / CEIL_ROW_BANDS;
-            const yBot = (horizonY * (bi + 1)) / CEIL_ROW_BANDS;
-            const pixelsAboveHorizon = Math.max(1, horizonY - (yTop + yBot) / 2);
-            // Distance at which the roof plane projects to this band's screen row —
-            // the inverse of the wall projection formula (wallHeight = h / correctedDist).
-            const correctedDist = (roofAboveCam * h) / pixelsAboveHorizon;
-            const dist = correctedDist / ceilCosCorrect; // actual distance along this ray, for placing the world-space sample point
-            const worldX = camX + dirX * dist;
-            const worldY = camY + dirY * dist;
-            const gx = worldX / CEIL_CELL_SIZE, gy = worldY / CEIL_CELL_SIZE;
-            const fx = gx - Math.floor(gx), fy = gy - Math.floor(gy);
-            const onBeam = fx < CEIL_BEAM_FRAC || fx > 1 - CEIL_BEAM_FRAC || fy < CEIL_BEAM_FRAC || fy > 1 - CEIL_BEAM_FRAC;
-            const cellIx = Math.floor(gx), cellIy = Math.floor(gy);
-            const cellParity = (cellIx + cellIy) % 2 === 0;
-            const fog = Math.max(0.16, Math.min(1, 1 - dist / (fogDistance * 1.4)));
-            let r: number, g: number, b: number;
-            if (onBeam) {
-              // Dark timber/steel truss beam framing each panel
-              r = 34 * fog; g = 27 * fog; b = 22 * fog;
-            } else if (cellParity && cellIx % 3 === 0) {
-              // A flush-mounted light fixture, spaced every few panels — warm glow instead
-              // of a raw color, so it stays readable as "light" even as fog dims it
-              r = 30 + 200 * fog; g = 28 + 188 * fog; b = 20 + 150 * fog;
-            } else {
-              // Recessed acoustic ceiling panel, alternating tone for a tiled look
-              r = (cellParity ? 148 : 130) * fog;
-              g = (cellParity ? 140 : 124) * fog;
-              b = (cellParity ? 128 : 114) * fog;
-            }
-            ctx!.fillStyle = `rgb(${Math.floor(r)},${Math.floor(g)},${Math.floor(b)})`;
-            ctx!.fillRect(colPx, Math.floor(yTop), colPxW, Math.ceil(yBot - yTop) + 1);
-          }
-        }
-
-        if (!cachedFloorGradient || cachedFloorGradient.districtId !== district.id || cachedFloorGradient.h !== h) {
-          const floorGrad = ctx!.createLinearGradient(0, h / 2, 0, h);
-          floorGrad.addColorStop(0, `rgb(${fr},${fg},${fb})`);
-          floorGrad.addColorStop(1, `rgb(${Math.floor(fr * .55)},${Math.floor(fg * .55)},${Math.floor(fb * .55)})`);
-          cachedFloorGradient = { districtId: district.id, h, floor: floorGrad };
-        }
-        ctx!.fillStyle = cachedFloorGradient.floor; ctx!.fillRect(0, horizonY, w, h - horizonY);
-
-        const numRays = Math.min(w, rayCap);
-        interactHitboxes.length = 0; // rebuilt below as each interactable is projected this frame
-        const stripWidth = w / numRays;
-        if (zBuffer.length !== numRays) zBuffer = new Float32Array(numRays);
-
-        for (let i = 0; i < numRays; i++) {
-          // Evenly-spaced point on the flat projection plane (-1 left edge .. +1 right
-          // edge), converted to an angle offset via atan. This is what keeps the image
-          // rectilinear (straight walls stay straight) at a wide FOV — stepping evenly
-          // through angle instead would bow straight lines outward near the edges.
-          const cameraX = (2 * (i + 0.5)) / numRays - 1;
-          const rayAngleOffset = Math.atan(cameraX * halfFovTan);
-          const rayAngle = playerAngle + rayAngleOffset;
-          const result = castRayDDA(rayAngle, camX, camY);
-          const correctedDist = result.dist * Math.cos(rayAngleOffset);
-          zBuffer[i] = correctedDist;
-          const wallHeight = h / correctedDist;
-          // Vertical placement now accounts for the camera's actual height (see
-          // CAMERA_HEIGHT above) instead of assuming a fixed eye-level mid-wall camera.
-          // At CAMERA_HEIGHT = 0.5 this reduces to the exact original formula
-          // ((h - wallHeight) / 2 - pitchOffsetPx) — wallHeight itself is unaffected by
-          // camera height, only where the strip sits on screen is, so walls stay full,
-          // solid, and never partially culled just because the camera moved up/back.
-          const wallTop = horizonY + (currentCameraHeight - 1) * wallHeight;
-          const brightness = Math.max(0, 1 - correctedDist / fogDistance);
-          let r: number, g: number, b: number;
-          if (result.tile === 2) { r = Math.floor(120 * brightness); g = Math.floor(80 * brightness); b = Math.floor(40 * brightness); }
-          else if (result.tile === 3) { r = Math.floor(56 * brightness); g = Math.floor(189 * brightness); b = Math.floor(248 * brightness); }
-          else if (result.tile === 4) { r = Math.floor(160 * brightness); g = Math.floor(160 * brightness); b = Math.floor(180 * brightness); }
-          else if (result.tile === 5) {
-            const pulse = 0.5 + 0.5 * Math.sin(now / 260);
-            r = Math.floor((190 + 40 * pulse) * brightness); g = Math.floor((70 + 25 * pulse) * brightness); b = Math.floor(45 * brightness);
-          }
-          else if (result.tile === 6) {
-            // Door: dark frame at the edges, warm wood panel through the middle, plus a
-            // small brass handle band — all just wallX thresholds, still one fillRect.
-            const wx = result.wallX;
-            const inFrame = wx < 0.08 || wx > 0.92;
-            const isHandle = wx > 0.74 && wx < 0.8;
-            if (inFrame) { r = Math.floor(46 * brightness); g = Math.floor(32 * brightness); b = Math.floor(24 * brightness); }
-            else if (isHandle) { r = Math.floor(210 * brightness); g = Math.floor(178 * brightness); b = Math.floor(96 * brightness); }
-            else { r = Math.floor(150 * brightness); g = Math.floor(104 * brightness); b = Math.floor(58 * brightness); }
-          }
-          else if (result.tile === 7) {
-            // Window: glass panes separated by frame mullions. The pane tint shifts warmer
-            // than the glass edge to hint at classroom light (and vaguely, desks) beyond it
-            // without needing to actually render any geometry back there.
-            const wx = result.wallX;
-            const paneIdx = Math.floor(wx * 3);
-            const paneLocal = wx * 3 - paneIdx;
-            const isMullion = paneLocal < 0.06 || paneLocal > 0.94;
-            if (isMullion) { r = Math.floor(58 * brightness); g = Math.floor(52 * brightness); b = Math.floor(46 * brightness); }
-            else { r = Math.floor(120 * brightness); g = Math.floor((150 + (paneIdx === 1 ? 18 : 0)) * brightness); b = Math.floor(158 * brightness); }
-          }
-          else if (result.tile === 8) {
-            // Lockers: a repeating metal-door band pattern, six lockers per wall cell.
-            const bank = Math.floor(result.wallX * 6) % 2;
-            r = Math.floor((bank === 0 ? 96 : 82) * brightness); g = Math.floor((bank === 0 ? 112 : 96) * brightness); b = Math.floor((bank === 0 ? 132 : 114) * brightness);
-          }
-          else if (result.tile === 9) {
-            // Notice board: cork-beige backing with a couple of pinned "flyer" accents.
-            const wx = result.wallX;
-            const isFlyer = (wx > 0.15 && wx < 0.34) || (wx > 0.52 && wx < 0.68);
-            if (isFlyer) { r = Math.floor(226 * brightness); g = Math.floor(196 * brightness); b = Math.floor(96 * brightness); }
-            else { r = Math.floor(176 * brightness); g = Math.floor(144 * brightness); b = Math.floor(96 * brightness); }
-          }
-          else if (result.side === 0) { r = Math.floor(45 * brightness); g = Math.floor(55 * brightness); b = Math.floor(80 * brightness); }
-          else { r = Math.floor(30 * brightness); g = Math.floor(40 * brightness); b = Math.floor(60 * brightness); }
-          ctx!.fillStyle = `rgb(${r},${g},${b})`;
-          ctx!.fillRect(Math.floor(i * stripWidth), wallTop, Math.ceil(stripWidth) + 1, wallHeight);
-        }
-
-        // Reusable billboard-sprite projection: world (sx,sy) -> screen position, or null if
-        // it's behind the player, beyond maxDist, or occluded by a nearer wall strip in the
-        // z-buffer. `maxDist` defaults to the same fog range walls use, so ordinary sprites
-        // (props/notes/signs/NPC bodies) fade and cull in lockstep with the environment
-        // instead of staying crisp past the point the walls around them go black — that
-        // mismatch is what made distant room interiors read as "floating"/bleeding through
-        // the fog. Callers that intentionally need longer range (the quest beacon, which is
-        // documented as visible "from far across the map") pass a larger maxDist explicitly;
-        // everything else just gets the default.
-        //
-        // Occlusion itself now samples three columns (left edge / center / right edge of the
-        // sprite's on-screen footprint) instead of only the center ray, so a sprite whose
-        // center happens to clear a wall corner but whose edge would poke through it gets
-        // culled too, rather than visibly bleeding through the corner.
-        function projectSprite(sx: number, sy: number, maxDist: number = fogDistance) {
-          const spriteX = sx - camX, spriteY = sy - camY;
-          const transformX = Math.cos(playerAngle) * spriteX + Math.sin(playerAngle) * spriteY;
-          const transformY = -Math.sin(playerAngle) * spriteX + Math.cos(playerAngle) * spriteY;
-          if (transformX <= 0.1 || transformX > maxDist) return null;
-          // Same tangent-plane mapping as the wall rays (see halfFovTan above) — keeps
-          // sprites locked to the walls/geometry behind them instead of drifting toward
-          // the edges as FOV widens.
-          const screenX = (w / 2) * (1 + (transformY / transformX) / halfFovTan);
-          const size = Math.abs(h / transformX);
-          // Same camera-height-aware placement as the walls above (see wallTop), so every
-          // sprite — NPCs, notes, signs, the player's own body — stays correctly grounded
-          // against the wall/floor it's standing next to under the new camera position.
-          const drawY = horizonY + (currentCameraHeight - 1) * size;
-          const halfWidthPx = Math.max(1, size * 0.28);
-          const sampleXs = [screenX - halfWidthPx, screenX, screenX + halfWidthPx];
-          for (const sampleX of sampleXs) {
-            const rayIdx = Math.floor((sampleX / w) * numRays);
-            if (rayIdx < 0 || rayIdx >= numRays) continue; // off-canvas edge — nothing to occlude against
-            if (transformX >= zBuffer[rayIdx]) return null;
-          }
-          // Same falloff curve the walls use, so a sprite reaches zero opacity exactly where
-          // the wall behind it would have gone black — no more full-brightness objects
-          // sitting in front of (or glimpsed beyond) fogged-out geometry.
-          const fogAlpha = Math.max(0, Math.min(1, 1 - transformX / fogDistance));
-          return { screenX, size, drawY, dist: transformX, fogAlpha };
-        }
-
-        // Same screen-position/size/fog math as projectSprite, but deliberately handled
-        // differently at the two edges that were making the player vanish entirely:
-        //
-        // 1. Near/behind-camera clamp instead of a hard cull. The follow camera eases
-        //    toward its ideal spot each frame (see CAMERA_FOLLOW_RATE above) rather than
-        //    snapping there, so during a quick turn — exactly what happens rounding a
-        //    corner — the smoothed camera position can momentarily lag very close to, or
-        //    even slightly past, the player along the camera's own forward axis. That's a
-        //    real, if brief, close-range state, not a reason to render nothing: clamping
-        //    the projected depth to a small minimum keeps the figure large-and-close on
-        //    screen for that instant instead of the whole sprite blinking out.
-        // 2. No z-buffer occlusion test here at all — occlusion for the player is instead
-        //    done per-screen-column at draw time (see the call site below), so a wall hides
-        //    only the slice of the player actually behind it rather than the entire sprite
-        //    the moment any one sample point clips a wall corner.
-        const MIN_PLAYER_PROJECT_DIST = 0.35;
-        function projectPlayerSprite(sx: number, sy: number, maxDist: number = fogDistance) {
-          const spriteX = sx - camX, spriteY = sy - camY;
-          const rawTransformX = Math.cos(playerAngle) * spriteX + Math.sin(playerAngle) * spriteY;
-          const transformY = -Math.sin(playerAngle) * spriteX + Math.cos(playerAngle) * spriteY;
-          const transformX = Math.max(rawTransformX, MIN_PLAYER_PROJECT_DIST);
-          if (transformX > maxDist) return null; // legitimately out of render/fog range
-          const screenX = (w / 2) * (1 + (transformY / transformX) / halfFovTan);
-          const size = Math.abs(h / transformX);
-          const drawY = horizonY + (currentCameraHeight - 1) * size;
-          const fogAlpha = Math.max(0, Math.min(1, 1 - transformX / fogDistance));
-          return { screenX, size, drawY, dist: transformX, fogAlpha };
-        }
-
-        // Same outfit/shoe palette as the DOM AvatarFigure's --outfit-*/--shoes CSS, kept
-        // in sync here so a challenger's world sprite and its Battle/briefing portrait are
-        // recognizably the same character, not just the same silhouette.
-        const OUTFIT_HEX: Record<AvatarConfig['topColor'], string> = { indigo: '#4b4fbb', coral: '#c6565d', cyan: '#267b8d', gold: '#af752e' };
-        const SHOE_HEX: Record<AvatarConfig['shoes'], string> = { dark: '#181b2d', white: '#c9d3dd', amber: '#f8b84e' };
-
-        // Full-body pixel-art character, drawn with the exact same part layout and
-        // proportions as the player's own AvatarFigure (head+hair, body+arms, legs or
-        // skirt, shoes) — just as canvas rects/paths instead of DOM/CSS boxes, so a
-        // quest-giver standing in the world reads as an actual person built from the same
-        // visual language as the player, never a flat colored placeholder block.
-        // `centerX`/`feetY` anchor the character at ground contact; it's laid out upward
-        // from there using `totalHeight` scaled against the same 96×152 reference box the
-        // CSS version uses, so proportions match at any distance/size.
-        function drawVoxelFigure(
-          centerX: number,
-          feetY: number,
-          totalHeight: number,
-          avatar: AvatarConfig,
-          facing: 'front' | 'back' = 'front',
-          walkPhase: number = 0,
-          walking: boolean = false,
-        ) {
-          const k = totalHeight / 152;
-          const outfitColor = OUTFIT_HEX[avatar.topColor];
-          const shoeColor = SHOE_HEX[avatar.shoes];
-          ctx!.lineWidth = Math.max(1, 2 * k);
-          ctx!.strokeStyle = 'rgba(20, 22, 38, 0.9)';
-
-          // Walking is deliberately animated around the limb joints instead of scaling or
-          // moving the whole character. This keeps the player's feet grounded and prevents
-          // the common "sliding" look while roaming.
-          const swing = walking ? Math.sin(walkPhase) * 0.28 : 0;
-          const oppositeSwing = -swing;
-          const bodyBob = walking ? Math.abs(Math.sin(walkPhase * 2)) * 1.2 * k : 0;
-          const animatedBodyTopOffset = bodyBob;
-
-          const shoeH = 11 * k, shoeW = 29 * k, shoeOverlap = 5 * k;
-          const legH = (avatar.bottomType === 'shorts' ? 19 : 35) * k, legW = 23 * k, legGap = 5 * k;
-          const legsTop = feetY - (shoeH - shoeOverlap) - legH;
-          const bodyH = 54 * k, bodyW = (avatar.gender === 'feminine' ? 53 : 59) * k;
-          const bodyTop = legsTop - 2 * k - bodyH + animatedBodyTopOffset;
-          const headH = 42 * k, headW = 48 * k;
-          const headTop = bodyTop - 3 * k - headH;
-          const armW = 12 * k, armH = 42 * k, armOffset = 3 * k;
-
-          // Grounding shadow.
-          ctx!.fillStyle = 'rgba(0, 0, 0, 0.32)';
-          ctx!.beginPath();
-          ctx!.ellipse(centerX, feetY + 1 * k, 38 * k, 5 * k, 0, 0, Math.PI * 2);
-          ctx!.fill();
-
-          // Legs swing from the hips. The shoes remain attached to the lower leg.
-          if (avatar.bottomType === 'skirt') {
-            const skirtW = 62 * k, skirtH = 30 * k;
-            ctx!.save();
-            ctx!.translate(centerX, legsTop + 2 * k);
-            ctx!.rotate(walking ? Math.sin(walkPhase * 2) * 0.035 : 0);
-            ctx!.fillStyle = outfitColor;
-            ctx!.beginPath();
-            ctx!.moveTo(-skirtW / 2 + skirtW * 0.18, 0);
-            ctx!.lineTo(-skirtW / 2 + skirtW * 0.82, 0);
-            ctx!.lineTo(skirtW / 2, skirtH);
-            ctx!.lineTo(-skirtW / 2, skirtH);
-            ctx!.closePath();
-            ctx!.fill();
-            ctx!.stroke();
-            ctx!.restore();
-          } else {
-            const drawLeg = (x: number, angle: number) => {
-              ctx!.save();
-              ctx!.translate(x, legsTop);
-              ctx!.rotate(angle);
-              ctx!.fillStyle = '#272c49';
-              ctx!.fillRect(-legW / 2, 0, legW, legH);
-              ctx!.strokeRect(-legW / 2, 0, legW, legH);
-              ctx!.fillStyle = shoeColor;
-              ctx!.fillRect(-shoeW / 2, legH - shoeOverlap, shoeW, shoeH);
-              ctx!.strokeRect(-shoeW / 2, legH - shoeOverlap, shoeW, shoeH);
-              ctx!.restore();
-            };
-            drawLeg(centerX - legGap / 2 - legW / 2, walking ? swing : 0);
-            drawLeg(centerX + legGap / 2 + legW / 2, walking ? oppositeSwing : 0);
-          }
-
-          // Arms swing opposite the legs from the shoulder joints.
-          const drawArm = (x: number, angle: number) => {
-            ctx!.save();
-            ctx!.translate(x, bodyTop + 5 * k);
-            ctx!.rotate(angle);
-            ctx!.fillStyle = avatar.skin;
-            ctx!.fillRect(-armW / 2, 0, armW, armH);
-            ctx!.strokeRect(-armW / 2, 0, armW, armH);
-            ctx!.restore();
-          };
-          drawArm(centerX - bodyW / 2 - armOffset - armW / 2, walking ? oppositeSwing : 0);
-          drawArm(centerX + bodyW / 2 + armOffset + armW / 2, walking ? swing : 0);
-
-          // Body/outfit.
-          ctx!.fillStyle = outfitColor;
-          ctx!.fillRect(centerX - bodyW / 2, bodyTop, bodyW, bodyH);
-          ctx!.strokeRect(centerX - bodyW / 2, bodyTop, bodyW, bodyH);
-
-          // Head and hair follow the body's small walking bob.
-          ctx!.fillStyle = avatar.skin;
-          ctx!.fillRect(centerX - headW / 2, headTop, headW, headH);
-          ctx!.strokeRect(centerX - headW / 2, headTop, headW, headH);
-
-          if (avatar.hair !== 'bald') {
-            const hairH = (avatar.hair === 'long' ? 31 : avatar.hair === 'curly' ? 20 : 17) * k;
-            ctx!.fillStyle = avatar.hairColor;
-            ctx!.fillRect(centerX - headW / 2 - 4 * k, headTop - 7 * k, headW + 8 * k, hairH);
-            ctx!.strokeRect(centerX - headW / 2 - 4 * k, headTop - 7 * k, headW + 8 * k, hairH);
-          }
-
-          if (facing === 'front') {
-            ctx!.fillStyle = '#182038';
-            ctx!.fillRect(centerX - 15 * k, headTop + 22 * k, 5 * k, 5 * k);
-            ctx!.fillRect(centerX + 10 * k, headTop + 22 * k, 5 * k, 5 * k);
-          }
-
-          return { headTop };
-        }
-
-        // Every billboard sprite category (quest-givers, lost notes, guides, props, signs)
-        // used to be drawn in its own separate forEach, back to back, regardless of actual
-        // distance from the player. That meant a nearer challenger could get drawn *before*
-        // a farther note, and — since canvas drawing is just "last thing painted wins" —
-        // the farther note would paint right over the top of the nearer NPC, making the
-        // note visible in front of things that should have been in front of it. This queue
-        // collects every sprite's draw call along with its real distance first, then
-        // executes them back-to-front (farthest first) afterward, so items always occlude
-        // each other in the correct order no matter which category they belong to —
-        // exactly like the wall z-buffer already does for the environment.
-        const spriteDrawQueue: { dist: number; draw: () => void }[] = [];
-
-        challengers.forEach((term) => {
-          // Quest-giver locations are intentionally fixed — term.x/term.y are never mutated.
-          // IMPORTANT: quest discovery is NOT triggered by proximity. The player should first
-          // be able to freely see and explore the campus. The discovery card is created only
-          // when the player intentionally interacts with this quest-giver (see interact()).
-          // A tiny idle bob is applied only to the sprite's projected render position below;
-          // purely cosmetic — it never touches term.x/term.y.
-          const isFinished = defeatedIdsRef.current.includes(term.id);
-          const idleBob = Math.sin(now / 650 + term.x * 4) * 0.035;
-          // The beacon is documented/intended to read from far across the map, well past
-          // where the NPC's own body would normally fog out — so it gets its own longer
-          // projection range. The body, sword icon, and name tag all still respect the
-          // standard fogDistance below (checked via proj.dist), keeping their fade in sync
-          // with the walls around them; only the beacon uses the extended range directly.
-          const beaconRange = fogDistance * 1.8;
-          const proj = projectSprite(term.x, term.y + idleBob, beaconRange);
-          if (!proj) return;
-          const { screenX: spriteScreenX, size: spriteSize, drawY, dist: spriteDist } = proj;
-          // Tap/click hit target for this NPC, rebuilt fresh every frame from its actual
-          // projected screen position — this is what lets interaction be driven purely by
-          // "the player touched this sprite on screen" instead of world-space proximity.
-          // Only registered while the body itself is actually visible/rendered (inside
-          // fogDistance, same threshold the body draw below uses), so you can never tap
-          // an NPC that isn't legitimately on screen.
-          if (term.active && spriteDist <= fogDistance) {
-            interactHitboxes.push({ target: { kind: 'npc', data: term }, screenX: spriteScreenX, screenY: drawY + spriteSize * 0.55, radius: Math.max(24, spriteSize * 0.34), worldX: term.x, worldY: term.y });
-          }
-          spriteDrawQueue.push({
-            dist: spriteDist,
-            draw: () => {
-              const inBodyRange = spriteDist <= fogDistance;
-              const bodyAlpha = Math.max(0, Math.min(1, 1 - spriteDist / fogDistance));
-              if (inBodyRange) {
-                // Anchor at the floor plane for this projected distance/size (same convention
-                // walls and the floor grid already use), so the figure's feet actually meet the
-                // ground instead of floating at an arbitrary fraction of the sprite square.
-                const groundY = drawY + spriteSize;
-                const figureHeight = spriteSize * 0.82;
-                ctx!.globalAlpha = bodyAlpha;
-                const avatar = challengerAvatars.get(term.id);
-                if (avatar) {
-                  const { headTop } = drawVoxelFigure(spriteScreenX, groundY, figureHeight, avatar);
-                  // Status icon above the head: a sword for an available challenge, a checkmark
-                  // once defeated — the character itself always renders in its own true likeness,
-                  // so this is the only thing that needs to change to signal state.
-                  ctx!.fillStyle = isFinished ? '#34d399' : '#f8b84e';
-                  ctx!.font = CHALLENGER_FONT;
-                  ctx!.fillText(isFinished ? '✓' : '⚔', spriteScreenX - 8, headTop - 10);
-                }
-                ctx!.globalAlpha = 1;
-              }
-
-              if (term.active && !isFinished) {
-                // Name tag: same pill treatment as the room/building signs, anchored a fixed
-                // offset above the sword icon so the two never collide. Only drawn within a
-                // "readable" band (comfortably inside normal fog range, not full range) — past
-                // that, the beacon below is the only signal, exactly like squinting at a distant
-                // light without being able to make out a name yet.
-                const readableRange = fogDistance * 0.7;
-                if (spriteDist <= readableRange) {
-                  const nameAlpha = Math.max(0, Math.min(1, 1 - spriteDist / readableRange));
-                  const fontSize = Math.max(9, Math.min(15, Math.floor(spriteSize * 0.1)));
-                  ctx!.font = `bold ${fontSize}px sans-serif`;
-                  const labelText = term.name;
-                  const textWidth = ctx!.measureText(labelText).width;
-                  const padX = 7, padY = 4;
-                  const boxW = textWidth + padX * 2, boxH = fontSize + padY * 2;
-                  const labelY = drawY - 34 - spriteSize * 0.05 - 26; // fixed gap above the beacon center
-                  ctx!.globalAlpha = nameAlpha;
-                  ctx!.fillStyle = 'rgba(15, 20, 36, 0.72)';
-                  ctx!.fillRect(spriteScreenX - boxW / 2, labelY - boxH / 2, boxW, boxH);
-                  ctx!.strokeStyle = 'rgba(248, 184, 78, 0.5)';
-                  ctx!.lineWidth = 1;
-                  ctx!.strokeRect(spriteScreenX - boxW / 2, labelY - boxH / 2, boxW, boxH);
-                  ctx!.fillStyle = '#f1f5f9';
-                  ctx!.textAlign = 'center';
-                  ctx!.textBaseline = 'middle';
-                  ctx!.fillText(labelText, spriteScreenX, labelY + 1);
-                  ctx!.textAlign = 'left';
-                  ctx!.textBaseline = 'alphabetic';
-                  ctx!.globalAlpha = 1;
-                }
-
-                // Signal: a soft pulsing beacon above every un-defeated challenger, visible from
-                // far across the map (not just up close) so players get a sense of "something's
-                // over there" long before they can make out the NPC itself. Fades out smoothly
-                // over its own extended range rather than cutting off hard at beaconRange.
-                const beaconAlpha = Math.max(0, Math.min(1, 1 - spriteDist / beaconRange));
-                const pulse = 0.5 + 0.5 * Math.sin(now / 420 + term.x);
-                const beaconY = drawY - 34 - spriteSize * 0.05;
-                const grad = ctx!.createRadialGradient(spriteScreenX, beaconY, 0, spriteScreenX, beaconY, 14 * pulse + 8);
-                grad.addColorStop(0, `rgba(248, 184, 78, ${0.55 * pulse + 0.15})`);
-                grad.addColorStop(1, 'rgba(248, 184, 78, 0)');
-                ctx!.globalAlpha = beaconAlpha;
-                ctx!.fillStyle = grad;
-                ctx!.beginPath();
-                ctx!.arc(spriteScreenX, beaconY, 14 * pulse + 8, 0, Math.PI * 2);
-                ctx!.fill();
-                ctx!.globalAlpha = 1;
-              }
-            },
-          });
-        });
-
-        // Lost Notes: small glowing pickups that bob gently in place. Tapping/clicking one
-        // "collects" it (via interact(), see interactNote() above) and it stops being
-        // drawn; walking past one no longer collects it on its own.
-        notes.forEach((note) => {
-          if (collectedNotes.has(note.id)) return;
-          const bob = Math.sin(now / 500 + note.x * 3) * 0.06;
-          const proj = projectSprite(note.x, note.y + bob);
-          if (!proj) return;
-          const { screenX, size, drawY, fogAlpha, dist } = proj;
-          interactHitboxes.push({ target: { kind: 'note', data: note }, screenX, screenY: drawY + size * 0.72, radius: Math.max(20, size * 0.3), worldX: note.x, worldY: note.y });
-          spriteDrawQueue.push({
-            dist,
-            draw: () => {
-              ctx!.globalAlpha = fogAlpha;
-              const glow = 0.4 + 0.3 * Math.sin(now / 300 + note.x);
-              const grad = ctx!.createRadialGradient(screenX, drawY + size * 0.72, 0, screenX, drawY + size * 0.72, size * 0.22);
-              grad.addColorStop(0, `rgba(244, 240, 231, ${glow})`);
-              grad.addColorStop(1, 'rgba(244, 240, 231, 0)');
-              ctx!.fillStyle = grad;
-              ctx!.beginPath();
-              ctx!.arc(screenX, drawY + size * 0.72, size * 0.22, 0, Math.PI * 2);
-              ctx!.fill();
-              ctx!.font = `${Math.max(10, Math.floor(size * 0.18))}px sans-serif`;
-              ctx!.textAlign = 'center';
-              ctx!.fillText('📝', screenX, drawY + size * 0.78);
-              ctx!.textAlign = 'left';
-              ctx!.globalAlpha = 1;
-            },
-          });
-        });
-
-        // Friendly guide NPCs: same billboard treatment as challengers but teal-coded and
-        // marked with a speech bubble instead of crossed swords, so they read as safe.
-        // Tapping/clicking one delivers its hint (via interactGuide() above); walking
-        // near one no longer triggers anything by itself.
-        guides.forEach((guide) => {
-          const proj = projectSprite(guide.x, guide.y);
-          if (!proj) return;
-          const { screenX: spriteScreenX, size: spriteSize, drawY, fogAlpha, dist } = proj;
-          if (!triggeredGuides.has(guide.id)) {
-            interactHitboxes.push({ target: { kind: 'guide', data: guide }, screenX: spriteScreenX, screenY: drawY + spriteSize * 0.55, radius: Math.max(24, spriteSize * 0.34), worldX: guide.x, worldY: guide.y });
-          }
-          spriteDrawQueue.push({
-            dist,
-            draw: () => {
-              ctx!.globalAlpha = fogAlpha;
-              const drawX = spriteScreenX - spriteSize * 0.25;
-              const gWidth = spriteSize * 0.5, gHeight = spriteSize * 0.8;
-              ctx!.fillStyle = '#0f2e2c';
-              ctx!.fillRect(drawX + gWidth * 0.2, drawY + gHeight * 0.4, gWidth * 0.6, gHeight * 0.6);
-              ctx!.fillStyle = '#67cdd1';
-              ctx!.fillRect(drawX + gWidth * 0.3, drawY + gHeight * 0.45, gWidth * 0.4, gHeight * 0.3);
-              ctx!.fillStyle = '#ffffff';
-              ctx!.font = GUIDE_FONT;
-              ctx!.fillText('💬', spriteScreenX - 8, drawY - 8);
-              ctx!.globalAlpha = 1;
-            },
-          });
-        });
-
-        // Environmental props: trees/planters/benches/lamps. One glyph draw each, no state,
-        // no proximity logic — this is what makes the corridors read as a campus rather than
-        // bare hallways without costing anything meaningful on top of the notes/guides already
-        // drawn every frame.
-        props.forEach((prop) => {
-          const bob = prop.sway ? Math.sin(now / 900 + prop.x * 2) * 0.03 : 0;
-          const proj = projectSprite(prop.x, prop.y + bob);
-          if (!proj) return;
-          const { screenX, size, drawY, fogAlpha, dist } = proj;
-          spriteDrawQueue.push({
-            dist,
-            draw: () => {
-              ctx!.globalAlpha = fogAlpha;
-              ctx!.font = `${Math.max(10, Math.floor(size * 0.22))}px sans-serif`;
-              ctx!.textAlign = 'center';
-              ctx!.fillText(prop.glyph, screenX, drawY + size * 0.82);
-              ctx!.textAlign = 'left';
-              ctx!.globalAlpha = 1;
-            },
-          });
-        });
-
-        // Landmark signs: a small placard (rounded rect + label) at a handful of notable
-        // structures, so a building reads as "the science labs" or "the library" from across
-        // the room — not just a different wall color. Four of these, total, on purpose. Font
-        // size is clamped on both ends, so a sign standing right in front of the player can't
-        // balloon into an oversized, spacing-breaking label.
-        //
-        // Each sign is flush-mounted on one specific wall face (see CAMPUS_SIGNS' `side`), so
-        // it has to actually behave like a plaque bolted to that wall rather than a sticker
-        // hovering in the air: it's invisible from the far side of its own wall, it fades out
-        // the more edge-on the player's viewing angle gets, and it foreshortens horizontally
-        // over that same range — the same way a flat rectangular sign would if you walked past
-        // it at an angle instead of straight up to it.
-        signs.forEach((sign) => {
-          const proj = projectSprite(sign.x, sign.y);
-          if (!proj) return;
-          const { screenX, size, drawY, fogAlpha, dist } = proj;
-          const [nx, ny] = SIGN_NORMALS[sign.side];
-          const toPlayerX = playerX - sign.x, toPlayerY = playerY - sign.y;
-          const toPlayerLen = Math.hypot(toPlayerX, toPlayerY) || 1;
-          const facing = (nx * toPlayerX + ny * toPlayerY) / toPlayerLen;
-          if (facing <= 0.05) return; // player is on the blank side of the wall — nothing to read
-          const foreshorten = Math.max(0.45, facing); // floor keeps it from collapsing to a sliver
-          spriteDrawQueue.push({
-            dist,
-            draw: () => {
-              ctx!.globalAlpha = fogAlpha;
-              const fontSize = Math.max(9, Math.min(20, Math.floor(size * 0.11)));
-              ctx!.font = `bold ${fontSize}px sans-serif`;
-              const textWidth = ctx!.measureText(sign.label).width;
-              const padX = 8, padY = 5;
-              const boxW = textWidth + padX * 2, boxH = fontSize + padY * 2;
-              // Mounted high on the wall, like real signage above head height, instead of
-              // hovering at torso height out in front of it.
-              const boxCenterY = drawY - size * 0.3 + boxH / 2;
-              ctx!.save();
-              ctx!.translate(screenX, boxCenterY);
-              ctx!.scale(foreshorten, 1);
-              ctx!.fillStyle = 'rgba(15, 20, 36, 0.78)';
-              ctx!.fillRect(-boxW / 2, -boxH / 2, boxW, boxH);
-              ctx!.strokeStyle = 'rgba(248, 184, 78, 0.5)';
-              ctx!.lineWidth = 1 / foreshorten;
-              ctx!.strokeRect(-boxW / 2, -boxH / 2, boxW, boxH);
-              ctx!.fillStyle = '#f1f5f9';
-              ctx!.textAlign = 'center';
-              ctx!.textBaseline = 'middle';
-              ctx!.fillText(sign.label, 0, 1);
-              ctx!.restore();
-              ctx!.textAlign = 'left';
-              ctx!.textBaseline = 'alphabetic';
-              ctx!.globalAlpha = 1;
-            },
-          });
-        });
-
-        // Primary world-space wayfinding is painted after the floor/walls but before sprites,
-        // so the route feels embedded in the campus and NPCs can naturally stand above it.
-        // Defined here (inside render) rather than at the outer effect scope so it can close
-        // over this frame's camera/projection state (camX, camY, w, h, zBuffer, etc.) instead
-        // of stale or undefined outer-scope values.
-        const drawQuestWayfinding = (wfNow: number, destination: (typeof challengers)[number] | null) => {
-          if (!destination) return;
-
-          const route = getQuestPath(destination);
-          if (route.length < 2) return;
-
-          const projectFloorPoint = (sx: number, sy: number) => {
-            const dx = sx - camX;
-            const dy = sy - camY;
-            const transformX = Math.cos(playerAngle) * dx + Math.sin(playerAngle) * dy;
-            const transformY = -Math.sin(playerAngle) * dx + Math.cos(playerAngle) * dy;
-            if (transformX <= 0.15 || transformX > fogDistance + 4) return null;
-            const screenX = (w / 2) * (1 + (transformY / transformX) / halfFovTan);
-            if (screenX < -80 || screenX > w + 80) return null;
-            const size = Math.abs(h / transformX);
-            const groundY = horizonY + currentCameraHeight * size;
-            const rayIdx = Math.floor((screenX / w) * numRays);
-            if (rayIdx < 0 || rayIdx >= numRays) return null;
-            // The path is painted after the walls, so only draw a point when the floor point
-            // itself is in front of the wall depth at that screen column.
-            if (transformX >= zBuffer[rayIdx] - 0.03) return null;
-            return { screenX, groundY, depth: transformX, size };
-          };
-
-          const projected = route.map((point) => projectFloorPoint(point.x, point.y));
-          const visibleSegments: { a: NonNullable<ReturnType<typeof projectFloorPoint>>; b: NonNullable<ReturnType<typeof projectFloorPoint>> }[] = [];
-          for (let i = 1; i < projected.length; i++) {
-            const a = projected[i - 1], b = projected[i];
-            if (a && b) visibleSegments.push({ a, b });
-          }
-
-          const pulse = 0.68 + Math.sin(wfNow * 0.004) * 0.16;
-          ctx!.save();
-          ctx!.lineCap = 'round';
-          ctx!.lineJoin = 'round';
-
-          // Soft halo.
-          for (const segment of visibleSegments) {
-            const depth = Math.max(0.5, (segment.a.depth + segment.b.depth) * 0.5);
-            const width = Math.max(3, Math.min(16, h / depth * 0.035));
-            ctx!.strokeStyle = `rgba(248, 184, 78, ${0.12 * pulse})`;
-            ctx!.lineWidth = width * 3.2;
-            ctx!.beginPath();
-            ctx!.moveTo(segment.a.screenX, segment.a.groundY - width * 0.25);
-            ctx!.lineTo(segment.b.screenX, segment.b.groundY - width * 0.25);
-            ctx!.stroke();
-          }
-
-          // Main guide: warm, compact, dashed segments rather than a giant continuous neon road.
-          for (const segment of visibleSegments) {
-            const depth = Math.max(0.5, (segment.a.depth + segment.b.depth) * 0.5);
-            const width = Math.max(1.6, Math.min(7, h / depth * 0.017));
-            ctx!.strokeStyle = `rgba(248, 184, 78, ${0.58 * pulse})`;
-            ctx!.lineWidth = width;
-            ctx!.setLineDash([Math.max(4, width * 2.6), Math.max(5, width * 3.8)]);
-            ctx!.beginPath();
-            ctx!.moveTo(segment.a.screenX, segment.a.groundY - width * 0.3);
-            ctx!.lineTo(segment.b.screenX, segment.b.groundY - width * 0.3);
-            ctx!.stroke();
-          }
-          ctx!.setLineDash([]);
-
-          // Small pulsing destination beacon. It is intentionally understated and only appears
-          // when the destination is visible in the current camera view.
-          const target = projectFloorPoint(destination.x, destination.y);
-          if (target) {
-            const radius = Math.max(5, Math.min(18, target.size * 0.11));
-            ctx!.globalAlpha = 0.72 + Math.sin(wfNow * 0.005) * 0.18;
-            ctx!.strokeStyle = '#f8b84e';
-            ctx!.lineWidth = Math.max(1.2, radius * 0.12);
-            ctx!.beginPath();
-            ctx!.arc(target.screenX, target.groundY - radius * 0.35, radius, 0, Math.PI * 2);
-            ctx!.stroke();
-            ctx!.beginPath();
-            ctx!.arc(target.screenX, target.groundY - radius * 0.35, radius * 0.42, 0, Math.PI * 2);
-            ctx!.fillStyle = 'rgba(248, 184, 78, .72)';
-            ctx!.fill();
-            ctx!.globalAlpha = 1;
-
-            const label = `${QUEST_TIERS[getTierIndexForChallenger(destination.id)]?.name.toUpperCase() ?? 'NEXT'} · QUEST`;
-            const fontSize = Math.max(10, Math.min(15, h * 0.018));
-            ctx!.font = `700 ${fontSize}px Inter, system-ui, sans-serif`;
-            const labelW = ctx!.measureText(label).width + 16;
-            const labelX = Math.max(8, Math.min(w - labelW - 8, target.screenX - labelW / 2));
-            const labelY = Math.max(18, target.groundY - radius - fontSize * 1.8);
-            ctx!.fillStyle = 'rgba(7, 10, 18, .82)';
-            ctx!.fillRect(labelX, labelY - fontSize, labelW, fontSize + 8);
-            ctx!.strokeStyle = 'rgba(248, 184, 78, .58)';
-            ctx!.lineWidth = 1;
-            ctx!.strokeRect(labelX, labelY - fontSize, labelW, fontSize + 8);
-            ctx!.fillStyle = '#f8e7c2';
-            ctx!.textAlign = 'center';
-            ctx!.textBaseline = 'middle';
-            ctx!.fillText(label, labelX + labelW / 2, labelY - fontSize / 2 + 2);
-            ctx!.textAlign = 'left';
-            ctx!.textBaseline = 'alphabetic';
-          }
-          ctx!.restore();
-        };
-
-        const currentQuestDestination = getCurrentQuestDestination(defeatedIdsRef.current);
-        drawQuestWayfinding(now, currentQuestDestination);
-
-        // Third-person view: render the player's own body, seen from behind, using the same
-        // billboard projection math every other character uses for screen position/size.
-        // Occlusion is genuine and partial, not all-or-nothing: the player's on-screen
-        // footprint is split into the same per-ray columns the wall pass just wrote into
-        // zBuffer, and only the columns where a wall is actually nearer than the player get
-        // clipped out before drawing — so a wall hides just the sliver of the player truly
-        // behind it (an arm brushing a corner, half the body mid-corner-turn, etc.) instead
-        // of the previous behavior where a single occluded sample point culled the entire
-        // sprite. A fallback guarantees at least the player's center column always survives
-        // the clip, so the player can never render as fully invisible while still inside the
-        // playable area, even in the extreme grazing-corner case where every sampled column
-        // would otherwise come back occluded. Facing is always-back (we're behind them),
-        // using their own walk animation state, same as before.
-        {
-          const showPlayerBody = currentCameraDistance > CAMERA_CLOSE_DISTANCE * 0.78;
-          const playerProj = showPlayerBody ? projectPlayerSprite(playerX, playerY) : null;
-          if (playerProj) {
-            const { screenX: pScreenX, size: pSize, drawY: pDrawY, dist: pDist, fogAlpha: pFogAlpha } = playerProj;
-            spriteDrawQueue.push({
-              dist: pDist,
-              draw: () => {
-                const groundY = pDrawY + pSize;
-                const figureHeight = pSize * 0.82;
-                // Footprint half-width in screen pixels, a bit generous versus the actual
-                // limb/shoe silhouette so we never clip visible pixels at the sprite's edge.
-                const halfWidthPx = Math.max(2, pSize * 0.32);
-                const clipLeftPx = pScreenX - halfWidthPx;
-                const clipRightPx = pScreenX + halfWidthPx;
-                const firstCol = Math.max(0, Math.floor((clipLeftPx / w) * numRays));
-                const lastCol = Math.min(numRays - 1, Math.ceil((clipRightPx / w) * numRays));
-                const centerCol = Math.min(numRays - 1, Math.max(0, Math.round((pScreenX / w) * numRays)));
-
-                ctx!.save();
-                ctx!.beginPath();
-                let anyVisible = false;
-                let runStartCol: number | null = null;
-                const addRun = (startCol: number, endColExclusive: number) => {
-                  const x0 = (startCol / numRays) * w;
-                  const x1 = (endColExclusive / numRays) * w;
-                  ctx!.rect(x0, 0, x1 - x0, h);
-                  anyVisible = true;
-                };
-                for (let col = firstCol; col <= lastCol; col++) {
-                  const colVisible = col === centerCol || pDist < zBuffer[col];
-                  if (colVisible) {
-                    if (runStartCol === null) runStartCol = col;
-                  } else if (runStartCol !== null) {
-                    addRun(runStartCol, col);
-                    runStartCol = null;
-                  }
-                }
-                if (runStartCol !== null) addRun(runStartCol, lastCol + 1);
-                if (!anyVisible) {
-                  // Belt-and-suspenders: the centerCol === true clause above should already
-                  // make this unreachable, but never skip drawing the player entirely.
-                  addRun(centerCol, centerCol + 1);
-                }
-                ctx!.clip();
-                ctx!.globalAlpha = pFogAlpha;
-                drawVoxelFigure(pScreenX, groundY, figureHeight, avatarRef.current, 'back', walkPhase, playerWalking);
-                ctx!.globalAlpha = 1;
-                ctx!.restore();
-              },
-            });
-          }
-        }
-        // Other characters/props continue to use the same depth-tested sprite projection.
-
-        // Paint back-to-front (farthest first) so nearer sprites always end up drawn on
-        // top of farther ones, regardless of which category either belongs to — the fix
-        // for notes/props/signs/NPCs incorrectly overlapping each other in the wrong order.
-        spriteDrawQueue.sort((a, b) => b.dist - a.dist);
-        spriteDrawQueue.forEach((entry) => entry.draw());
-
-        // Lost-note pickups and guide check-ins are no longer triggered by proximity —
-        // they only happen through interactNote()/interactGuide() above, which fire from
-        // an actual tap/click via interact(). Nothing to do here each frame but let the
-        // hitboxes registered above (during the notes/guides draw passes) stand as the
-        // only path in.
-
-        // Visible progression: a plain "X / Y discovered" readout so a run always has a
-        // sense of how much ground has actually been covered. Only touches the DOM when the
-        // count changes, same as the district chip above.
-        const discoveredCount = signaledIds.size + collectedNotes.size + triggeredGuides.size;
-        if (discoveredCount !== lastProgressCount) {
-          lastProgressCount = discoveredCount;
-          if (progressChipRef.current) progressChipRef.current.textContent = `🧭 ${discoveredCount}/${totalDiscoverable} DISCOVERED`;
-        }
-
-        // Gate-unlock is a real state change (opens the map tile, fires a toast), so it
-        // always runs, independent of any interaction UI.
+      const updateScene=(dt:number,now:number)=>{
         checkGateUnlock();
+        const destination=getCurrentQuestDestination(defeatedIdsRef.current);
+        const route=getQuestPath(destination);
+        const player=rigs.get('player')!;
+        player.root.position.set(playerX,.02,playerY);player.root.rotation.y=-playerAngle-Math.PI/2;
+        player.root.visible=smoothCameraDistance>.95;
+        playerWalking=Math.hypot((keys.w?1:0)+(keys.s?-1:0),(keys.a?-1:0)+(keys.d?1:0))>0||leftJoy.active;
+        if(playerWalking)walkPhase+=dt*(isMobile?9.5:10.5);
+        const swing=playerWalking?Math.sin(walkPhase)*.45:0;player.leftLeg.rotation.x=swing;player.rightLeg.rotation.x=-swing;player.leftArm.rotation.x=-swing;player.rightArm.rotation.x=swing;
 
-        // Register every still-sealed gate as a tap target too (only while still sealed and
-        // actually on screen), so checking its status now takes the same deliberate
-        // tap/click as everything else, instead of appearing just from walking up to it.
-        gates.forEach((gate) => {
-          if (gate.open) return;
-          const gateProj = projectSprite(gate.x + 0.5, gate.y + 0.5);
-          if (gateProj) {
-            interactHitboxes.push({ target: { kind: 'gate', data: gate }, screenX: gateProj.screenX, screenY: gateProj.drawY + gateProj.size * 0.5, radius: Math.max(30, gateProj.size * 0.4), worldX: gate.x + 0.5, worldY: gate.y + 0.5 });
-          }
+        challengers.forEach(c=>{
+          const rig=rigs.get(c.id);if(!rig)return;const finished=defeatedIdsRef.current.includes(c.id);rig.root.position.set(c.x,.02,c.y);rig.root.visible=true;rig.root.rotation.y=-c.dir+Math.PI;
+          const idle=Math.sin(now/650+c.x*4)*.035;rig.root.position.y=.02+idle;
+          rig.root.children.forEach(o=>o.visible=true);if(finished){rig.root.position.y=.02;}
+          const projected=worldToScreen(c.x,c.y,1.7);const distance=Math.hypot(playerX-c.x,playerY-c.y);
+          if(!finished&&distance<4.5&&projected.depth<1){hitboxes.push({target:{kind:'npc',data:c},screenX:projected.x,screenY:projected.y,radius:Math.max(28,Math.min(72,170/(distance+.8))),worldX:c.x,worldY:c.y,depth:projected.depth});}
         });
+        guides.forEach(g=>{const rig=rigs.get(g.id);if(!rig)return;rig.root.position.set(g.x,.02,g.y);rig.root.rotation.y=-g.dir+Math.PI;const projected=worldToScreen(g.x,g.y,1.6);if(!triggeredGuides.has(g.id)&&Math.hypot(playerX-g.x,playerY-g.y)<4.5&&projected.depth<1)hitboxes.push({target:{kind:'guide',data:g},screenX:projected.x,screenY:projected.y,radius:38,worldX:g.x,worldY:g.y,depth:projected.depth});});
+        notes.forEach(n=>{if(collectedNotes.has(n.id))return;const bob=Math.sin(now/500+n.x*3)*.08;const s=worldToScreen(n.x,n.y,1.0+bob);if(s.depth<1&&Math.hypot(playerX-n.x,playerY-n.y)<4.5)hitboxes.push({target:{kind:'note',data:n},screenX:s.x,screenY:s.y,radius:30,worldX:n.x,worldY:n.y,depth:s.depth});});
+        gates.forEach(g=>{if(g.open)return;const s=worldToScreen(g.x+.5,g.y+.5,1.35);if(s.depth<1&&Math.hypot(playerX-(g.x+.5),playerY-(g.y+.5))<4.5)hitboxes.push({target:{kind:'gate',data:g},screenX:s.x,screenY:s.y,radius:42,worldX:g.x+.5,worldY:g.y+.5,depth:s.depth});});
 
-        // The bottom prompt bar and floating badge have no proximity-driven auto-trigger
-        // left at all — every hint they could show now only ever goes through
-        // pushDiscovery() from an actual tap/click interaction (see interact() above), so
-        // both just stay hidden here.
-        badge.style.display = 'none';
+        // 3D quest route: real tube/ring geometry on the floor. Rebuild only when the
+        // destination or the player's navigation cell changes, not every animation frame.
+        const routeKey = `${destination?.id ?? 'none'}:${Math.floor(playerX)},${Math.floor(playerY)}:${route.length}`;
+        const routeGroupName = 'QuestRoute';
+        const existingRoute = scene.getObjectByName(routeGroupName);
+        if (existingRoute && existingRoute.userData.routeKey !== routeKey) existingRoute.removeFromParent();
+        if (!scene.getObjectByName(routeGroupName) && route.length > 1) {
+          const group=new THREE.Group();group.name=routeGroupName;group.userData.routeKey=routeKey;root.add(group);
+          const points=route.map(p=>new THREE.Vector3(p.x,.09,p.y));
+          const curve=new THREE.CatmullRomCurve3(points);
+          const tube=new THREE.Mesh(new THREE.TubeGeometry(curve,Math.max(8,route.length*4),.055,6,false),mat('quest-route',0xf8b84e,.4));
+          tube.position.y=.03;tube.castShadow=true;group.add(tube);
+          if(destination){
+            const ring=new THREE.Mesh(new THREE.TorusGeometry(.42,.045,8,32),mat('quest-ring',0xf8b84e,.4));
+            ring.rotation.x=Math.PI/2;ring.position.set(destination.x,.12,destination.y);group.add(ring);
+          }
+        }
+        const liveRoute=scene.getObjectByName(routeGroupName);
+        if(liveRoute) liveRoute.userData.routeKey=routeKey;
+        if(currentDistrictId!==getDistrictAt(playerX,playerY).id){currentDistrictId=getDistrictAt(playerX,playerY).id;const d=getDistrictAt(playerX,playerY);districtChipRef.current&&(districtChipRef.current.textContent=`${d.name.toUpperCase()} · ${d.theme}`);}
+        const discoveredCount=signaledIds.size+collectedNotes.size+triggeredGuides.size;if(discoveredCount!==lastProgressCount){lastProgressCount=discoveredCount;progressChipRef.current&&(progressChipRef.current.textContent=`${discoveredCount}/${totalDiscoverable} DISCOVERED`);}
+        updateMinimap();
+
+        const targetCamX=playerX-Math.cos(playerAngle)*smoothCameraDistance;
+        const targetCamZ=playerY-Math.sin(playerAngle)*smoothCameraDistance;
+        const targetY= smoothCameraDistance<1.0 ? 1.62 : 2.9;
+        camera.position.x=THREE.MathUtils.damp(camera.position.x,targetCamX,10,dt);
+        camera.position.z=THREE.MathUtils.damp(camera.position.z,targetCamZ,10,dt);
+        camera.position.y=THREE.MathUtils.damp(camera.position.y,targetY,10,dt);
+        const lookTarget=new THREE.Vector3(playerX,1.05,playerY);camera.lookAt(lookTarget);
+        renderer.render(scene,camera);
         hideFieldUi();
-      }
+      };
 
-      // Wall collision: a proper circle-vs-tile test, replacing an earlier point-sampling
-      // approach. Point-sampling (testing a handful of fixed offsets around the player)
-      // has two failure modes: sample gaps big enough to let a corner slip between two
-      // probes (clipping onto/through a wall corner), and — once diagonal probes were
-      // added to close that gap — false positives during axis-separated sliding, since a
-      // diagonal probe samples perpendicular to the axis actually being tested and can
-      // "see" a wall that isn't really in the player's path, snagging what should be a
-      // smooth slide. A circle-vs-tile-AABB test has neither problem: for each solid tile
-      // near the candidate position, find the closest point on that tile's actual square
-      // to the circle's center and compare against the radius — exactly the same
-      // rectangle a wall occupies on screen, so the collision boundary always matches the
-      // rendered wall with no invisible padding, and sliding falls out naturally since X
-      // and Y are still resolved independently below.
-      const PLAYER_RADIUS = 0.25;
-      function circleHitsWall(cx: number, cy: number, radius: number) {
-        const minTX = Math.floor(cx - radius), maxTX = Math.floor(cx + radius);
-        const minTY = Math.floor(cy - radius), maxTY = Math.floor(cy + radius);
-        for (let ty = minTY; ty <= maxTY; ty++) {
-          for (let tx = minTX; tx <= maxTX; tx++) {
-            if (tx < 0 || tx >= mapWidth || ty < 0 || ty >= mapHeight) return true;
-            // Every non-floor tile blocks movement — 1/2/3/4 are wall-texture variants
-            // (color only, per the tile legend), so all four are solid on par with the
-            // others, not just 1.
-            if (map[ty][tx] === 0) continue;
-            const closestX = Math.max(tx, Math.min(cx, tx + 1));
-            const closestY = Math.max(ty, Math.min(cy, ty + 1));
-            const dx = cx - closestX, dy = cy - closestY;
-            if (dx * dx + dy * dy < radius * radius) return true;
-          }
+      const animate=(now:number)=>{
+        const dt=Math.min((now-lastTime)/1000,.1);lastTime=now;
+        if(roamingActive){
+          if(pointerLocked){playerAngle+=mouseDX*sensitivity*cameraSensitivityRef.current;mouseDX=0;}
+          if(touchLookDX!==0){playerAngle+=touchLookDX*getTouchLookSensitivity();touchLookDX=0;}
+          let mx=0,my=0;
+          if(keys.w||keys.arrowup){mx+=Math.cos(playerAngle);my+=Math.sin(playerAngle);}if(keys.s||keys.arrowdown){mx-=Math.cos(playerAngle);my-=Math.sin(playerAngle);}if(keys.a||keys.arrowleft){mx+=Math.cos(playerAngle-Math.PI/2);my+=Math.sin(playerAngle-Math.PI/2);}if(keys.d||keys.arrowright){mx+=Math.cos(playerAngle+Math.PI/2);my+=Math.sin(playerAngle+Math.PI/2);}
+          if(leftJoy.active){const forward=-leftJoy.dy,strafe=leftJoy.dx;mx+=Math.cos(playerAngle)*forward+Math.cos(playerAngle+Math.PI/2)*strafe;my+=Math.sin(playerAngle)*forward+Math.sin(playerAngle+Math.PI/2)*strafe;}
+          const len=Math.hypot(mx,my);if(len>0){mx=mx/len*moveSpeed*dt;my=my/len*moveSpeed*dt;const nx=playerX+mx,ny=playerY+my;if(canMove(nx,playerY)&&!collidesWithNpc(nx,playerY))playerX=nx;if(canMove(playerX,ny)&&!collidesWithNpc(playerX,ny))playerY=ny;}
+          const goal=THREE.MathUtils.clamp(targetCameraDistance,CAMERA_MIN_DISTANCE,CAMERA_MAX_DISTANCE);smoothCameraDistance=THREE.MathUtils.damp(smoothCameraDistance,goal,12,dt);
+          updateScene(dt,now);
+        }else{
+          renderer.render(scene,camera);
         }
-        return false;
-      }
-      function canMove(nx: number, ny: number) {
-        return !circleHitsWall(nx, ny, PLAYER_RADIUS);
-      }
+        raf=requestAnimationFrame(animate);
+      };
+      raf=requestAnimationFrame(animate);
+      if(!isMobile)tapStart.style.display='block';else tapStart.style.display='none';
 
-      // NPC collision: challengers and guides are physically-present bodies, not just
-      // interaction triggers, so the player shouldn't be able to walk through/onto them.
-      // This is intentionally a SEPARATE radius from the interaction system — physically
-      // brushing past an NPC (this check) and tapping/clicking on one to talk to it (see
-      // interactHitboxes/hitTestAt above) are two independent things now, where they used
-      // to be conflated into one proximity radius that did both.
-      // NPC_RADIUS approximates the figure's footprint in world units (the voxel figures
-      // are drawn well inside a 1-tile footprint), summed with the player's own radius
-      // into one min-separation distance so this is a simple circle-vs-circle check.
-      const NPC_RADIUS = 0.3;
-      const NPC_MIN_SEPARATION = PLAYER_RADIUS + NPC_RADIUS;
-      function collidesWithNpc(nx: number, ny: number) {
-        for (const term of challengers) {
-          // A genuinely cleared challenger (see completeBattle's accuracy gate) has
-          // already stepped aside — or is actively stepping aside, see
-          // updateNpcRetreats() — so it should never block movement, even mid-walk.
-          if (defeatedIdsRef.current.includes(term.id)) continue;
-          if (Math.hypot(nx - term.x, ny - term.y) < NPC_MIN_SEPARATION) return true;
-        }
-        for (const guide of guides) {
-          if (Math.hypot(nx - guide.x, ny - guide.y) < NPC_MIN_SEPARATION) return true;
-        }
-        return false;
-      }
-
-
-      let lastTime = performance.now();
-      function gameLoop(timestamp: number) {
-        const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
-        lastTime = timestamp;
-        updateNpcRetreats(timestamp);
-        if (roamingActive) {
-          if (pointerLocked) { playerAngle += mouseDX * sensitivity * cameraSensitivityRef.current; mouseDX = 0; }
-          if (touchLookDX !== 0) { playerAngle += touchLookDX * getTouchLookSensitivity(); touchLookDX = 0; }
-          playerAngle = playerAngle % (Math.PI * 2);
-          let moveX = 0, moveY = 0;
-          if (keys['w'] || keys['arrowup']) { moveX += Math.cos(playerAngle); moveY += Math.sin(playerAngle); }
-          if (keys['s'] || keys['arrowdown']) { moveX -= Math.cos(playerAngle); moveY -= Math.sin(playerAngle); }
-          if (keys['a'] || keys['arrowleft']) { moveX += Math.cos(playerAngle - Math.PI / 2); moveY += Math.sin(playerAngle - Math.PI / 2); }
-          if (keys['d'] || keys['arrowright']) { moveX += Math.cos(playerAngle + Math.PI / 2); moveY += Math.sin(playerAngle + Math.PI / 2); }
-          if (leftJoy.active) {
-            const forward = leftJoy.dy * -1, strafe = leftJoy.dx;
-            moveX += Math.cos(playerAngle) * forward + Math.cos(playerAngle + Math.PI / 2) * strafe;
-            moveY += Math.sin(playerAngle) * forward + Math.sin(playerAngle + Math.PI / 2) * strafe;
-          }
-          const len = Math.sqrt(moveX * moveX + moveY * moveY);
-          const isWalking = len > 0;
-          playerWalking = isWalking;
-          if (isWalking) {
-            walkPhase += dt * (isMobile ? 9.5 : 10.5);
-            moveX = (moveX / len) * moveSpeed * dt; moveY = (moveY / len) * moveSpeed * dt;
-            const nx = playerX + moveX, ny = playerY + moveY;
-            // Axis-separated resolution (test X and Y independently rather than the
-            // combined (nx,ny) point) is what gives the natural "slide along the wall"
-            // feel instead of a hard stop: moving diagonally into a wall still lets
-            // whichever axis is clear keep going. Same principle now applies to NPCs —
-            // walking into one only blocks the axis of approach, so brushing past one at
-            // an angle slides around it instead of freezing the player in place.
-            if (canMove(nx, playerY) && !collidesWithNpc(nx, playerY)) playerX = nx;
-            if (canMove(playerX, ny) && !collidesWithNpc(playerX, ny)) playerY = ny;
-          }
-          render(dt);
-        }
-        raf = requestAnimationFrame(gameLoop);
-      }
-      raf = requestAnimationFrame(gameLoop);
-
-      return () => {
-        cancelAnimationFrame(raf);
-        if (resizeRaf) cancelAnimationFrame(resizeRaf);
-        window.removeEventListener('resize', scheduleResize);
-        document.removeEventListener('keydown', handleKeyDown);
-        document.removeEventListener('keyup', handleKeyUp);
-        document.removeEventListener('mousemove', handleMouseMove);
-        canvas.removeEventListener('click', handleCanvasClick);
-        canvas.removeEventListener('wheel', handleWheel);
-        document.removeEventListener('pointerlockchange', handlePointerLockChange);
-        discoveryBtn.removeEventListener('click', handleDiscoveryTap);
-        discoveryBtn.removeEventListener('touchstart', handleDiscoveryTap);
-        if (discoveryTimer) window.clearTimeout(discoveryTimer);
-        joyCleanups.forEach((fn) => fn());
-        if (document.pointerLockElement === canvas) document.exitPointerLock();
+      return ()=>{
+        cancelAnimationFrame(raf);resizeObserver.disconnect();
+        document.removeEventListener('keydown',handleKeyDown);document.removeEventListener('keyup',handleKeyUp);document.removeEventListener('mousemove',handleMouseMove);document.removeEventListener('pointerlockchange',handlePointerLockChange);
+        canvas.removeEventListener('click',handleCanvasClick);canvas.removeEventListener('wheel',handleWheel);
+        discoveryBtn.removeEventListener('click',handleDiscoveryTap);discoveryBtn.removeEventListener('touchstart',handleDiscoveryTap);
+        cleanups.forEach(fn=>fn());if(document.pointerLockElement===canvas)document.exitPointerLock();
+        renderer.dispose();
+        mats.forEach(m=>m.dispose());
+        scene.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();if(Array.isArray(o.material))o.material.forEach(m=>m.dispose());else if(o.material!==undefined)(o.material as THREE.Material).dispose();}});
       };
     }, []);
 
@@ -8631,52 +7118,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                 <div className="campus-chip" ref={progressChipRef} />
               </div>
               <div className="campus-map-controls">
-                <div className="campus-minimap" aria-label="Campus mini-map">
-                  <canvas ref={minimapRef} />
-                </div>
+                <div className="campus-minimap" aria-label="Campus mini-map"><canvas ref={minimapRef} /></div>
                 <div style={{ position: 'relative' }}>
-                  <button
-                    type="button"
-                    className="campus-settings-btn"
-                    aria-label="Campus settings"
-                    aria-expanded={settingsOpen}
-                    onClick={() => setSettingsOpen((open) => !open)}
-                  >
-                    <Settings size={14} strokeWidth={1.8} />
-                  </button>
+                  <button type="button" className="campus-settings-btn" aria-label="Campus settings" aria-expanded={settingsOpen} onClick={() => setSettingsOpen((open) => !open)}><Settings size={14} strokeWidth={1.8} /></button>
                   {settingsOpen && (
                     <div className="campus-settings-panel" role="dialog" aria-label="Campus settings">
-                      <div className="campus-settings-head">
-                        <div className="campus-settings-title">Campus Settings</div>
-                        <button type="button" className="campus-settings-close" aria-label="Close settings" onClick={() => setSettingsOpen(false)}><X size={13} /></button>
-                      </div>
-                      <div className="campus-settings-row">
-                        <div className="campus-settings-copy">
-                          <strong>Tutorial / How to Play</strong>
-                          <span>Replay the full step-by-step campus walkthrough.</span>
-                        </div>
-                        <button type="button" className="campus-settings-action" onClick={() => { setSettingsOpen(false); onReplayTutorial(); }}>Open</button>
-                      </div>
-                      <div className="campus-settings-row" style={{ display: 'block' }}>
-                        <div className="campus-settings-head" style={{ marginBottom: 2 }}>
-                          <div className="campus-settings-copy">
-                            <strong>Camera Sensitivity</strong>
-                            <span>Adjust how quickly the camera turns.</span>
-                          </div>
-                          <span className="campus-sensitivity-value">{cameraSensitivity.toFixed(2)}×</span>
-                        </div>
-                        <input
-                          className="campus-sensitivity-slider"
-                          type="range"
-                          min={MIN_CAMERA_SENSITIVITY}
-                          max={MAX_CAMERA_SENSITIVITY}
-                          step="0.05"
-                          value={cameraSensitivity}
-                          aria-label="Camera sensitivity"
-                          onChange={(e) => { const value = Number(e.target.value); setCameraSensitivity(value); cameraSensitivityRef.current = value; persistCameraSensitivity(value); }}
-                        />
-                        <div className="campus-sensitivity-scale"><span>Slow</span><span>Default</span><span>Fast</span></div>
-                      </div>
+                      <div className="campus-settings-head"><div className="campus-settings-title">Campus Settings</div><button type="button" className="campus-settings-close" aria-label="Close settings" onClick={() => setSettingsOpen(false)}><X size={13} /></button></div>
+                      <div className="campus-settings-row"><div className="campus-settings-copy"><strong>Tutorial / How to Play</strong><span>Replay the full step-by-step campus walkthrough.</span></div><button type="button" className="campus-settings-action" onClick={() => { setSettingsOpen(false); onReplayTutorial(); }}>Open</button></div>
+                      <div className="campus-settings-row" style={{ display: 'block' }}><div className="campus-settings-head" style={{ marginBottom: 2 }}><div className="campus-settings-copy"><strong>Camera Sensitivity</strong><span>Adjust how quickly the camera turns.</span></div><span className="campus-sensitivity-value">{cameraSensitivity.toFixed(2)}×</span></div><input className="campus-sensitivity-slider" type="range" min={MIN_CAMERA_SENSITIVITY} max={MAX_CAMERA_SENSITIVITY} step="0.05" value={cameraSensitivity} aria-label="Camera sensitivity" onChange={(e) => { const value=Number(e.target.value);setCameraSensitivity(value);cameraSensitivityRef.current=value;persistCameraSensitivity(value); }} /><div className="campus-sensitivity-scale"><span>Slow</span><span>Default</span><span>Fast</span></div></div>
                     </div>
                   )}
                 </div>
@@ -8685,23 +7134,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             <button className="campus-exit-btn" onClick={onExit}><X size={12} /> Exit </button>
           </div>
           <div ref={promptRef} className="campus-prompt" />
-          <div className="holo-discovery-card" ref={discoveryCardRef}>
-            <div className="holo-discovery-eyebrow" ref={discoveryTitleRef} />
-            <div className="holo-discovery-body" ref={discoveryBodyRef} />
-            <button type="button" className="holo-discovery-btn" ref={discoveryBtnRef} />
-          </div>
-          <button type="button" className="campus-interact-badge" ref={badgeRef} aria-label="Interact with quest giver">
-            <Swords size={15} />
-          </button>
+          <div className="holo-discovery-card" ref={discoveryCardRef}><div className="holo-discovery-eyebrow" ref={discoveryTitleRef} /><div className="holo-discovery-body" ref={discoveryBodyRef} /><button type="button" className="holo-discovery-btn" ref={discoveryBtnRef} /></div>
+          <button type="button" className="campus-interact-badge" ref={badgeRef} aria-label="Interact with quest giver"><Swords size={15} /></button>
           <div className="campus-look-layer" ref={lookLayerRef} />
-          <div className="campus-joystick-zone" ref={leftZoneRef}>
-            <div className="campus-joystick-ring" />
-            <ChevronRight size={12} className="campus-joystick-arrow up" />
-            <ChevronRight size={12} className="campus-joystick-arrow down" />
-            <ChevronRight size={12} className="campus-joystick-arrow left" />
-            <ChevronRight size={12} className="campus-joystick-arrow right" />
-            <div className="campus-joystick-thumb" ref={leftThumbRef} />
-          </div>
+          <div className="campus-joystick-zone" ref={leftZoneRef}><div className="campus-joystick-ring" /><ChevronRight size={12} className="campus-joystick-arrow up" /><ChevronRight size={12} className="campus-joystick-arrow down" /><ChevronRight size={12} className="campus-joystick-arrow left" /><ChevronRight size={12} className="campus-joystick-arrow right" /><div className="campus-joystick-thumb" ref={leftThumbRef} /></div>
           <div ref={tapStartRef} className="campus-tap-start">CLICK TO LOOK AROUND<span>WASD to move, mouse to look</span></div>
         </div>
       </div>

@@ -44,6 +44,7 @@
     "@types/node": "*",
     "@types/react": "*",
     "@types/react-dom": "*",
+    "@types/three": "^0.169.0",
     "@vitejs/plugin-react": "*",
     "class-variance-authority": "*",
     "clsx": "*",
@@ -71,6 +72,7 @@
     "zod": "*"
   },
   "dependencies": {
-    "firebase": "^12.17.1"
+    "firebase": "^12.17.1",
+    "three": "^0.169.0"
   }
 }
