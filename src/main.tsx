@@ -5790,25 +5790,29 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // visibly changes how the space feels, not just what it's labeled.
   type CampusDistrict = { id: string; name: string; icon: string; theme: string; minX: number; maxX: number; minY: number; maxY: number; ceil: [number, number, number]; floor: [number, number, number] };
   const CAMPUS_DISTRICTS: CampusDistrict[] = [
-    // Compact 17-wide campus: the eastern strip that used to widen this to a square
-    // 29x29 arena was pure dead floor (no NPCs, props, or signs ever sat past column
-    // 16), so it's been removed entirely — see CAMPUS_MAP. Citadel's bounds are back
-    // to their original, tighter footprint.
-    { id: 'citadel', name: 'Mastery Citadel', icon: '🏰', theme: 'Boss assessments', minX: 13, maxX: 17, minY: 0, maxY: 14, ceil: [26, 12, 30], floor: [46, 20, 48] },
-    { id: 'foundation', name: 'Foundation District', icon: '🏘️', theme: 'Basic concepts', minX: 0, maxX: 6, minY: 0, maxY: 4, ceil: [26, 18, 10], floor: [48, 34, 18] },
-    { id: 'peaks', name: 'Challenge Peaks', icon: '🏔️', theme: 'Hard problems', minX: 6, maxX: 13, minY: 0, maxY: 4, ceil: [16, 22, 36], floor: [30, 40, 58] },
-    { id: 'wilds', name: 'Practice Wilds', icon: '🌲', theme: 'Repeated application', minX: 0, maxX: 13, minY: 4, maxY: 14, ceil: [10, 24, 16], floor: [18, 42, 26] },
-    // Quest-tier districts: three brand-new, south-of-the-original-plaza areas, each one
-    // tier of the Foundation → Advanced → Expert → Mastery progression (Foundation is the
-    // original four-district plaza above — see QUEST_TIERS). Each is connected to the
-    // previous area by a single locked CampusGate (see CAMPUS_GATES) that only opens once
-    // every quest in the prior tier is cleared, and none of them remove or block access to
-    // any existing area.
-    // All three tier wings span the full compact width (17 cols) — every NPC in them
-    // sits at x=13.5 or less, so nothing here was ever using the old extra columns.
-    { id: 'advanced', name: 'Advanced Wing', icon: '⚙️', theme: 'Advanced tier trials', minX: 0, maxX: 17, minY: 14, maxY: 19, ceil: [30, 20, 45], floor: [54, 36, 78] },
-    { id: 'expert', name: 'Expert Enclave', icon: '🧭', theme: 'Expert tier trials', minX: 0, maxX: 17, minY: 19, maxY: 24, ceil: [45, 18, 18], floor: [80, 32, 32] },
-    { id: 'mastery', name: 'Mastery Vault', icon: '👑', theme: 'Mastery tier trials', minX: 0, maxX: 17, minY: 24, maxY: 29, ceil: [50, 42, 10], floor: [92, 78, 20] },
+    // Renovated 27x73 campus: a real main-entrance → courtyard → academic-buildings →
+    // specialized-buildings → advanced/restricted hierarchy (see CAMPUS_MAP and the
+    // BUILDINGS list below), replacing the old cramped 17x29 corridor grid. Bounds
+    // below are checked in array order (Array.find takes the first match), so
+    // 'citadel' — a small, exclusive hall further down the spine — is listed first,
+    // then 'foundation'/'peaks' split the wide entrance-and-courtyard band left/right,
+    // and 'wilds' is the broad catch-all for everything else in that same band (the
+    // promenade, the gate approach) plus the courtyard's south edge.
+    { id: 'citadel', name: 'Mastery Citadel', icon: '🏰', theme: 'Boss assessments', minX: 8, maxX: 19, minY: 29, maxY: 39, ceil: [26, 12, 30], floor: [46, 20, 48] },
+    { id: 'foundation', name: 'Foundation District', icon: '🏘️', theme: 'Basic concepts', minX: 0, maxX: 11, minY: 0, maxY: 19, ceil: [26, 18, 10], floor: [48, 34, 18] },
+    { id: 'peaks', name: 'Challenge Peaks', icon: '🏔️', theme: 'Hard problems', minX: 11, maxX: 27, minY: 0, maxY: 19, ceil: [16, 22, 36], floor: [30, 40, 58] },
+    { id: 'wilds', name: 'Practice Wilds', icon: '🌲', theme: 'Repeated application', minX: 0, maxX: 27, minY: 19, maxY: 29, ceil: [10, 24, 16], floor: [18, 42, 26] },
+    // Quest-tier districts: three brand-new areas continuing the campus spine south of
+    // the Mastery Citadel, each one tier of the Foundation → Advanced → Expert →
+    // Mastery progression (Foundation is the original four-district plaza above — see
+    // QUEST_TIERS). Each is connected to the previous area by a single locked
+    // CampusGate (see CAMPUS_GATES) that only opens once every quest in the prior tier
+    // is cleared, and none of them remove or block access to any existing area.
+    // All three tier wings now span the full renovated width (27 cols) as genuinely
+    // spacious halls rather than the old cramped 17-wide corridor.
+    { id: 'advanced', name: 'Advanced Wing', icon: '⚙️', theme: 'Advanced tier trials', minX: 0, maxX: 27, minY: 39, maxY: 52, ceil: [30, 20, 45], floor: [54, 36, 78] },
+    { id: 'expert', name: 'Expert Enclave', icon: '🧭', theme: 'Expert tier trials', minX: 0, maxX: 27, minY: 52, maxY: 62, ceil: [45, 18, 18], floor: [80, 32, 32] },
+    { id: 'mastery', name: 'Mastery Vault', icon: '👑', theme: 'Mastery tier trials', minX: 0, maxX: 27, minY: 62, maxY: 73, ceil: [50, 42, 10], floor: [92, 78, 20] },
   ];
   const getDistrictAt = (x: number, y: number) => CAMPUS_DISTRICTS.find((d) => x >= d.minX && x < d.maxX && y >= d.minY && y < d.maxY) ?? CAMPUS_DISTRICTS[3];
 
@@ -5850,96 +5854,95 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     DISTRICT_STRAND_FOCUS[districtId]?.[strand] ?? CAMPUS_DISTRICTS.find((d) => d.id === districtId)?.theme ?? '';
 
 
-  // Compact 17x29 campus. This was previously widened to a square 29x29 by tacking on
-  // 12 extra columns of pure dead floor along the eastern edge — no NPC, prop, sign, or
-  // gate ever sat past column 16, so that strip was just empty ground padding out the
-  // Citadel and all three tier wings for no gameplay reason. It's been removed: every
-  // row below is back to its original 17 columns, and every existing wall, room, NPC,
-  // prop, gate, and coordinate is untouched (none of them ever referenced a column past
-  // 16), so nothing moved or changed meaning — this just cuts the unused floor around
-  // it. mapWidth/mapHeight (used by rendering, the minimap, and collision) are read
-  // directly from this array's dimensions.
+  // Renovated 27x73 campus — a full architectural rebuild replacing the old cramped
+  // 17x29 corridor grid. Every walkway and room is now several tiles wide instead of
+  // one, and the campus is organized around one real hierarchy: Main Entrance (the
+  // Administration building, rows 1-6) -> Central Courtyard (the big open plaza,
+  // rows 7-29, with the Laboratory, the open-air Peaks pavilion, the Classroom, and
+  // the Library arranged naturally around its edges instead of down a corridor) ->
+  // the Mastery Citadel (a gated, more exclusive hall, rows 29-39) -> the Advanced /
+  // Expert / Mastery tier wings continuing the same spine further south (rows 39-73),
+  // each now a genuinely spacious multi-chamber hall rather than a bare 17-wide box.
+  // mapWidth/mapHeight (used by rendering, the minimap, and collision) are still read
+  // directly from this array's dimensions, so nothing downstream needed to change.
   //
-  // Column 16 (the last column) is now an explicit wall (1) on every row that isn't
-  // already a district's own boundary row. It used to be left as open floor (0) with
-  // the map's edge relying on castRayDDA's implicit "out of bounds = solid" fallback to
-  // seal it — collision (circleHitsWall) always did treat that edge as solid, so the
-  // player could never actually pass through it, but the fallback rendered that
-  // boundary at a hardcoded distance of 20 world units regardless of how close the
-  // player actually stood to it, which put it far outside the normal fog falloff and
-  // made it render almost pure black — a "wide empty void" instead of a wall, most
-  // noticeable around the open-plan plazas and the Mastery Citadel nook (rows 5-7,
-  // cols 14-16, home to npc_4) where a real player-visible wall was expected on that
-  // side. This column now carries a plain wall tile (1, the same value used for the
-  // map's other outer-boundary edges — row 0, row 28, and column 0) so every edge of
-  // the campus renders and shades exactly like the walls around it, at the correct
-  // distance, with no visible seam. castRayDDA's out-of-bounds fallback (see below)
-  // has also been corrected to compute a real distance instead of a hardcoded one, so
-  // any future edge case reaching it renders correctly too — but the explicit tiles
-  // added here are what actually closes this opening under normal play.
+  // Every NPC, note, guide, prop, sign, and gate below has been moved to a matching
+  // spot in this new layout by coordinate only — ids, dialogue, rewards, quest tiers,
+  // gate requirements, and every other piece of gameplay logic are untouched.
   const CAMPUS_MAP = [
-    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-    [1,4,4,4,4,4,0,0,0,0,0,0,0,0,0,0,1],
-    [1,7,0,0,0,7,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,8,2,1,0,0,1,2,1,6,0,0,6,1,9,2,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,5,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1],
-    [1,2,1,6,0,0,6,1,2,1,6,0,1,1,1,1,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,6,0,7,0,0,0,7,0,0,0,0,0,1],
-    [1,0,0,0,7,0,6,0,0,0,6,0,0,0,0,0,1],
-    // Column 8 opened here (was a solid wall tile): this is the one row standing
-    // between the plaza above and the Advanced Tier Gate at row 13/col 8 below. With
-    // it solid, the gate and everything behind it (the three tier wings just rebuilt
-    // above) had no floor path connecting to them at all, gate state notwithstanding.
-    [1,1,1,1,1,1,1,1,0,1,1,0,0,0,0,0,1],
-    // Row 13 was the map's original southern boundary (all walls). It now carries a
-    // single locked gate cell (5) at column 8 — the Advanced Tier Gate — which is the
-    // sole passage from the original plaza into the new Advanced Wing appended below.
-    // Everything above this row is completely untouched from the original layout.
-    [1,1,1,1,1,1,1,1,5,1,1,1,1,1,1,1,1],
-    // --- Advanced Wing (rows 14-18): Tier 2 "Advanced" district, home to npc_5-npc_8.
-    // Opens only once every Foundation-tier quest (npc_1-npc_4) is cleared.
-    [1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1],
-    // Rows 15-17 used to be three bare open rows — a featureless box with four NPCs
-    // standing in empty floor. Now built out as a real walk-in hall: two flanking
-    // chambers on row 15 (door-textured partitions at col 5/11, each chamber's real
-    // entrance left open to the south, same convention as the Lab/Classroom/Library),
-    // and a colonnaded hallway on rows 16-17 (locker-textured pillars) that npc_6 and
-    // npc_8 stand in. Every NPC's own tile (col 3/8/13) stays open floor, the col-8
-    // spine stays clear top-to-bottom so the gate corridor still runs straight
-    // through, and every chamber/hallway is still reachable — nothing here narrows
-    // any path the player actually needs to take.
-    [1,0,0,0,0,6,0,0,0,0,0,6,0,0,0,0,1],
-    [1,8,0,0,0,0,0,0,0,0,0,0,0,0,0,8,1],
-    [1,0,0,8,0,0,0,0,0,0,0,0,0,8,0,0,1],
-    // Row 18: Advanced Wing's south wall, carrying the Expert Tier Gate at column 8.
-    [1,1,1,1,1,1,1,1,5,1,1,1,1,1,1,1,1],
-    // --- Expert Enclave (rows 19-23): Tier 3 "Expert" district, home to npc_9-npc_12.
-    // Opens only once every Advanced-tier quest (npc_5-npc_8) is cleared.
-    [1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1],
-    // Same treatment as the Advanced Wing above, in this district's own texture set
-    // (window-textured chamber partitions, wall-variant-3 pillars) so it reads as a
-    // distinct building rather than a reskinned copy. NPC tiles, the col-8 spine, and
-    // full reachability are preserved exactly as above.
-    [1,0,0,0,0,7,0,0,0,0,0,7,0,0,0,0,1],
-    [1,3,0,0,0,0,0,0,0,0,0,0,0,0,0,3,1],
-    [1,0,0,3,0,0,0,0,0,0,0,0,0,3,0,0,1],
-    // Row 23: Expert Enclave's south wall, carrying the Mastery Tier Gate at column 8.
-    [1,1,1,1,1,1,1,1,5,1,1,1,1,1,1,1,1],
-    // --- Mastery Vault (rows 24-28): Tier 4 "Mastery" district, home to npc_13-npc_16.
-    // Opens only once every Expert-tier quest (npc_9-npc_12) is cleared. This is the
-    // final tier — clearing it masters the entire quest-tier progression.
-    [1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1],
-    // Same treatment again, in this district's own texture set (notice-board-textured
-    // chamber partitions, wall-variant-4 pillars) — the campus's final, most ornate
-    // building. NPC tiles, the col-8 spine, and full reachability preserved.
-    [1,0,0,0,0,9,0,0,0,0,0,9,0,0,0,0,1],
-    [1,4,0,0,0,0,0,0,0,0,0,0,0,0,0,4,1],
-    [1,0,0,4,0,0,0,0,0,0,0,0,0,4,0,0,1],
-    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,1,7,1,7,1,1,7,7,1,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,6,0,0,0,0,0,0,0,6,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,7,0,0,0,0,0,0,0,7,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,7,0,0,0,0,0,0,0,7,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,1,1,1,1,0,0,1,1,1,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,1,7,7,1,7,7,7,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,8,0,0,0,8,0,0,1],
+    [1,0,7,0,0,0,0,0,0,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,7,0,0,0,0,0,0,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,8,0,0,0,8,0,0,1],
+    [1,0,1,1,1,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,1,7,1,1,7,1,0,0,1,7,1,1,7,1,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,1,0,0,0,0,1,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,7,0,0,0,0,7,0,0,7,0,0,0,0,7,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,1,0,0,0,0,1,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,7,0,0,0,0,7,0,0,7,0,0,0,0,7,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,1,0,0,0,0,1,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,5,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,1,1,1,1,0,0,0,1,1,1,1,1,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,7,0,0,0,0,0,0,0,0,0,0,7,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,7,0,0,0,0,0,0,0,0,0,0,7,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,1,7,1,7,0,0,0,1,7,1,7,1,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,5,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,7,7,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,7,7,1,1],
+    [1,1,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8,1,1],
+    [1,1,0,0,1,1,1,1,1,1,1,0,0,0,0,0,1,1,1,1,1,1,1,0,0,1,1],
+    [1,7,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,7,1],
+    [1,1,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,1,1],
+    [1,7,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,7,1],
+    [1,1,0,0,1,1,0,0,0,1,1,0,0,0,0,0,1,1,0,0,0,1,1,0,0,1,1],
+    [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1],
+    [1,1,7,7,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,7,7,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,5,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,7,7,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,7,7,1,1],
+    [1,1,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8,1,1],
+    [1,1,0,0,1,1,1,1,1,1,1,0,0,0,0,0,1,1,1,1,1,1,1,0,0,1,1],
+    [1,7,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,7,1],
+    [1,1,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,1,1],
+    [1,7,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,7,1],
+    [1,1,0,0,1,1,0,0,0,1,1,0,0,0,0,0,1,1,0,0,0,1,1,0,0,1,1],
+    [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1],
+    [1,1,7,7,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,7,7,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,5,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,7,7,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,7,7,1,1],
+    [1,1,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8,1,1],
+    [1,1,0,0,1,1,1,1,1,1,1,0,0,0,0,0,1,1,1,1,1,1,1,0,0,1,1],
+    [1,7,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,7,1],
+    [1,1,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,1,1],
+    [1,7,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,7,1],
+    [1,1,0,0,1,1,0,0,0,1,1,0,0,0,0,0,1,1,0,0,0,1,1,0,0,1,1],
+    [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1],
+    [1,1,7,7,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,7,7,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
   ];
   // Tile legend: 0 open floor, 1/2/3/4 wall variants (visual only — see canMove, which
   // treats every non-zero tile as solid), 5 = locked gate (blocks movement + sight like a
@@ -5952,24 +5955,29 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // "door" is a texture, not a passage — see the three interior rooms below for how that
   // gets worked around.
   //
-  // Three rooms — Laboratory (rows 1-2, tucked into the NW corner), Classroom and Library
-  // (rows 10-11, side by side south of the mid-plaza) — are each real walk-in spaces, not
-  // just decorative facades: solid walls with door/window texture on some faces for
-  // character, and one side left completely open as the actual entrance, since a literal
-  // door/gate tile never opens. Furniture lives inside as CAMPUS_PROPS billboards (see
-  // below). The two boundary rows (4 and 8) each carry a couple of gaps so the plazas they
-  // separate always have more than one way through, keeping paths clear even in the
-  // smaller footprint.
+  // Real walk-in buildings — the Administration Hall (rows 1-6, the main entrance),
+  // the Laboratory (rows 10-16), the Classroom and Library (rows 20-26, either side of
+  // a wide central promenade), the Mastery Citadel (rows 31-38), and the Advanced /
+  // Expert / Mastery wings (each with its own pair of side chambers plus an open hall,
+  // rows 43-51 / 53-61 / 63-71) — are each generously sized real spaces, not the old
+  // one-tile-corridor facades: solid walls with door/window texture on some faces for
+  // character, and a multi-tile gap left completely open as the actual entrance, since
+  // a literal door/gate tile never opens. Furniture lives inside as CAMPUS_PROPS
+  // billboards (see below). The open-air Peaks pavilion has no walls at all — just a
+  // few decorative pillars — reflecting how it always worked, now inside a much wider
+  // plaza. Every tier boundary is a single full-width wall with one locked gate cell in
+  // it (see CAMPUS_GATES), keeping every checkpoint a real choke point even though the
+  // halls on both sides of it are wide open.
   const CAMPUS_CHALLENGERS: (CampusChallenger & { x: number; y: number; dir: number })[] = [
     {
-      id: 'npc_1', x: 9.5, y: 2.5, dir: 1, districtId: 'peaks',
+      id: 'npc_1', x: 21.5, y: 13.5, dir: 1, districtId: 'peaks',
       name: 'Dr. Reyes, Senior Faculty', area: '🏔️ Challenge Peaks: Advanced Research Wing',
       statement: "I don't go easy on advanced material. Show me you've earned the right to be up here.",
       questTitle: 'The Research Defense', lore: "Dr. Reyes doesn't curve grades. Passing here means the upper-division coursework won't blindside you.",
       recommendedLevel: 5, rewardXp: 250, rewardCoins: 120, style: 'researcher',
     },
     {
-      id: 'npc_2', x: 2.5, y: 3.5, dir: -1, districtId: 'foundation',
+      id: 'npc_2', x: 5.5, y: 17.5, dir: -1, districtId: 'foundation',
       name: 'TA Priya Santos', area: '🏘️ Foundation District: Intro Studies Office',
       statement: "Before you go further, let's make sure the basics actually stuck. Pass my review quiz first.",
       questTitle: 'Foundations Check-In', lore: 'Every term starts here — a quick review checkpoint before the real coursework begins.',
@@ -5979,14 +5987,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // Standing in the open corridor between the Classroom and Library — matches
       // "Practice Wilds: repeated application" better than being inside either room, and
       // keeps this spot clear of both buildings' walls.
-      id: 'npc_3', x: 5.5, y: 10.5, dir: 1, districtId: 'wilds',
+      id: 'npc_3', x: 16.5, y: 23.5, dir: 1, districtId: 'wilds',
       name: 'Teaching Fellow Owens', area: '🌲 Practice Wilds: Weekly Problem-Set Review',
       statement: "Out here it's just reps. Answer set after set until it's automatic — starting now.",
       questTitle: 'The Problem-Set Gauntlet', lore: 'No new material out here — just repetition until the concepts stop feeling foreign.',
       recommendedLevel: 3, rewardXp: 150, rewardCoins: 75, style: 'coach',
     },
     {
-      id: 'npc_4', x: 14.5, y: 6.5, dir: -1, districtId: 'citadel',
+      id: 'npc_4', x: 13.5, y: 34.5, dir: -1, districtId: 'citadel',
       name: 'Dean Alvarez', area: '🏰 Mastery Citadel: Comprehensive Examination Hall',
       statement: "You've cleared every district. Now for the exam that actually counts.",
       questTitle: 'Comprehensive Examination', lore: "The exam that decides whether the term's work actually stuck. Every district's material is fair game.",
@@ -5999,84 +6007,84 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // that never overlaps anything in the original QUESTION_BANK. Rewards climb with every
     // tier. See QUEST_TIERS below for how these four-per-tier groups gate one another.
     {
-      id: 'npc_5', x: 3.5, y: 15.5, dir: 1, districtId: 'advanced',
+      id: 'npc_5', x: 13.5, y: 44.5, dir: 1, districtId: 'advanced',
       name: 'Instructor Kade Villareal', area: '⚙️ Advanced Wing: Drill Yard',
       statement: 'Foundations are done. Now we push past comfortable.',
       questTitle: 'The Advanced Drill', lore: "Kade runs the Wing's opening trial — the first taste of Advanced-tier pressure.",
       recommendedLevel: 10, rewardXp: 450, rewardCoins: 220, style: 'coach', questionIndex: 0,
     },
     {
-      id: 'npc_6', x: 8.5, y: 16.5, dir: -1, districtId: 'advanced',
+      id: 'npc_6', x: 7.5, y: 47.5, dir: -1, districtId: 'advanced',
       name: 'Dr. Lena Ibarra', area: '⚙️ Advanced Wing: Applied Research Bay',
       statement: "Theory's easy. Let's see you apply it under pressure.",
       questTitle: 'Applied Reasoning', lore: 'Dr. Ibarra tests whether concepts actually transfer to new problems.',
       recommendedLevel: 11, rewardXp: 500, rewardCoins: 240, style: 'researcher', questionIndex: 1,
     },
     {
-      id: 'npc_7', x: 13.5, y: 15.5, dir: 1, districtId: 'advanced',
+      id: 'npc_7', x: 19.5, y: 47.5, dir: 1, districtId: 'advanced',
       name: 'Professor Wilhelm Cruz', area: '⚙️ Advanced Wing: Seminar Hall',
       statement: "One question, no room for guessing. Show me you've internalized this.",
       questTitle: 'The Cross-Topic Seminar', lore: "Professor Cruz's seminar questions are famously unforgiving of surface-level study.",
       recommendedLevel: 12, rewardXp: 550, rewardCoins: 270, style: 'professor', questionIndex: 2,
     },
     {
-      id: 'npc_8', x: 8.5, y: 17.5, dir: -1, districtId: 'advanced',
+      id: 'npc_8', x: 13.5, y: 49.5, dir: -1, districtId: 'advanced',
       name: 'Assistant Dean Farrow', area: '⚙️ Advanced Wing: Review Office',
       statement: 'Clear my review and the Wing is officially yours.',
       questTitle: 'Advanced Wing Review', lore: "Farrow signs off on every student who's proven they belong at this level.",
       recommendedLevel: 13, rewardXp: 600, rewardCoins: 300, style: 'dean', questionIndex: 3,
     },
     {
-      id: 'npc_9', x: 3.5, y: 20.5, dir: 1, districtId: 'expert',
+      id: 'npc_9', x: 13.5, y: 54.5, dir: 1, districtId: 'expert',
       name: 'Field Researcher Odessa Marsh', area: '🧭 Expert Enclave: Field Station',
       statement: "Out here, half-answers don't survive contact with the real question.",
       questTitle: 'The Field Trial', lore: "Odessa's field trial marks the entrance to Expert-tier territory.",
       recommendedLevel: 15, rewardXp: 650, rewardCoins: 320, style: 'researcher', questionIndex: 0,
     },
     {
-      id: 'npc_10', x: 8.5, y: 21.5, dir: -1, districtId: 'expert',
+      id: 'npc_10', x: 7.5, y: 57.5, dir: -1, districtId: 'expert',
       name: 'Elite Coach Tobias Reyne', area: '🧭 Expert Enclave: Elite Training Circle',
       statement: "Everyone who's gotten this far thought they were ready too.",
       questTitle: 'Elite Conditioning', lore: "Tobias trains only those who've already cleared the Advanced Wing.",
       recommendedLevel: 16, rewardXp: 700, rewardCoins: 340, style: 'coach', questionIndex: 1,
     },
     {
-      id: 'npc_11', x: 13.5, y: 20.5, dir: 1, districtId: 'expert',
+      id: 'npc_11', x: 19.5, y: 57.5, dir: 1, districtId: 'expert',
       name: 'Professor Selin Duarte', area: '🧭 Expert Enclave: Advanced Lecture Hall',
       statement: 'My question has one right answer and several convincing wrong ones.',
       questTitle: 'The Duarte Standard', lore: 'Professor Duarte sets the bar every Expert-tier candidate must clear.',
       recommendedLevel: 17, rewardXp: 750, rewardCoins: 370, style: 'professor', questionIndex: 2,
     },
     {
-      id: 'npc_12', x: 8.5, y: 22.5, dir: -1, districtId: 'expert',
+      id: 'npc_12', x: 13.5, y: 59.5, dir: -1, districtId: 'expert',
       name: 'Examiner Dean Holt', area: '🧭 Expert Enclave: Examination Chamber',
       statement: "Pass this and you've earned a shot at Mastery.",
       questTitle: 'Expert Enclave Examination', lore: "Dean Holt's exam is the final checkpoint before the Mastery Vault opens.",
       recommendedLevel: 18, rewardXp: 800, rewardCoins: 400, style: 'dean', questionIndex: 3,
     },
     {
-      id: 'npc_13', x: 3.5, y: 25.5, dir: 1, districtId: 'mastery',
+      id: 'npc_13', x: 13.5, y: 64.5, dir: 1, districtId: 'mastery',
       name: 'Grandmaster Iris Calloway', area: '👑 Mastery Vault: Grandmaster Study',
       statement: 'Few make it this far. Fewer still finish what they start.',
       questTitle: 'The Grandmaster Study', lore: "Calloway's study opens the Mastery Vault's trial sequence.",
       recommendedLevel: 20, rewardXp: 850, rewardCoins: 420, style: 'professor', questionIndex: 0,
     },
     {
-      id: 'npc_14', x: 8.5, y: 26.5, dir: -1, districtId: 'mastery',
+      id: 'npc_14', x: 7.5, y: 67.5, dir: -1, districtId: 'mastery',
       name: 'Grandmaster Researcher Voss', area: '👑 Mastery Vault: Deep Archive',
       statement: "Everything you've learned, all at once — that's the point.",
       questTitle: 'The Deep Archive Trial', lore: 'Voss draws from the hardest material the Vault has to offer.',
       recommendedLevel: 22, rewardXp: 950, rewardCoins: 470, style: 'researcher', questionIndex: 1,
     },
     {
-      id: 'npc_15', x: 13.5, y: 25.5, dir: 1, districtId: 'mastery',
+      id: 'npc_15', x: 19.5, y: 67.5, dir: 1, districtId: 'mastery',
       name: 'Grandmaster Coach Renner', area: '👑 Mastery Vault: Final Circuit',
       statement: 'This is the last drill before the Vault itself opens to you.',
       questTitle: 'The Final Circuit', lore: "Renner's circuit is designed to be the hardest single question in the game.",
       recommendedLevel: 24, rewardXp: 1000, rewardCoins: 500, style: 'coach', questionIndex: 2,
     },
     {
-      id: 'npc_16', x: 8.5, y: 27.5, dir: -1, districtId: 'mastery',
+      id: 'npc_16', x: 13.5, y: 69.5, dir: -1, districtId: 'mastery',
       name: 'Dean Emeritus Castellan', area: '👑 Mastery Vault: Emeritus Chamber',
       statement: 'Clear my verdict, and there is nothing left this campus can ask of you.',
       questTitle: 'The Emeritus Verdict', lore: "Castellan's verdict is the capstone of the entire Mastery tier.",
@@ -6295,11 +6303,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // review tip via a toast — low-commitment content for players who just want to poke around.
   type CampusNote = { id: string; x: number; y: number; title: string; hint: string };
   const CAMPUS_NOTES: CampusNote[] = [
-    { id: 'note_1', x: 1.5, y: 3.5, title: 'Lab Safety Memo', hint: 'Review tip: dimensional analysis catches unit errors before they catch you.' },
-    { id: 'note_2', x: 11.5, y: 1.5, title: 'Faculty Sticky Note', hint: 'Review tip: a thesis statement answers "so what," not just "what."' },
-    { id: 'note_3', x: 1.5, y: 10.5, title: 'Torn Notebook Page', hint: 'Review tip: supply and demand only shift together when a factor moves both sides.' },
-    { id: 'note_4', x: 8.5, y: 11.5, title: 'Old Exam Scrap', hint: 'Review tip: skim a passage\'s last paragraph first — it often states the point.' },
-    { id: 'note_5', x: 5.5, y: 9.5, title: 'Crumpled Flyer', hint: 'Review tip: eliminate the two most extreme answer choices first on multiple choice.' },
+    { id: 'note_1', x: 3.5, y: 17.5, title: 'Lab Safety Memo', hint: 'Review tip: dimensional analysis catches unit errors before they catch you.' },
+    { id: 'note_2', x: 21.5, y: 10.5, title: 'Faculty Sticky Note', hint: 'Review tip: a thesis statement answers "so what," not just "what."' },
+    { id: 'note_3', x: 9.5, y: 23.5, title: 'Torn Notebook Page', hint: 'Review tip: supply and demand only shift together when a factor moves both sides.' },
+    { id: 'note_4', x: 24.5, y: 23.5, title: 'Old Exam Scrap', hint: 'Review tip: skim a passage\'s last paragraph first — it often states the point.' },
+    { id: 'note_5', x: 13.5, y: 18.5, title: 'Crumpled Flyer', hint: 'Review tip: eliminate the two most extreme answer choices first on multiple choice.' },
   ];
 
   // NPC guides: friendly, non-battle campus staff who drop context, rumors, and hints about the
@@ -6309,15 +6317,15 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // so guides feel like real campus resources you'd want to seek out, not just lore triggers.
   type CampusGuide = { id: string; x: number; y: number; dir: number; name: string; lines: string[]; reward?: { coins: number; xp: number } };
   const CAMPUS_GUIDES: CampusGuide[] = [
-    { id: 'guide_1', x: 8.5, y: 6.5, dir: 1, name: 'Campus Custodian Reyes', lines: [
+    { id: 'guide_1', x: 13.5, y: 8.5, dir: 1, name: 'Campus Custodian Reyes', lines: [
       "The Mastery Citadel gate won't budge till all three Districts are cleared.",
       'I sweep these halls every night — still find lost notes tucked under the benches.',
     ] },
-    { id: 'guide_2', x: 2.5, y: 9.5, dir: -1, name: 'Peer Tutor Mira Santos', lines: [
+    { id: 'guide_2', x: 5.5, y: 18.5, dir: -1, name: 'Peer Tutor Mira Santos', lines: [
       'Teaching Fellow Owens runs the review sessions out in the Practice Wilds — south of here.',
       'TA Priya Santos holds office hours in the Foundation District. Fundamentals-first questions, mostly.',
     ] },
-    { id: 'guide_3', x: 8.5, y: 10.5, dir: 1, name: 'Head Librarian Alderman', lines: [
+    { id: 'guide_3', x: 20.5, y: 27.5, dir: 1, name: 'Head Librarian Alderman', lines: [
       "Here — every student who actually stops by gets a little something for it.",
       "Dr. Reyes up in the Peaks has a reputation, but the material is fair if you've studied.",
     ], reward: { coins: 25, xp: 15 } },
@@ -6336,7 +6344,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // this only silences the redundant announcement, never the actual unlock.
   type CampusGate = { x: number; y: number; requiredIds: string[]; label: string; requirementLabel: string; openMessage: string; announceUnlock?: boolean };
   const CAMPUS_GATE: CampusGate = {
-    x: 13, y: 6, requiredIds: ['npc_1', 'npc_2', 'npc_3'], label: 'Mastery Citadel Gate',
+    x: 13, y: 30, requiredIds: ['npc_1', 'npc_2', 'npc_3'], label: 'Mastery Citadel Gate',
     requirementLabel: 'Defeat all three Districts first',
     openMessage: 'The seal breaks — all three Districts have been bested. The Mastery Citadel is open.',
   };
@@ -6351,19 +6359,19 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   const CAMPUS_GATES: CampusGate[] = [
     CAMPUS_GATE,
     {
-      x: 8, y: 13, requiredIds: [...QUEST_TIERS[0].challengerIds], label: 'Advanced Tier Gate',
+      x: 13, y: 42, requiredIds: [...QUEST_TIERS[0].challengerIds], label: 'Advanced Tier Gate',
       requirementLabel: 'Clear the Foundation tier first',
       openMessage: 'The seal breaks — the Foundation tier is mastered. The Advanced Wing is open.',
       announceUnlock: false,
     },
     {
-      x: 8, y: 18, requiredIds: [...QUEST_TIERS[1].challengerIds], label: 'Expert Tier Gate',
+      x: 13, y: 52, requiredIds: [...QUEST_TIERS[1].challengerIds], label: 'Expert Tier Gate',
       requirementLabel: 'Clear the Advanced tier first',
       openMessage: 'The seal breaks — the Advanced tier is mastered. The Expert Enclave is open.',
       announceUnlock: false,
     },
     {
-      x: 8, y: 23, requiredIds: [...QUEST_TIERS[2].challengerIds], label: 'Mastery Tier Gate',
+      x: 13, y: 62, requiredIds: [...QUEST_TIERS[2].challengerIds], label: 'Mastery Tier Gate',
       requirementLabel: 'Clear the Expert tier first',
       openMessage: 'The seal breaks — the Expert tier is mastered. The Mastery Vault is open.',
       announceUnlock: false,
@@ -6381,36 +6389,34 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // furnishes, with an aisle deliberately left clear from each entrance to the back wall.
   type CampusProp = { id: string; x: number; y: number; glyph: string; sway?: boolean };
   const CAMPUS_PROPS: CampusProp[] = [
-    // Outdoor landscaping (trees, lamps, planters) has been removed campus-wide — the
-    // open plazas and corridors are left clear of decorative billboards; only real
-    // furniture inside actual rooms remains below.
-    // Laboratory interior (row 2) — equipment along the back wall, walking space kept
-    // clear between it and the open south entrance.
-    { id: 'prop_lab_1', x: 2.5, y: 2.4, glyph: '🧪' },
-    { id: 'prop_lab_2', x: 3.5, y: 2.4, glyph: '⚗️' },
-    { id: 'prop_lab_3', x: 4.5, y: 2.4, glyph: '🔬' },
+    // Outdoor landscaping (trees, lamps, planters) is intentionally kept out of the wide
+    // open plazas and the courtyard — only real furniture inside actual rooms is placed
+    // below, now relocated to match the much larger renovated interiors.
+    // Laboratory interior — equipment along the back (north) wall, walking space kept
+    // clear between it and the wide south entrance.
+    { id: 'prop_lab_1', x: 4.5, y: 11.3, glyph: '🧪' },
+    { id: 'prop_lab_2', x: 5.5, y: 11.3, glyph: '⚗️' },
+    { id: 'prop_lab_3', x: 6.5, y: 11.3, glyph: '🔬' },
     // Classroom interior — desks flanking a center aisle, board near the back wall
     // marking the teacher's area.
-    { id: 'prop_class_desk_1', x: 1.5, y: 10.3, glyph: '🪑' },
-    { id: 'prop_class_desk_2', x: 3.5, y: 10.3, glyph: '🪑' },
-    { id: 'prop_class_desk_3', x: 1.5, y: 11.3, glyph: '🪑' },
-    { id: 'prop_class_desk_4', x: 3.5, y: 11.3, glyph: '🪑' },
-    { id: 'prop_class_board', x: 2.5, y: 11.7, glyph: '📋' },
+    { id: 'prop_class_desk_1', x: 11.5, y: 23.3, glyph: '🪑' },
+    { id: 'prop_class_desk_2', x: 13.5, y: 23.3, glyph: '🪑' },
+    { id: 'prop_class_desk_3', x: 11.5, y: 24.3, glyph: '🪑' },
+    { id: 'prop_class_desk_4', x: 13.5, y: 24.3, glyph: '🪑' },
+    { id: 'prop_class_board', x: 12.5, y: 21.3, glyph: '📋' },
     // Library interior — bookshelves lining both side walls, a small reading table near
     // the back, center aisle kept clear from the entrance.
-    { id: 'prop_lib_shelf_1', x: 7.3, y: 10.3, glyph: '📚' },
-    { id: 'prop_lib_shelf_2', x: 7.3, y: 11.3, glyph: '📚' },
-    { id: 'prop_lib_shelf_3', x: 9.3, y: 10.3, glyph: '📚' },
-    { id: 'prop_lib_shelf_4', x: 9.3, y: 11.3, glyph: '📚' },
-    { id: 'prop_lib_table', x: 8.3, y: 10.7, glyph: '📖' },
-    { id: 'prop_lib_chair', x: 8.3, y: 11.7, glyph: '🪑' },
-    // Advanced Wing / Expert Enclave / Mastery Vault — the three tier halls added
-    // alongside the new wall layout above (see CAMPUS_MAP). Lamps/planters were
-    // trimmed out along with the rest of the outdoor dressing; only the non-plant,
-    // non-lamp landmark props remain, kept clear of the col-8 spine and every NPC tile.
-    { id: 'prop_exp_1', x: 5.5, y: 21.5, glyph: '🗺️' },
-    { id: 'prop_mas_1', x: 5.5, y: 26.5, glyph: '🏆' },
-    { id: 'prop_mas_2', x: 11.5, y: 26.5, glyph: '✨' },
+    { id: 'prop_lib_shelf_1', x: 19.3, y: 23.3, glyph: '📚' },
+    { id: 'prop_lib_shelf_2', x: 19.3, y: 24.3, glyph: '📚' },
+    { id: 'prop_lib_shelf_3', x: 21.3, y: 23.3, glyph: '📚' },
+    { id: 'prop_lib_shelf_4', x: 21.3, y: 24.3, glyph: '📚' },
+    { id: 'prop_lib_table', x: 20.3, y: 23.7, glyph: '📖' },
+    { id: 'prop_lib_chair', x: 20.3, y: 24.7, glyph: '🪑' },
+    // Advanced Wing / Expert Enclave / Mastery Vault — landmark props in each wing's
+    // open central hall, kept clear of the col-13 spine and every NPC tile.
+    { id: 'prop_exp_1', x: 13.5, y: 55.5, glyph: '🗺️' },
+    { id: 'prop_mas_1', x: 10.5, y: 64.5, glyph: '🏆' },
+    { id: 'prop_mas_2', x: 16.5, y: 64.5, glyph: '✨' },
   ];
 
   // Landmark signs — small text placards at a few key structures, so a district or building
@@ -6422,21 +6428,21 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // plaque, the further the player's viewing angle strays from square-on.
   type CampusSign = { id: string; x: number; y: number; label: string; side: 'N' | 'S' | 'E' | 'W' };
   const CAMPUS_SIGNS: CampusSign[] = [
-    // Laboratory's east exterior wall (solid col 5, rows 1-2) — faces the open Peaks
-    // plaza to the east, where anyone approaching the building from that side sees it.
-    { id: 'sign_1', x: 5.04, y: 2.0, label: '🔬 SCIENCE LABS', side: 'E' },
-    // Library's west wall (solid col 6, rows 10-11) — faces the shared corridor it and
-    // the Classroom sit on opposite sides of.
-    { id: 'sign_2', x: 5.96, y: 10.5, label: '📚 LIBRARY', side: 'W' },
-    // Mounted on the wall segment immediately north of the Mastery Citadel gate (col 13,
-    // row 5), facing the mid-plaza everyone approaches the gate from.
-    { id: 'sign_3', x: 12.96, y: 5.5, label: '🏰 MASTERY CITADEL', side: 'W' },
-    // On the west jamb of the Foundation District's gap in the row-4 boundary wall,
-    // facing directly into the passage.
-    { id: 'sign_4', x: 3.96, y: 4.5, label: '🏘️ FOUNDATION DISTRICT', side: 'E' },
-    // Classroom's east wall (solid col 4, rows 10-11) — faces the same corridor as the
-    // Library sign opposite it.
-    { id: 'sign_5', x: 4.04, y: 10.5, label: '🏫 CLASSROOM', side: 'E' },
+    // Laboratory's east exterior wall (solid col 9, rows 10-16) — faces the open
+    // courtyard/Peaks side to the east, where anyone approaching from that side sees it.
+    { id: 'sign_1', x: 9.04, y: 13.5, label: '🔬 SCIENCE LABS', side: 'E' },
+    // Library's west wall (solid col 18, rows 20-26) — faces the wide central promenade
+    // it and the Classroom sit on opposite sides of.
+    { id: 'sign_2', x: 17.96, y: 23.5, label: '📚 LIBRARY', side: 'W' },
+    // Mounted on the Mastery Citadel Gate's own wall row (row 30), one cell west of the
+    // gate itself, facing north into the courtyard everyone approaches the gate from.
+    { id: 'sign_3', x: 12.5, y: 29.96, label: '🏰 MASTERY CITADEL', side: 'N' },
+    // On the west jamb of the Laboratory's entrance gap, facing directly into the
+    // passage — this is now the Foundation District's main building.
+    { id: 'sign_4', x: 3.96, y: 16.5, label: '🏘️ FOUNDATION DISTRICT', side: 'E' },
+    // Classroom's east wall (solid col 15, rows 20-26) — faces the same promenade as
+    // the Library sign opposite it.
+    { id: 'sign_5', x: 15.04, y: 23.5, label: '🏫 CLASSROOM', side: 'E' },
   ];
   // Outward-facing normal vector for each wall face a sign can be mounted on — used to
   // tell whether the player is standing on the readable side of the sign, and to
@@ -6899,8 +6905,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       discoveryBtn.addEventListener('click', handleDiscoveryTap);
       discoveryBtn.addEventListener('touchstart', handleDiscoveryTap, { passive: false });
 
-      let playerX = initialPosition?.x ?? 4.5;
-      let playerY = initialPosition?.y ?? 6.5;
+      let playerX = initialPosition?.x ?? 13.5;
+      let playerY = initialPosition?.y ?? 9.5;
       let playerAngle = initialPosition?.angle ?? 0;
       // Smoothed heading used only for the minimap's rotation — eased toward the real,
       // instantaneous playerAngle every frame (see updateMiniMapRotation below) so the
@@ -6921,6 +6927,15 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const CAMERA_MAX_DISTANCE = 6.5;
       const CAMERA_MIN_DISTANCE = CAMERA_FIRST_PERSON_DISTANCE;
       const CAMERA_FOLLOW_RATE = 11;
+      // Roblox-style camera collision: pulling the camera IN toward the player (a wall,
+      // building, or NPC just moved between them) uses a fast rate so the camera can
+      // never visibly clip through geometry even for a single frame; easing back OUT to
+      // the desired zoom distance once the obstruction clears uses a gentler rate so the
+      // zoom-out reads as a smooth recovery rather than a pop. Both are driven by the
+      // same underlying collider-based clearance check as player movement, so anything
+      // that blocks the player (walls, buildings, gates, NPCs) also blocks the camera.
+      const CAMERA_OBSTRUCTION_PULL_IN_RATE = 26;
+      const CAMERA_OBSTRUCTION_PUSH_OUT_RATE = 7;
       const CAMERA_ZOOM_RATE = 14;
       const CAMERA_COLLIDER_RADIUS = 0.15;
       // Eye-level for the humanoid rig built in makeHumanoid (head center sits at 1.46,
@@ -6938,7 +6953,34 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // zoom), clamped tight enough that it never turns into a fisheye.
       const CAMERA_FOV_OFFSET_MIN = -8;
       const CAMERA_FOV_OFFSET_MAX = 10;
-      const WALL_HEIGHT = 3.1;
+      const WALL_HEIGHT = 3.6; // taller, higher-ceiling halls to match the more spacious renovated campus
+
+      // --- VERTICAL MOVEMENT / REAL STAIRS ------------------------------------------------
+      // The campus stays a single (x,y) walkable grid for collision purposes — canMove still
+      // only ever checks map[y][x] — but every position also now has a continuous elevation
+      // (world-space height) read off this list of zones, so a real exterior stair can carry
+      // the player smoothly from ground level up to a genuine upper-level balcony/terrace
+      // instead of the old decorative box stack that led nowhere. 'ramp' zones interpolate
+      // linearly along one axis (the stair treads); 'flat' zones are the landings/balconies
+      // at the top. Populated once below while the buildings themselves are built (each
+      // stair site is found dynamically at runtime, checked against the actual walkable grid
+      // and every NPC/prop/gate position, so it can never land somewhere already occupied),
+      // then read every frame by the player/camera update further down.
+      type ElevationZone =
+        | { kind: 'flat'; x0: number; y0: number; x1: number; y1: number; elevation: number }
+        | { kind: 'ramp'; x0: number; y0: number; x1: number; y1: number; axis: 'x' | 'y'; from: number; to: number };
+      const elevationZones: ElevationZone[] = [];
+      function getElevation(x: number, y: number): number {
+        for (let i = 0; i < elevationZones.length; i++) {
+          const z = elevationZones[i];
+          if (x < z.x0 || x >= z.x1 || y < z.y0 || y >= z.y1) continue;
+          if (z.kind === 'flat') return z.elevation;
+          const span = z.axis === 'x' ? z.x1 - z.x0 : z.y1 - z.y0;
+          const t = span > 0 ? (z.axis === 'x' ? (x - z.x0) : (y - z.y0)) / span : 0;
+          return z.from + (z.to - z.from) * Math.max(0, Math.min(1, t));
+        }
+        return 0;
+      }
 
       let targetCameraDistance = CAMERA_DEFAULT_DISTANCE;
       let smoothCameraDistance = CAMERA_DEFAULT_DISTANCE;
@@ -6949,6 +6991,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       let smoothFovOffsetDeg = 0;
       let smoothCamX = playerX - Math.cos(playerAngle) * CAMERA_DEFAULT_DISTANCE;
       let smoothCamY = playerY - Math.sin(playerAngle) * CAMERA_DEFAULT_DISTANCE;
+      let smoothCamElevation = 0; // eased world-space height under the camera's own (x,y) — see getElevation
+      // Last frame's obstruction-clamped back distance — compared against this frame's
+      // freshly-raycast value every frame to decide whether the camera is being pulled
+      // in (something now blocks it) or pushed back out (it just cleared), so each
+      // direction can ease at its own rate. See CAMERA_OBSTRUCTION_PULL_IN_RATE / _OUT.
+      let smoothCameraBackDist = CAMERA_DEFAULT_DISTANCE;
       let pointerLocked = false;
       let roamingActive = true;
       let raf = 0;
@@ -7005,14 +7053,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.shadowMap.enabled = false;
       const scene = new THREE.Scene();
-      const fogDistance = isMobile ? 30 : 42;
+      const fogDistance = isMobile ? 36 : 56; // pushed out so the wider courtyard and taller buildings stay visible at a glance
       // Bright, believable school-day sky — the campus reads as a real sunlit place a
       // student would actually walk through, not a moody arena. Fog is a soft warm haze
       // instead of near-black, so distant buildings fade gently rather than vanish.
       scene.fog = new THREE.Fog(0xcfe6f0, 6, fogDistance);
       scene.background = new THREE.Color(0x9fd0ea);
 
-      const camera = new THREE.PerspectiveCamera(72, 1, 0.05, 100);
+      const camera = new THREE.PerspectiveCamera(72, 1, 0.05, 140);
 
       const hemi = new THREE.HemisphereLight(0xffffff, 0x7fa66b, 1.0);
       scene.add(hemi);
@@ -7168,13 +7216,20 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // real room gets a proper ceiling and every open plaza/corridor between buildings
       // stays outdoors under open sky — a real campus of separate buildings joined by
       // pathways, not one single roofed box.
-      const BUILDINGS: { x0: number; y0: number; x1: number; y1: number; districtId: string; label: string }[] = [
-        { x0: 1, y0: 1, x1: 6, y1: 3, districtId: 'foundation', label: 'Laboratory' },
-        { x0: 1, y0: 10, x1: 4, y1: 12, districtId: 'wilds', label: 'Classroom' },
-        { x0: 7, y0: 10, x1: 10, y1: 12, districtId: 'wilds', label: 'Library' },
-        { x0: 1, y0: 14, x1: 16, y1: 18, districtId: 'advanced', label: 'Advanced Wing' },
-        { x0: 1, y0: 19, x1: 16, y1: 23, districtId: 'expert', label: 'Expert Enclave' },
-        { x0: 1, y0: 24, x1: 16, y1: 28, districtId: 'mastery', label: 'Mastery Vault' },
+      // Every building now also carries a `style` — real campuses don't build every
+      // block from the same one plan, so this drives roof shape, wall-material tint,
+      // and one signature massing feature per building later in the render pass
+      // (addRoofForStyle / addSignatureFeature below), instead of the old one-size-
+      // fits-all box-with-a-flat-roof every building used to get.
+      const BUILDINGS: { x0: number; y0: number; x1: number; y1: number; districtId: string; label: string; style: 'civic' | 'lab' | 'classic' | 'library' | 'fortress' | 'industrial' | 'sleek' | 'vault' }[] = [
+        { x0: 9, y0: 1, x1: 18, y1: 7, districtId: 'foundation', label: 'Administration Hall', style: 'civic' },
+        { x0: 2, y0: 10, x1: 10, y1: 17, districtId: 'foundation', label: 'Laboratory', style: 'lab' },
+        { x0: 10, y0: 20, x1: 16, y1: 27, districtId: 'wilds', label: 'Classroom', style: 'classic' },
+        { x0: 18, y0: 20, x1: 24, y1: 27, districtId: 'wilds', label: 'Library', style: 'library' },
+        { x0: 8, y0: 31, x1: 20, y1: 39, districtId: 'citadel', label: 'Mastery Citadel', style: 'fortress' },
+        { x0: 1, y0: 43, x1: 26, y1: 52, districtId: 'advanced', label: 'Advanced Wing', style: 'industrial' },
+        { x0: 1, y0: 53, x1: 26, y1: 62, districtId: 'expert', label: 'Expert Enclave', style: 'sleek' },
+        { x0: 1, y0: 63, x1: 26, y1: 72, districtId: 'mastery', label: 'Mastery Vault', style: 'vault' },
       ];
       const buildingAt = (x: number, y: number) => BUILDINGS.find((b) => x >= b.x0 && x < b.x1 && y >= b.y0 && y < b.y1) ?? null;
 
@@ -7402,8 +7457,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         const stairMat = new THREE.MeshStandardMaterial({ color: SCHOOL_CONCRETE.clone().lerp(new THREE.Color(0x000000), 0.1), roughness: 0.85 });
         const foundationMat = new THREE.MeshStandardMaterial({ color: SCHOOL_CONCRETE.clone().lerp(new THREE.Color(0x000000), 0.22), roughness: 0.92 });
         const downspoutMat = new THREE.MeshStandardMaterial({ color: 0x5b6270, roughness: 0.45, metalness: 0.55 });
-        const VERANDA_OUT = 0.6;
-        const STORY_HEIGHT = 2.5;
+        const VERANDA_OUT = 0.9; // wider covered canopy/veranda overhang for the grander, more spacious buildings
+        const STORY_HEIGHT = 2.8; // taller upper-floor bands to match the raised WALL_HEIGHT below
         const WINDOW_BAND_H = 1.0;
 
         const addColumnRun = (x0: number, z0: number, dx: number, dz: number, length: number) => {
@@ -7419,10 +7474,67 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           }
         };
 
+        // --- REAL, PHYSICALLY WALKABLE STAIRS + UPPER-LEVEL TERRACES --------------------
+        // Every "extraStories" building now earns one genuine exterior stair — registered
+        // as an ElevationZone ramp, so the player's own height actually rises tread by
+        // tread — leading to a real open-air terrace/balcony at the springline of its
+        // upper stories (elevation WALL_HEIGHT, exactly where that story's window band and
+        // railing already sit). The terrace is a small, walkable, railed deck cantilevered
+        // off one facade, positioned entirely in the open plaza/veranda strip beyond the
+        // building's own footprint — it never overlaps the solid decorative upper-story
+        // mass above. The site is *found*, not hand-placed: it walks outward from each of
+        // the building's four facades looking for a strip of already-open, already-
+        // walkable ground that isn't within 1.3 tiles of any NPC, note, guide, prop, or
+        // gate, so a stair can never land somewhere that blocks or overlaps a piece of
+        // gameplay logic — and a building simply goes without a stair if no clear side
+        // exists, rather than risk placing one somewhere unsafe.
+        const entityKeepClear: [number, number][] = [
+          ...challengers.map((c) => [c.x, c.y] as [number, number]),
+          ...guides.map((g) => [g.x, g.y] as [number, number]),
+          ...notes.map((n) => [n.x, n.y] as [number, number]),
+          ...props.map((p) => [p.x, p.y] as [number, number]),
+          ...gates.map((g) => [g.x + 0.5, g.y + 0.5] as [number, number]),
+        ];
+        const tooCloseToEntity = (x: number, y: number) => entityKeepClear.some(([ox, oy]) => Math.hypot(ox - x, oy - y) < 1.3);
+        const STAIR_RUN = 3; // tiles of horizontal run to climb one full story
+        const TERRACE_DEPTH = 1.6;
+        const STAIR_HALF_WIDTH = 0.9;
+        type StairSite = { axis: 'x' | 'z'; sign: 1 | -1; baseX: number; baseZ: number };
+        function findStairSite(b: { x0: number; y0: number; x1: number; y1: number }, midX: number, midZ: number): StairSite | null {
+          const runLen = STAIR_RUN + TERRACE_DEPTH + 0.6;
+          const tryAxis = (axis: 'x' | 'z', sign: 1 | -1): StairSite | null => {
+            const baseX = axis === 'x' ? (sign > 0 ? b.x1 : b.x0) : midX;
+            const baseZ = axis === 'z' ? (sign > 0 ? b.y1 : b.y0) : midZ;
+            for (let s = 0.3; s <= runLen; s += 0.4) {
+              const cx = axis === 'x' ? baseX + sign * s : baseX;
+              const cz = axis === 'z' ? baseZ + sign * s : baseZ;
+              const checks: [number, number][] = axis === 'x'
+                ? [[cx, cz - STAIR_HALF_WIDTH], [cx, cz], [cx, cz + STAIR_HALF_WIDTH]]
+                : [[cx - STAIR_HALF_WIDTH, cz], [cx, cz], [cx + STAIR_HALF_WIDTH, cz]];
+              for (const [tx, tz] of checks) {
+                if (!getWalkableCell(Math.floor(tx), Math.floor(tz)) || tooCloseToEntity(tx, tz)) return null;
+              }
+            }
+            return { axis, sign, baseX, baseZ };
+          };
+          return tryAxis('z', 1) || tryAxis('z', -1) || tryAxis('x', 1) || tryAxis('x', -1);
+        }
+
         BUILDINGS.forEach((b) => {
           const district = CAMPUS_DISTRICTS.find((d) => d.id === b.districtId)!;
           const roofColor = districtRoofColor(district);
-          const wallColor = districtWallColor(district);
+          // Base district wall color, nudged per style so buildings read as different
+          // real materials (cool glassy tint for the modern buildings, darker worn stone
+          // for the fortress/vault, warmer brick for the classic academic halls) instead
+          // of every wall sharing one identical tone.
+          const baseWallColor = districtWallColor(district);
+          const wallColor = b.style === 'lab' || b.style === 'sleek'
+            ? baseWallColor.clone().lerp(new THREE.Color(0xdfe7ea), 0.35)
+            : b.style === 'fortress' || b.style === 'vault'
+            ? baseWallColor.clone().lerp(new THREE.Color(0x2b2b2f), 0.3)
+            : b.style === 'industrial'
+            ? baseWallColor.clone().lerp(new THREE.Color(0x8a8378), 0.25)
+            : baseWallColor;
           const w = b.x1 - b.x0, d = b.y1 - b.y0;
           const midX = b.x0 + w / 2, midZ = b.y0 + d / 2;
           // Bigger footprints (the tier wings) read as full 3-story classroom blocks;
@@ -7472,11 +7584,58 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             topY += STORY_HEIGHT;
           }
 
-          // Roof cap with overhanging eave + gutter, ribbed green sheeting on top.
+          // Roof cap — shape now varies by style instead of every building getting the
+          // same flat green box: 'civic'/'classic'/'library' get a stepped, tiered
+          // roofline (a grander, more traditional silhouette); 'fortress'/'vault' get a
+          // flat roof ringed with a raised parapet; everything else keeps the simple
+          // flat cap. Whatever shape is used, `roofApex` is where anything stacked on
+          // top (a tower, a dome) should actually sit.
           const roofMat = new THREE.MeshStandardMaterial({ color: roofColor, map: roofTexture, roughness: 0.6 });
-          const roof = new THREE.Mesh(new THREE.BoxGeometry(w + 0.5, 0.18, d + 0.5), roofMat);
-          roof.position.set(midX, topY + 0.09, midZ);
-          worldGroup.add(roof);
+          let roofApex = topY + 0.18;
+          if (b.style === 'civic' || b.style === 'classic' || b.style === 'library') {
+            const tierCount = 3;
+            let tw = w + 0.5, td = d + 0.5, ty = topY;
+            for (let t = 0; t < tierCount; t++) {
+              const th = 0.55;
+              const tier = new THREE.Mesh(new THREE.BoxGeometry(tw, th, td), roofMat);
+              tier.position.set(midX, ty + th / 2, midZ);
+              worldGroup.add(tier);
+              ty += th; tw *= 0.72; td *= 0.72;
+            }
+            roofApex = ty;
+          } else if (b.style === 'fortress' || b.style === 'vault') {
+            const roof = new THREE.Mesh(new THREE.BoxGeometry(w + 0.5, 0.18, d + 0.5), roofMat);
+            roof.position.set(midX, topY + 0.09, midZ);
+            worldGroup.add(roof);
+            const merlonMat = new THREE.MeshStandardMaterial({ color: roofColor.clone().lerp(new THREE.Color(0x000000), 0.25), map: roofTexture, roughness: 0.75 });
+            const merlonEntries: { cx: number; cy: number; cz: number; sx: number; sy: number; sz: number }[] = [];
+            const merlonH = 0.5, merlonSpacing = 1.4;
+            for (let mx = b.x0 + 0.3; mx <= b.x1 - 0.3; mx += merlonSpacing) {
+              merlonEntries.push({ cx: mx, cy: topY + merlonH / 2, cz: b.y0 - 0.05, sx: 0.5, sy: merlonH, sz: 0.22 });
+              merlonEntries.push({ cx: mx, cy: topY + merlonH / 2, cz: b.y1 + 0.05, sx: 0.5, sy: merlonH, sz: 0.22 });
+            }
+            for (let mz = b.y0 + 0.3; mz <= b.y1 - 0.3; mz += merlonSpacing) {
+              merlonEntries.push({ cx: b.x0 - 0.05, cy: topY + merlonH / 2, cz: mz, sx: 0.22, sy: merlonH, sz: 0.5 });
+              merlonEntries.push({ cx: b.x1 + 0.05, cy: topY + merlonH / 2, cz: mz, sx: 0.22, sy: merlonH, sz: 0.5 });
+            }
+            if (merlonEntries.length) worldGroup.add(new THREE.Mesh(mergeBoxes(merlonEntries), merlonMat));
+            roofApex = topY + merlonH + 0.18;
+          } else {
+            const roof = new THREE.Mesh(new THREE.BoxGeometry(w + 0.5, 0.18, d + 0.5), roofMat);
+            roof.position.set(midX, topY + 0.09, midZ);
+            worldGroup.add(roof);
+            if (b.style === 'industrial') {
+              // Exposed ridge trusses — a row of thin beams standing proud of the flat
+              // roof, reading as an industrial workshop/engineering-hall roofline.
+              const trussMat = new THREE.MeshStandardMaterial({ color: 0x4a4f5c, roughness: 0.5, metalness: 0.6 });
+              const trussEntries: { cx: number; cy: number; cz: number; sx: number; sy: number; sz: number }[] = [];
+              for (let tx = b.x0 + 1; tx <= b.x1 - 1; tx += 2.2) {
+                trussEntries.push({ cx: tx, cy: topY + 0.5, cz: midZ, sx: 0.14, sy: 0.85, sz: d + 0.3 });
+              }
+              if (trussEntries.length) worldGroup.add(new THREE.Mesh(mergeBoxes(trussEntries), trussMat));
+              roofApex = topY + 1.0;
+            }
+          }
           const gutterMat = new THREE.MeshStandardMaterial({ color: roofColor.clone().lerp(new THREE.Color(0x000000), 0.4), roughness: 0.5, metalness: 0.2 });
           const gutterEntries = [
             { cx: midX, cy: topY - 0.04, cz: b.y0 - 0.14, sx: w + 0.5, sy: 0.16, sz: 0.1 },
@@ -7485,6 +7644,42 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             { cx: b.x1 + 0.14, cy: topY - 0.04, cz: midZ, sx: 0.1, sy: 0.16, sz: d + 0.5 },
           ];
           worldGroup.add(new THREE.Mesh(mergeBoxes(gutterEntries), gutterMat));
+
+          // Signature massing feature — one distinguishing silhouette per style, so the
+          // skyline itself tells buildings apart at a glance instead of every roofline
+          // reading the same from across the plaza.
+          const towerMat = new THREE.MeshStandardMaterial({ color: wallColor.clone().lerp(new THREE.Color(0x000000), 0.1), map: brickTexture, roughness: 0.8 });
+          const spireMat = new THREE.MeshStandardMaterial({ color: roofColor.clone().lerp(new THREE.Color(0x000000), 0.15), roughness: 0.55 });
+          const addCornerTurret = (cx: number, cz: number, towerH: number, radius: number) => {
+            const tower = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius * 1.08, towerH, 10), towerMat);
+            tower.position.set(cx, towerH / 2, cz);
+            worldGroup.add(tower);
+            const spire = new THREE.Mesh(new THREE.ConeGeometry(radius * 1.15, radius * 2.2, 10), spireMat);
+            spire.position.set(cx, towerH + radius * 1.1, cz);
+            worldGroup.add(spire);
+          };
+          if (b.style === 'civic') {
+            // One clock/bell tower rising from the front-facing corner, taller than the
+            // roofline itself — the campus's main entrance landmark, visible from afar.
+            addCornerTurret(b.x1 - 0.5, b.y1 - 0.5, roofApex + 2.4, 0.55);
+          } else if (b.style === 'fortress') {
+            // A turret at each of the four corners — the boss hall reads as a real
+            // small keep, not just a bigger box than its neighbors.
+            [[b.x0 + 0.4, b.y0 + 0.4], [b.x1 - 0.4, b.y0 + 0.4], [b.x0 + 0.4, b.y1 - 0.4], [b.x1 - 0.4, b.y1 - 0.4]].forEach(([tx, tz]) => {
+              addCornerTurret(tx, tz, roofApex + 0.6, 0.4);
+            });
+          } else if (b.style === 'vault') {
+            // Two flanking turrets either side of the main entrance face only — grand,
+            // but not as busy as the four-cornered Citadel.
+            addCornerTurret(b.x0 + 0.5, b.y0 + 0.5, roofApex + 1.4, 0.5);
+            addCornerTurret(b.x1 - 0.5, b.y0 + 0.5, roofApex + 1.4, 0.5);
+          } else if (b.style === 'library') {
+            // A single reading-room dome centered on the roof — quiet, but unmistakably
+            // a library silhouette against the sky.
+            const dome = new THREE.Mesh(new THREE.SphereGeometry(Math.min(w, d) * 0.32, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2), spireMat);
+            dome.position.set(midX, roofApex, midZ);
+            worldGroup.add(dome);
+          }
 
           // Foundation plinth: a low concrete curb running the building's own footprint,
           // sitting slightly proud of the paving so the walls read as built on a real
@@ -7502,15 +7697,79 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             downspoutEntries.push({ cx: dx, cy: topY / 2, cz: dz, sx: 0.05, sy: topY, sz: 0.05 });
           });
 
-          // A simple exterior stair up to the visual upper floor, tucked against the
-          // building's south-facing wall near its entrance — purely decorative massing,
-          // no interaction and no effect on the ground-floor walkable grid.
+          // A real exterior stair up to a genuine, walkable upper-level terrace — see
+          // findStairSite/entityKeepClear above. Every tread here has a matching
+          // ElevationZone registered below, so a player actually climbing it rises in
+          // real time instead of walking through a decorative silhouette.
           if (extraStories > 0) {
-            const stairSteps = 8;
-            const stairX = Math.min(b.x1 - 0.6, midX + 0.9);
-            for (let i = 0; i < stairSteps; i++) {
-              const t = i / stairSteps;
-              stairEntries.push({ cx: stairX, cy: (WALL_HEIGHT * (i + 1)) / (stairSteps * 2), cz: b.y1 + VERANDA_OUT + 0.3 - t * 1.6, sx: 0.9, sy: (WALL_HEIGHT * (i + 1)) / stairSteps, sz: 0.22 });
+            const site = findStairSite(b, midX, midZ);
+            if (site) {
+              const { axis, sign, baseX, baseZ } = site;
+              const terraceElevation = WALL_HEIGHT;
+              const topX = axis === 'x' ? baseX + sign * STAIR_RUN : baseX;
+              const topZ = axis === 'z' ? baseZ + sign * STAIR_RUN : baseZ;
+              const farX = axis === 'x' ? topX + sign * TERRACE_DEPTH : topX;
+              const farZ = axis === 'z' ? topZ + sign * TERRACE_DEPTH : topZ;
+
+              // Stepped stair mass — a real ramp underneath (see the ElevationZone push
+              // below), not just a decorative stack.
+              const stepCount = 10;
+              for (let i = 0; i < stepCount; i++) {
+                const s = ((i + 1) / stepCount) * STAIR_RUN;
+                const stepH = terraceElevation * ((i + 1) / stepCount);
+                const cx = axis === 'x' ? baseX + sign * s : baseX;
+                const cz = axis === 'z' ? baseZ + sign * s : baseZ;
+                stairEntries.push({
+                  cx, cy: stepH / 2, cz,
+                  sx: axis === 'x' ? STAIR_RUN / stepCount + 0.05 : STAIR_HALF_WIDTH * 2,
+                  sy: Math.max(0.08, stepH),
+                  sz: axis === 'z' ? STAIR_RUN / stepCount + 0.05 : STAIR_HALF_WIDTH * 2,
+                });
+              }
+
+              // Terrace floor slab + a railing on its three outer edges — the fourth,
+              // facing back down the stair, stays open so it's actually walkable onto.
+              const terraceMidX = (topX + farX) / 2, terraceMidZ = (topZ + farZ) / 2;
+              const terraceSx = axis === 'x' ? Math.abs(farX - topX) : STAIR_HALF_WIDTH * 2;
+              const terraceSz = axis === 'z' ? Math.abs(farZ - topZ) : STAIR_HALF_WIDTH * 2;
+              stairEntries.push({ cx: terraceMidX, cy: terraceElevation - 0.09, cz: terraceMidZ, sx: terraceSx + 0.1, sy: 0.18, sz: terraceSz + 0.1 });
+              const railY = terraceElevation + 0.5;
+              if (axis === 'z') {
+                railEntries.push(
+                  { cx: terraceMidX - terraceSx / 2, cy: railY, cz: terraceMidZ, sx: 0.06, sy: 0.06, sz: terraceSz },
+                  { cx: terraceMidX + terraceSx / 2, cy: railY, cz: terraceMidZ, sx: 0.06, sy: 0.06, sz: terraceSz },
+                  { cx: terraceMidX, cy: railY, cz: farZ, sx: terraceSx, sy: 0.06, sz: 0.06 },
+                );
+              } else {
+                railEntries.push(
+                  { cx: terraceMidX, cy: railY, cz: terraceMidZ - terraceSz / 2, sx: terraceSx, sy: 0.06, sz: 0.06 },
+                  { cx: terraceMidX, cy: railY, cz: terraceMidZ + terraceSz / 2, sx: terraceSx, sy: 0.06, sz: 0.06 },
+                  { cx: farX, cy: railY, cz: terraceMidZ, sx: 0.06, sy: 0.06, sz: terraceSz },
+                );
+              }
+
+              // The actual walkable elevation: a ramp under the stair treads, then a
+              // flat landing under the terrace. canMove()/the map grid never change —
+              // every tile here was already open floor; this only adds how high standing
+              // on it puts the player and the camera (see getElevation).
+              elevationZones.push({
+                kind: 'ramp',
+                x0: axis === 'x' ? Math.min(baseX, topX) : baseX - STAIR_HALF_WIDTH,
+                x1: axis === 'x' ? Math.max(baseX, topX) : baseX + STAIR_HALF_WIDTH,
+                y0: axis === 'z' ? Math.min(baseZ, topZ) : baseZ - STAIR_HALF_WIDTH,
+                y1: axis === 'z' ? Math.max(baseZ, topZ) : baseZ + STAIR_HALF_WIDTH,
+                axis: axis === 'x' ? 'x' : 'y',
+                from: sign > 0 ? 0 : terraceElevation,
+                to: sign > 0 ? terraceElevation : 0,
+              });
+              elevationZones.push({
+                kind: 'flat',
+                x0: axis === 'x' ? Math.min(topX, farX) : terraceMidX - STAIR_HALF_WIDTH,
+                x1: axis === 'x' ? Math.max(topX, farX) : terraceMidX + STAIR_HALF_WIDTH,
+                y0: axis === 'z' ? Math.min(topZ, farZ) : terraceMidZ - STAIR_HALF_WIDTH,
+                y1: axis === 'z' ? Math.max(topZ, farZ) : terraceMidZ + STAIR_HALF_WIDTH,
+                elevation: terraceElevation,
+              });
             }
           }
         });
@@ -7520,6 +7779,67 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         if (stairEntries.length) worldGroup.add(new THREE.Mesh(mergeBoxes(stairEntries), stairMat));
         if (foundationEntries.length) worldGroup.add(new THREE.Mesh(mergeBoxes(foundationEntries), foundationMat));
         if (downspoutEntries.length) worldGroup.add(new THREE.Mesh(mergeBoxes(downspoutEntries), downspoutMat));
+      }
+
+      // --- plaza centerpiece: a real courtyard needs a heart, not just open pavement.
+      // Finds the most wide-open, entity-free outdoor plaza tile at runtime (scored by
+      // how much clear ground surrounds it, so it lands in the middle of a genuine
+      // plaza rather than a random open corner) and drops a real fountain there, plus a
+      // couple of facing benches. Purely decorative — canMove only ever reads the tile
+      // grid, which nothing here touches — and skipped entirely if no sufficiently
+      // spacious, entity-free plaza exists, rather than risk crowding a tight space.
+      {
+        const keepClearOf: [number, number][] = [
+          ...challengers.map((c) => [c.x, c.y] as [number, number]),
+          ...guides.map((g) => [g.x, g.y] as [number, number]),
+          ...notes.map((n) => [n.x, n.y] as [number, number]),
+          ...props.map((p) => [p.x, p.y] as [number, number]),
+          ...gates.map((g) => [g.x + 0.5, g.y + 0.5] as [number, number]),
+        ];
+        const tooClose = (x: number, y: number) => keepClearOf.some(([ox, oy]) => Math.hypot(ox - x, oy - y) < 2.4);
+        let best: { x: number; y: number; score: number } | null = null;
+        for (let y = 2; y < mapHeight - 2; y++) {
+          for (let x = 2; x < mapWidth - 2; x++) {
+            if (map[y][x] !== 0 || buildingAt(x, y)) continue;
+            const cx = x + 0.5, cz = y + 0.5;
+            if (tooClose(cx, cz)) continue;
+            let openCount = 0;
+            for (let dy = -2; dy <= 2; dy++) {
+              for (let dx = -2; dx <= 2; dx++) {
+                if (getWalkableCell(x + dx, y + dy) && !buildingAt(x + dx, y + dy)) openCount++;
+              }
+            }
+            if (!best || openCount > best.score) best = { x: cx, y: cz, score: openCount };
+          }
+        }
+        if (best && best.score >= 18) {
+          const fx = best.x, fz = best.y;
+          const basinMat = new THREE.MeshStandardMaterial({ color: SCHOOL_CONCRETE.clone().lerp(new THREE.Color(0x000000), 0.15), roughness: 0.8 });
+          const waterMat = new THREE.MeshStandardMaterial({ color: 0x69c3d6, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.85, emissive: new THREE.Color(0x1c6b7a), emissiveIntensity: 0.15 });
+          const basin = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.4, 0.4, 20), basinMat);
+          basin.position.set(fx, 0.2, fz);
+          worldGroup.add(basin);
+          const water = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.15, 0.06, 20), waterMat);
+          water.position.set(fx, 0.42, fz);
+          worldGroup.add(water);
+          const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 1.1, 10), basinMat);
+          pedestal.position.set(fx, 0.95, fz);
+          worldGroup.add(pedestal);
+          const bowlTop = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.4, 0.22, 16), basinMat);
+          bowlTop.position.set(fx, 1.55, fz);
+          worldGroup.add(bowlTop);
+          const bowlWater = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.48, 0.05, 16), waterMat);
+          bowlWater.position.set(fx, 1.63, fz);
+          worldGroup.add(bowlWater);
+          const benchMat = new THREE.MeshStandardMaterial({ color: 0x6b4a35, roughness: 0.85 });
+          [[fx - 2.1, fz], [fx + 2.1, fz], [fx, fz - 2.1], [fx, fz + 2.1]].forEach(([bx, bz]) => {
+            const btx = Math.floor(bx), btz = Math.floor(bz);
+            if (!getWalkableCell(btx, btz) || buildingAt(btx, btz)) return;
+            const bench = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.42, 0.4), benchMat);
+            bench.position.set(bx, 0.21, bz);
+            worldGroup.add(bench);
+          });
+        }
       }
 
       // --- landscaping: a light scatter of small planter bushes on genuinely open
@@ -8237,24 +8557,55 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // fades out smoothly (rather than snapping) as the camera pulls back out.
         const fovDeg = thirdPersonFov + (firstPersonFov - thirdPersonFov) * firstPersonFovBlend + smoothFovOffsetDeg * firstPersonFovBlend;
 
-        // Camera clearance uses only the same collision volumes/spatial bounds movement
-        // already uses (circleHitsWall / collidesWithNpc via findClearCameraDistance) —
-        // no raycasting. The camera never settles further back than that clear distance,
-        // so it can't clip through a building wall, gate pillar, or NPC.
+        // Roblox-style camera collision. `findClearCameraDistance` is the actual raycast
+        // — it marches outward from the player toward the desired (behind-the-player)
+        // camera spot in small steps, using the exact same collider volumes as player
+        // movement (circleHitsWall / collidesWithNpc), and returns the furthest point
+        // along that ray that's still clear of any wall, building, gate pillar, or NPC.
         const behindAngle = playerAngle + Math.PI;
-        let desiredBackDist = currentCameraDistance;
+        let rawBackDist = currentCameraDistance;
         if (currentCameraDistance > CAMERA_FIRST_PERSON_DISTANCE + 0.02) {
           const clearDist = findClearCameraDistance(behindAngle, currentCameraDistance);
-          desiredBackDist = Math.max(CAMERA_FIRST_PERSON_DISTANCE, Math.min(currentCameraDistance, clearDist));
+          rawBackDist = Math.max(CAMERA_FIRST_PERSON_DISTANCE, Math.min(currentCameraDistance, clearDist));
         }
-        const idealCamX = playerX + Math.cos(behindAngle) * desiredBackDist;
-        const idealCamY = playerY + Math.sin(behindAngle) * desiredBackDist;
+        // Ease the *distance* toward that raycast result rather than easing the camera's
+        // x/z position directly — this keeps the camera locked to a single point along
+        // the always-clear ray every frame, so there's no path for it to cut through a
+        // corner mid-transition. Pulling in (something now blocks the desired distance)
+        // is hard-clamped to the raycast result the instant it shrinks — this is the one
+        // guarantee that makes clipping actually impossible, even for a single frame, no
+        // matter how fast the player spins next to a wall. Pushing back out to the
+        // desired zoom distance once clear eases in smoothly instead of popping.
+        if (rawBackDist < smoothCameraBackDist) {
+          const pullT = 1 - Math.exp(-CAMERA_OBSTRUCTION_PULL_IN_RATE * Math.max(dt, 0));
+          smoothCameraBackDist += (rawBackDist - smoothCameraBackDist) * pullT;
+          if (smoothCameraBackDist < rawBackDist) smoothCameraBackDist = rawBackDist;
+        } else {
+          const pushT = 1 - Math.exp(-CAMERA_OBSTRUCTION_PUSH_OUT_RATE * Math.max(dt, 0));
+          smoothCameraBackDist += (rawBackDist - smoothCameraBackDist) * pushT;
+          if (smoothCameraBackDist > rawBackDist) smoothCameraBackDist = rawBackDist;
+        }
+        const idealCamX = playerX + Math.cos(behindAngle) * smoothCameraBackDist;
+        const idealCamY = playerY + Math.sin(behindAngle) * smoothCameraBackDist;
+        // Position itself still eases toward that point (so panning as the player turns
+        // stays smooth rather than snapping), but since idealCamX/Y now already sits at
+        // or inside the proven-clear distance, this lerp can only ever move the camera
+        // closer to a point on that same safe ray — it never introduces new clipping.
         const followT = 1 - Math.exp(-CAMERA_FOLLOW_RATE * Math.max(dt, 0));
         smoothCamX += (idealCamX - smoothCamX) * followT;
         smoothCamY += (idealCamY - smoothCamY) * followT;
+        // Final belt-and-suspenders check: if the eased x/z position (not just the
+        // distance) still ends up inside geometry — e.g. a very fast pan around a
+        // corner — pull it directly toward the player along its own current direction
+        // until clear, instead of teleporting across to the unrelated ideal spot. This
+        // keeps any correction small and local rather than a visible jump/glitch.
         if (circleHitsWall(smoothCamX, smoothCamY, CAMERA_COLLIDER_RADIUS)) {
-          smoothCamX = idealCamX;
-          smoothCamY = idealCamY;
+          const awayAngle = Math.atan2(smoothCamY - playerY, smoothCamX - playerX);
+          const awayDist = Math.hypot(smoothCamX - playerX, smoothCamY - playerY);
+          const safeDist = findClearCameraDistance(awayAngle, awayDist);
+          smoothCamX = playerX + Math.cos(awayAngle) * safeDist;
+          smoothCamY = playerY + Math.sin(awayAngle) * safeDist;
+          smoothCameraBackDist = Math.min(smoothCameraBackDist, safeDist);
         }
         const camX = smoothCamX;
         const camY = smoothCamY;
@@ -8270,7 +8621,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // stays in step with the footfalls rather than running on its own clock.
         const bobFade = 1 - firstPersonBlend;
         const bobHeight = playerWalking && bobFade > 0.01 ? Math.sin(walkPhase * 2) * 0.045 * bobFade : 0;
-        const cameraDisplayHeight = currentCameraHeight + bobHeight;
+        // Camera rides the ground/stair/balcony height directly beneath its own (x,y) —
+        // not just the player's — so it never sinks into a stair tread or floats off a
+        // balcony edge while trailing behind the player mid-climb. Smooths toward it at
+        // the same follow rate as everything else in this block, so climbing a real
+        // flight of stairs raises the whole view continuously instead of snapping.
+        const camGroundElevation = getElevation(camX, camY);
+        smoothCamElevation += (camGroundElevation - smoothCamElevation) * followT;
+        const cameraDisplayHeight = currentCameraHeight + bobHeight + smoothCamElevation;
 
         camera.fov = fovDeg;
         camera.updateProjectionMatrix();
@@ -8343,7 +8701,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         const showPlayerBody = currentCameraDistance > CAMERA_CLOSE_DISTANCE * 0.78;
         playerMesh.visible = showPlayerBody;
         if (showPlayerBody) {
-          playerMesh.position.set(playerX, 0, playerY);
+          playerMesh.position.set(playerX, getElevation(playerX, playerY), playerY);
           playerMesh.rotation.y = -playerAngle + Math.PI / 2;
           const cfg = avatarRef.current;
           if (playerMesh.userData.lastTop !== cfg.topColor) {
