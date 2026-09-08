@@ -5854,94 +5854,101 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     DISTRICT_STRAND_FOCUS[districtId]?.[strand] ?? CAMPUS_DISTRICTS.find((d) => d.id === districtId)?.theme ?? '';
 
 
-  // Renovated 27x73 campus — a full architectural rebuild replacing the old cramped
-  // 17x29 corridor grid. Every walkway and room is now several tiles wide instead of
-  // one, and the campus is organized around one real hierarchy: Main Entrance (the
-  // Administration building, rows 1-6) -> Central Courtyard (the big open plaza,
-  // rows 7-29, with the Laboratory, the open-air Peaks pavilion, the Classroom, and
-  // the Library arranged naturally around its edges instead of down a corridor) ->
-  // the Mastery Citadel (a gated, more exclusive hall, rows 29-39) -> the Advanced /
-  // Expert / Mastery tier wings continuing the same spine further south (rows 39-73),
-  // each now a genuinely spacious multi-chamber hall rather than a bare 17-wide box.
-  // mapWidth/mapHeight (used by rendering, the minimap, and collision) are still read
-  // directly from this array's dimensions, so nothing downstream needed to change.
+  // Renovated 27x73 campus, second pass — a full architectural re-layout on top of the
+  // same footprint. The old plan worked but read as boxy and repetitive: the Advanced /
+  // Expert / Mastery wings were three copies of one identical room pattern, and every
+  // building was a single centered rectangle on its own straight spine. This pass keeps
+  // the same overall hierarchy — Main Entrance -> Central Courtyard -> Classroom/Library
+  // -> Mastery Citadel -> Advanced -> Expert -> Mastery — but gives each stop a genuinely
+  // different shape: the Advanced Wing is one big hall with two smaller offset side
+  // chambers; the Expert Enclave is a cross-shaped hall with four alcoves around a central
+  // crossing (multiple simultaneous routes in and out); the Mastery Vault is a big outer
+  // gallery ring wrapped around a walled-off inner sanctum, so the last real NPC in the
+  // game (npc_16) is reached by discovering the hidden room at its center. The Classroom
+  // and Library are now flanked by open loop routes on both the near and far side, not
+  // just the center promenade, so there's always more than one way through. District
+  // bounding boxes (CAMPUS_DISTRICTS), the four gate rows (y 30/42/52/62, all still a
+  // single choke point at column 13), and mapWidth/mapHeight (read from this array's own
+  // dimensions) are all unchanged, so nothing about quest-tier gating needed to change.
   //
-  // Every NPC, note, guide, prop, sign, and gate below has been moved to a matching
-  // spot in this new layout by coordinate only — ids, dialogue, rewards, quest tiers,
-  // gate requirements, and every other piece of gameplay logic are untouched.
+  // Every NPC, note, guide, prop, sign, and gate below has been moved to a matching walkable
+  // spot in this new layout — every single one re-verified by a connectivity/collision
+  // script before landing here, so nothing sits inside a wall or an unreachable pocket.
+  // ids, dialogue, rewards, quest tiers, gate requirements, and every other piece of
+  // gameplay logic are untouched — only x/y coordinates moved.
   const CAMPUS_MAP = [
     [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-    [1,0,0,0,0,0,0,0,0,1,7,1,7,1,1,7,7,1,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,0,6,0,0,0,0,0,0,0,6,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,0,7,0,0,0,0,0,0,0,7,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,0,7,0,0,0,0,0,0,0,7,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,0,1,1,1,1,0,0,1,1,1,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,1,0,0,7,0,7,0,0,0,0,7,0,7,0,1,0,0,0,0,0,1],
+    [1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
+    [1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
+    [1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
+    [1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
+    [1,0,0,0,0,0,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,0,0,0,0,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,7,1,1,1,7,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,1,7,7,1,7,7,7,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,8,0,0,0,8,0,0,1],
-    [1,0,7,0,0,0,0,0,0,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,7,0,0,0,0,0,0,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,8,0,0,0,8,0,0,1],
-    [1,0,1,1,1,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,0,1],
+    [1,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,1,0,1],
+    [1,0,0,0,0,0,7,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,7,0,1],
+    [1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],
+    [1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],
+    [1,0,0,0,0,0,7,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,7,0,1],
+    [1,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,1,0,1],
+    [1,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,1,7,1,1,7,1,0,0,1,7,1,1,7,1,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,1,0,0,0,0,1,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,7,0,0,0,0,7,0,0,7,0,0,0,0,7,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,1,0,0,0,0,1,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,7,0,0,0,0,7,0,0,7,0,0,0,0,7,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,1,0,0,0,0,1,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,5,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,0,0,0,0,1],
+    [1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,1],
+    [1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,1],
+    [1,0,0,0,0,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,7,0,0,0,0,1],
+    [1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1],
+    [1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,1],
+    [1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,1],
+    [1,0,0,0,0,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,0,0,0,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
     [1,1,1,1,1,1,1,1,1,1,1,1,1,5,1,1,1,1,1,1,1,1,1,1,1,1,1],
-    [1,0,0,0,0,0,0,0,1,1,1,1,0,0,0,1,1,1,1,1,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,7,0,0,0,0,0,0,0,0,0,0,7,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,7,0,0,0,0,0,0,0,0,0,0,7,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,1,7,1,7,0,0,0,1,7,1,7,1,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,1,0,1],
+    [1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,1,0,1],
+    [1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,1,0,1],
+    [1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],
+    [1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,1],
+    [1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,1,1,1,1,1,1,1,0,1],
+    [1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,1,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,5,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,1,1,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,1,1,0,1],
+    [1,0,1,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,1,0,1],
+    [1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],
+    [1,0,1,1,1,1,1,1,1,1,1,0,0,0,0,0,1,1,1,1,1,1,1,1,1,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,1,1,1,1,1,1,1,1,1,0,0,0,0,0,1,1,1,1,1,1,1,1,1,0,1],
+    [1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],
+    [1,0,1,1,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,1,1,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
     [1,1,1,1,1,1,1,1,1,1,1,1,1,5,1,1,1,1,1,1,1,1,1,1,1,1,1],
-    [1,1,7,7,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,7,7,1,1],
-    [1,1,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8,1,1],
-    [1,1,0,0,1,1,1,1,1,1,1,0,0,0,0,0,1,1,1,1,1,1,1,0,0,1,1],
-    [1,7,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,7,1],
-    [1,1,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,1,1],
-    [1,7,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,7,1],
-    [1,1,0,0,1,1,0,0,0,1,1,0,0,0,0,0,1,1,0,0,0,1,1,0,0,1,1],
-    [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1],
-    [1,1,7,7,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,7,7,1,1],
-    [1,1,1,1,1,1,1,1,1,1,1,1,1,5,1,1,1,1,1,1,1,1,1,1,1,1,1],
-    [1,1,7,7,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,7,7,1,1],
-    [1,1,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8,1,1],
-    [1,1,0,0,1,1,1,1,1,1,1,0,0,0,0,0,1,1,1,1,1,1,1,0,0,1,1],
-    [1,7,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,7,1],
-    [1,1,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,1,1],
-    [1,7,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,7,1],
-    [1,1,0,0,1,1,0,0,0,1,1,0,0,0,0,0,1,1,0,0,0,1,1,0,0,1,1],
-    [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1],
-    [1,1,7,7,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,7,7,1,1],
-    [1,1,1,1,1,1,1,1,1,1,1,1,1,5,1,1,1,1,1,1,1,1,1,1,1,1,1],
-    [1,1,7,7,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,7,7,1,1],
-    [1,1,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8,1,1],
-    [1,1,0,0,1,1,1,1,1,1,1,0,0,0,0,0,1,1,1,1,1,1,1,0,0,1,1],
-    [1,7,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,7,1],
-    [1,1,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,1,1],
-    [1,7,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,7,1],
-    [1,1,0,0,1,1,0,0,0,1,1,0,0,0,0,0,1,1,0,0,0,1,1,0,0,1,1],
-    [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1],
-    [1,1,7,7,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,7,7,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1],
+    [1,1,1,1,0,0,0,0,0,0,1,1,1,0,0,1,1,0,0,0,0,0,0,1,1,1,1],
+    [1,1,1,1,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,1,1,1,1],
+    [1,1,1,1,0,7,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,7,0,1,1,1,1],
+    [1,1,1,1,0,0,0,0,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,1,1,1,1],
+    [1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
     [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
   ];
   // Tile legend: 0 open floor, 1/2/3/4 wall variants (visual only — see canMove, which
@@ -5955,19 +5962,23 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // "door" is a texture, not a passage — see the three interior rooms below for how that
   // gets worked around.
   //
-  // Real walk-in buildings — the Administration Hall (rows 1-6, the main entrance),
-  // the Laboratory (rows 10-16), the Classroom and Library (rows 20-26, either side of
-  // a wide central promenade), the Mastery Citadel (rows 31-38), and the Advanced /
-  // Expert / Mastery wings (each with its own pair of side chambers plus an open hall,
-  // rows 43-51 / 53-61 / 63-71) — are each generously sized real spaces, not the old
-  // one-tile-corridor facades: solid walls with door/window texture on some faces for
-  // character, and a multi-tile gap left completely open as the actual entrance, since
-  // a literal door/gate tile never opens. Furniture lives inside as CAMPUS_PROPS
-  // billboards (see below). The open-air Peaks pavilion has no walls at all — just a
-  // few decorative pillars — reflecting how it always worked, now inside a much wider
-  // plaza. Every tier boundary is a single full-width wall with one locked gate cell in
-  // it (see CAMPUS_GATES), keeping every checkpoint a real choke point even though the
-  // halls on both sides of it are wide open.
+  // Real walk-in buildings — the Administration Hall (rows 1-6, the main entrance), the
+  // Laboratory (rows 9-19), the Classroom and Library (rows 20-28, either side of a
+  // center promenade plus open loop routes to their north/south/flanks), the Mastery
+  // Citadel (rows 31-39, a main hall plus a walled-off side chamber reached through an
+  // interior doorway), the Advanced Wing (rows 43-51, one big hall plus two smaller
+  // offset side chambers, not a mirrored pair), the Expert Enclave (rows 53-61, a
+  // cross-shaped hall with four alcove rooms around an open central crossing), and the
+  // Mastery Vault (rows 63-71, a big outer gallery ring wrapped around a separate,
+  // walled inner sanctum room) — are each a distinct shape and size, not the same room
+  // reused with a different coat of paint: solid walls with door/window texture on some
+  // faces for character, and a multi-tile gap left completely open as the actual
+  // entrance, since a literal door/gate tile never opens. Furniture lives inside as
+  // CAMPUS_PROPS billboards (see below). The open-air Peaks pavilion has no walls at
+  // all — just open floor — reflecting how it always worked, now inside a wider plaza.
+  // Every tier boundary is a single full-width wall with one locked gate cell in it (see
+  // CAMPUS_GATES), keeping every checkpoint a real choke point even though the halls on
+  // both sides of it are wide open.
   const CAMPUS_CHALLENGERS: (CampusChallenger & { x: number; y: number; dir: number })[] = [
     {
       id: 'npc_1', x: 21.5, y: 13.5, dir: 1, districtId: 'peaks',
@@ -6007,28 +6018,28 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // that never overlaps anything in the original QUESTION_BANK. Rewards climb with every
     // tier. See QUEST_TIERS below for how these four-per-tier groups gate one another.
     {
-      id: 'npc_5', x: 13.5, y: 44.5, dir: 1, districtId: 'advanced',
+      id: 'npc_5', x: 8.5, y: 45.5, dir: 1, districtId: 'advanced',
       name: 'Instructor Kade Villareal', area: '⚙️ Advanced Wing: Drill Yard',
       statement: 'Foundations are done. Now we push past comfortable.',
       questTitle: 'The Advanced Drill', lore: "Kade runs the Wing's opening trial — the first taste of Advanced-tier pressure.",
       recommendedLevel: 10, rewardXp: 450, rewardCoins: 220, style: 'coach', questionIndex: 0,
     },
     {
-      id: 'npc_6', x: 7.5, y: 47.5, dir: -1, districtId: 'advanced',
+      id: 'npc_6', x: 5.5, y: 49.5, dir: -1, districtId: 'advanced',
       name: 'Dr. Lena Ibarra', area: '⚙️ Advanced Wing: Applied Research Bay',
       statement: "Theory's easy. Let's see you apply it under pressure.",
       questTitle: 'Applied Reasoning', lore: 'Dr. Ibarra tests whether concepts actually transfer to new problems.',
       recommendedLevel: 11, rewardXp: 500, rewardCoins: 240, style: 'researcher', questionIndex: 1,
     },
     {
-      id: 'npc_7', x: 19.5, y: 47.5, dir: 1, districtId: 'advanced',
+      id: 'npc_7', x: 20.5, y: 45.5, dir: 1, districtId: 'advanced',
       name: 'Professor Wilhelm Cruz', area: '⚙️ Advanced Wing: Seminar Hall',
       statement: "One question, no room for guessing. Show me you've internalized this.",
       questTitle: 'The Cross-Topic Seminar', lore: "Professor Cruz's seminar questions are famously unforgiving of surface-level study.",
       recommendedLevel: 12, rewardXp: 550, rewardCoins: 270, style: 'professor', questionIndex: 2,
     },
     {
-      id: 'npc_8', x: 13.5, y: 49.5, dir: -1, districtId: 'advanced',
+      id: 'npc_8', x: 15.5, y: 49.5, dir: -1, districtId: 'advanced',
       name: 'Assistant Dean Farrow', area: '⚙️ Advanced Wing: Review Office',
       statement: 'Clear my review and the Wing is officially yours.',
       questTitle: 'Advanced Wing Review', lore: "Farrow signs off on every student who's proven they belong at this level.",
@@ -6042,14 +6053,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       recommendedLevel: 15, rewardXp: 650, rewardCoins: 320, style: 'researcher', questionIndex: 0,
     },
     {
-      id: 'npc_10', x: 7.5, y: 57.5, dir: -1, districtId: 'expert',
+      id: 'npc_10', x: 6.5, y: 55.5, dir: -1, districtId: 'expert',
       name: 'Elite Coach Tobias Reyne', area: '🧭 Expert Enclave: Elite Training Circle',
       statement: "Everyone who's gotten this far thought they were ready too.",
       questTitle: 'Elite Conditioning', lore: "Tobias trains only those who've already cleared the Advanced Wing.",
       recommendedLevel: 16, rewardXp: 700, rewardCoins: 340, style: 'coach', questionIndex: 1,
     },
     {
-      id: 'npc_11', x: 19.5, y: 57.5, dir: 1, districtId: 'expert',
+      id: 'npc_11', x: 20.5, y: 55.5, dir: 1, districtId: 'expert',
       name: 'Professor Selin Duarte', area: '🧭 Expert Enclave: Advanced Lecture Hall',
       statement: 'My question has one right answer and several convincing wrong ones.',
       questTitle: 'The Duarte Standard', lore: 'Professor Duarte sets the bar every Expert-tier candidate must clear.',
@@ -6070,21 +6081,21 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       recommendedLevel: 20, rewardXp: 850, rewardCoins: 420, style: 'professor', questionIndex: 0,
     },
     {
-      id: 'npc_14', x: 7.5, y: 67.5, dir: -1, districtId: 'mastery',
+      id: 'npc_14', x: 6.5, y: 67.5, dir: -1, districtId: 'mastery',
       name: 'Grandmaster Researcher Voss', area: '👑 Mastery Vault: Deep Archive',
       statement: "Everything you've learned, all at once — that's the point.",
       questTitle: 'The Deep Archive Trial', lore: 'Voss draws from the hardest material the Vault has to offer.',
       recommendedLevel: 22, rewardXp: 950, rewardCoins: 470, style: 'researcher', questionIndex: 1,
     },
     {
-      id: 'npc_15', x: 19.5, y: 67.5, dir: 1, districtId: 'mastery',
+      id: 'npc_15', x: 20.5, y: 67.5, dir: 1, districtId: 'mastery',
       name: 'Grandmaster Coach Renner', area: '👑 Mastery Vault: Final Circuit',
       statement: 'This is the last drill before the Vault itself opens to you.',
       questTitle: 'The Final Circuit', lore: "Renner's circuit is designed to be the hardest single question in the game.",
       recommendedLevel: 24, rewardXp: 1000, rewardCoins: 500, style: 'coach', questionIndex: 2,
     },
     {
-      id: 'npc_16', x: 13.5, y: 69.5, dir: -1, districtId: 'mastery',
+      id: 'npc_16', x: 13.5, y: 67.5, dir: -1, districtId: 'mastery',
       name: 'Dean Emeritus Castellan', area: '👑 Mastery Vault: Emeritus Chamber',
       statement: 'Clear my verdict, and there is nothing left this campus can ask of you.',
       questTitle: 'The Emeritus Verdict', lore: "Castellan's verdict is the capstone of the entire Mastery tier.",
@@ -6306,7 +6317,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     { id: 'note_1', x: 3.5, y: 17.5, title: 'Lab Safety Memo', hint: 'Review tip: dimensional analysis catches unit errors before they catch you.' },
     { id: 'note_2', x: 21.5, y: 10.5, title: 'Faculty Sticky Note', hint: 'Review tip: a thesis statement answers "so what," not just "what."' },
     { id: 'note_3', x: 9.5, y: 23.5, title: 'Torn Notebook Page', hint: 'Review tip: supply and demand only shift together when a factor moves both sides.' },
-    { id: 'note_4', x: 24.5, y: 23.5, title: 'Old Exam Scrap', hint: 'Review tip: skim a passage\'s last paragraph first — it often states the point.' },
+    { id: 'note_4', x: 22.5, y: 23.5, title: 'Old Exam Scrap', hint: 'Review tip: skim a passage\'s last paragraph first — it often states the point.' },
     { id: 'note_5', x: 13.5, y: 18.5, title: 'Crumpled Flyer', hint: 'Review tip: eliminate the two most extreme answer choices first on multiple choice.' },
   ];
 
@@ -6321,11 +6332,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       "The Mastery Citadel gate won't budge till all three Districts are cleared.",
       'I sweep these halls every night — still find lost notes tucked under the benches.',
     ] },
-    { id: 'guide_2', x: 5.5, y: 18.5, dir: -1, name: 'Peer Tutor Mira Santos', lines: [
+    { id: 'guide_2', x: 5.5, y: 19.5, dir: -1, name: 'Peer Tutor Mira Santos', lines: [
       'Teaching Fellow Owens runs the review sessions out in the Practice Wilds — south of here.',
       'TA Priya Santos holds office hours in the Foundation District. Fundamentals-first questions, mostly.',
     ] },
-    { id: 'guide_3', x: 20.5, y: 27.5, dir: 1, name: 'Head Librarian Alderman', lines: [
+    { id: 'guide_3', x: 20.5, y: 28.5, dir: 1, name: 'Head Librarian Alderman', lines: [
       "Here — every student who actually stops by gets a little something for it.",
       "Dr. Reyes up in the Peaks has a reputation, but the material is fair if you've studied.",
     ], reward: { coins: 25, xp: 15 } },
@@ -6394,16 +6405,16 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // below, now relocated to match the much larger renovated interiors.
     // Laboratory interior — equipment along the back (north) wall, walking space kept
     // clear between it and the wide south entrance.
-    { id: 'prop_lab_1', x: 4.5, y: 11.3, glyph: '🧪' },
-    { id: 'prop_lab_2', x: 5.5, y: 11.3, glyph: '⚗️' },
-    { id: 'prop_lab_3', x: 6.5, y: 11.3, glyph: '🔬' },
+    { id: 'prop_lab_1', x: 4.5, y: 10.3, glyph: '🧪' },
+    { id: 'prop_lab_2', x: 5.5, y: 10.3, glyph: '⚗️' },
+    { id: 'prop_lab_3', x: 6.5, y: 10.3, glyph: '🔬' },
     // Classroom interior — desks flanking a center aisle, board near the back wall
     // marking the teacher's area.
-    { id: 'prop_class_desk_1', x: 11.5, y: 23.3, glyph: '🪑' },
-    { id: 'prop_class_desk_2', x: 13.5, y: 23.3, glyph: '🪑' },
-    { id: 'prop_class_desk_3', x: 11.5, y: 24.3, glyph: '🪑' },
-    { id: 'prop_class_desk_4', x: 13.5, y: 24.3, glyph: '🪑' },
-    { id: 'prop_class_board', x: 12.5, y: 21.3, glyph: '📋' },
+    { id: 'prop_class_desk_1', x: 8.5, y: 23.3, glyph: '🪑' },
+    { id: 'prop_class_desk_2', x: 10.5, y: 23.3, glyph: '🪑' },
+    { id: 'prop_class_desk_3', x: 8.5, y: 24.3, glyph: '🪑' },
+    { id: 'prop_class_desk_4', x: 10.5, y: 24.3, glyph: '🪑' },
+    { id: 'prop_class_board', x: 10.5, y: 21.3, glyph: '📋' },
     // Library interior — bookshelves lining both side walls, a small reading table near
     // the back, center aisle kept clear from the entrance.
     { id: 'prop_lib_shelf_1', x: 19.3, y: 23.3, glyph: '📚' },
@@ -6428,21 +6439,21 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // plaque, the further the player's viewing angle strays from square-on.
   type CampusSign = { id: string; x: number; y: number; label: string; side: 'N' | 'S' | 'E' | 'W' };
   const CAMPUS_SIGNS: CampusSign[] = [
-    // Laboratory's east exterior wall (solid col 9, rows 10-16) — faces the open
-    // courtyard/Peaks side to the east, where anyone approaching from that side sees it.
-    { id: 'sign_1', x: 9.04, y: 13.5, label: '🔬 SCIENCE LABS', side: 'E' },
-    // Library's west wall (solid col 18, rows 20-26) — faces the wide central promenade
-    // it and the Classroom sit on opposite sides of.
-    { id: 'sign_2', x: 17.96, y: 23.5, label: '📚 LIBRARY', side: 'W' },
+    // Laboratory's east exterior wall (solid col 11) — faces the open courtyard, where
+    // anyone approaching from that side sees it.
+    { id: 'sign_1', x: 11.04, y: 11.5, label: '🔬 SCIENCE LABS', side: 'E' },
+    // Library's west wall (solid col 17) — faces the wide central promenade it and the
+    // Classroom sit on opposite sides of.
+    { id: 'sign_2', x: 16.96, y: 21.5, label: '📚 LIBRARY', side: 'W' },
     // Mounted on the Mastery Citadel Gate's own wall row (row 30), one cell west of the
     // gate itself, facing north into the courtyard everyone approaches the gate from.
     { id: 'sign_3', x: 12.5, y: 29.96, label: '🏰 MASTERY CITADEL', side: 'N' },
-    // On the west jamb of the Laboratory's entrance gap, facing directly into the
-    // passage — this is now the Foundation District's main building.
-    { id: 'sign_4', x: 3.96, y: 16.5, label: '🏘️ FOUNDATION DISTRICT', side: 'E' },
-    // Classroom's east wall (solid col 15, rows 20-26) — faces the same promenade as
-    // the Library sign opposite it.
-    { id: 'sign_5', x: 15.04, y: 23.5, label: '🏫 CLASSROOM', side: 'E' },
+    // Also on the Laboratory's east wall, further down — reads as the Foundation
+    // District's own building marker for anyone approaching from further south.
+    { id: 'sign_4', x: 11.04, y: 16.5, label: '🏘️ FOUNDATION DISTRICT', side: 'E' },
+    // Classroom's east wall (solid col 13) — faces the same promenade as the Library
+    // sign opposite it.
+    { id: 'sign_5', x: 13.04, y: 21.5, label: '🏫 CLASSROOM', side: 'E' },
   ];
   // Outward-facing normal vector for each wall face a sign can be mounted on — used to
   // tell whether the player is standing on the readable side of the sign, and to
@@ -6970,6 +6981,16 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         | { kind: 'flat'; x0: number; y0: number; x1: number; y1: number; elevation: number }
         | { kind: 'ramp'; x0: number; y0: number; x1: number; y1: number; axis: 'x' | 'y'; from: number; to: number };
       const elevationZones: ElevationZone[] = [];
+      // Real solid collision for the two long sides of every stair flight — accurate,
+      // narrow AABBs hugging the actual stair geometry (see the stair-building pass
+      // below, which populates this), so a player walking a corridor that merely runs
+      // past a staircase physically can't drift sideways into its footprint the way an
+      // un-walled ramp zone would let them. Only the stair's two flanks get a box; the
+      // front (foot of the stairs) and back (top, blending into the terrace) are left
+      // open on purpose — those are the only two places a player should ever actually
+      // enter the stair from. Checked with the same circle-vs-box test canMove already
+      // uses for ordinary walls, never raycasting.
+      const stairSideBoxes: { x0: number; x1: number; y0: number; y1: number }[] = [];
       function getElevation(x: number, y: number): number {
         for (let i = 0; i < elevationZones.length; i++) {
           const z = elevationZones[i];
@@ -6980,6 +7001,168 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           return z.from + (z.to - z.from) * Math.max(0, Math.min(1, t));
         }
         return 0;
+      }
+
+      // --- VERTICAL PHYSICS (jumping / falling / landing) ----------------------------------
+      // The player's *visual* height (playerElevationY) is now decoupled from the ground
+      // height directly under their feet (getElevation(playerX, playerY)). While grounded,
+      // it simply tracks the ground the same way it always did — climbing a ramp/staircase
+      // still feels identical, no floating or snapping. The moment the ground drops away
+      // faster than the player can be considered "on" it (walking off a ledge) or the player
+      // jumps, playerElevationY is released from the ground and integrated with gravity
+      // instead, only re-locking once it actually reaches the ground height below. This is
+      // purely visual/physical feedback — canMove()/collision and every gameplay system
+      // below keep reading playerX/playerY exactly as before, so nothing about where the
+      // player is *allowed* to walk changes, only how the vertical motion getting there looks.
+      const GRAVITY = 15.5; // world units / s^2 — tuned so a stair-height drop reads as a quick, snappy fall rather than floaty
+      const JUMP_SPEED = 4.4; // initial upward velocity from a grounded jump
+      const GROUND_SNAP_TOLERANCE = 0.03; // ignore sub-visual jitter between ground reads
+      // A real staircase here is one continuous sloped 'ramp' ElevationZone (see getElevation
+      // above) with a fixed rise-per-run around ~1.2 — steep, but still a walkable slope, not
+      // a drop. Anything descending noticeably steeper than that in a single frame (a curb, a
+      // terrace edge, a ledge with nothing under it) is treated as an actual fall instead.
+      // Comparing drop-per-horizontal-distance-moved (rather than a flat per-frame drop
+      // amount) makes this frame-rate independent and correctly leaves smooth stair descent
+      // alone while still catching real edges, including small ones.
+      const MAX_WALK_SLOPE = 2.4;
+      let playerElevationY = getElevation(playerX, playerY);
+      let playerVerticalVelocity = 0;
+      let isAirborne = false;
+      let airbornePeakElevation = playerElevationY;
+      let lastPhysicsX = playerX;
+      let lastPhysicsY = playerY;
+      // Landing squash/bounce feedback, expressed as a 0..1 strength that decays after a
+      // landing lands — consumed by both the camera (a tiny extra dip+recover added to its
+      // height) and the character mesh (a brief vertical squash) so the impact reads in both
+      // places without either one owning its own separate timer.
+      let landingBounceStrength = 0;
+      let landingBounceAge = 0;
+      const LANDING_BOUNCE_DURATION = 0.32;
+      type DustParticle = { sprite: THREE.Sprite; vx: number; vy: number; vz: number; age: number; life: number };
+      const dustParticles: DustParticle[] = [];
+      const dustTexture = makeCanvasTexture((cctx, size) => {
+        const grad = cctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+        grad.addColorStop(0, 'rgba(255,255,255,0.85)');
+        grad.addColorStop(0.5, 'rgba(230,220,200,0.35)');
+        grad.addColorStop(1, 'rgba(230,220,200,0)');
+        cctx.fillStyle = grad;
+        cctx.fillRect(0, 0, size, size);
+      }, 32);
+      function spawnLandingDust(x: number, groundY: number, z: number, strength: number) {
+        const count = Math.max(3, Math.min(9, Math.round(3 + strength * 7)));
+        for (let i = 0; i < count; i++) {
+          const mat = new THREE.SpriteMaterial({ map: dustTexture, transparent: true, opacity: 0.55 * strength, depthWrite: false });
+          const sprite = new THREE.Sprite(mat);
+          const s = 0.18 + strength * 0.22 + Math.random() * 0.08;
+          sprite.scale.set(s, s, 1);
+          sprite.position.set(x, groundY + 0.03, z);
+          worldGroup.add(sprite);
+          const ang = Math.random() * Math.PI * 2;
+          const spd = (0.4 + Math.random() * 0.6) * (0.5 + strength * 0.7);
+          dustParticles.push({
+            sprite,
+            vx: Math.cos(ang) * spd,
+            vy: (0.6 + Math.random() * 0.5) * (0.4 + strength * 0.6),
+            vz: Math.sin(ang) * spd,
+            age: 0,
+            life: 0.35 + strength * 0.25,
+          });
+        }
+      }
+      function updateDustParticles(dt: number) {
+        for (let i = dustParticles.length - 1; i >= 0; i--) {
+          const p = dustParticles[i];
+          p.age += dt;
+          if (p.age >= p.life) {
+            worldGroup.remove(p.sprite);
+            (p.sprite.material as THREE.SpriteMaterial).map = null;
+            p.sprite.material.dispose();
+            dustParticles.splice(i, 1);
+            continue;
+          }
+          const t = p.age / p.life;
+          p.vy -= GRAVITY * 0.5 * dt;
+          p.sprite.position.x += p.vx * dt;
+          p.sprite.position.y += p.vy * dt;
+          p.sprite.position.z += p.vz * dt;
+          (p.sprite.material as THREE.SpriteMaterial).opacity = 0.55 * (1 - t);
+          p.sprite.scale.setScalar(p.sprite.scale.x * (1 + (0.6 * dt) / p.life));
+        }
+      }
+      // Advances the player's vertical position for one frame. Called every frame regardless
+      // of movement input, so standing still at the edge of a platform still falls, and a
+      // jump still arcs and lands even if the player releases all movement keys mid-air.
+      function updateVerticalPhysics(dt: number) {
+        if (landingBounceStrength > 0) {
+          landingBounceAge += dt;
+          if (landingBounceAge >= LANDING_BOUNCE_DURATION) landingBounceStrength = 0;
+        }
+        const groundY = getElevation(playerX, playerY);
+        if (!isAirborne) {
+          const drop = playerElevationY - groundY;
+          if (drop > GROUND_SNAP_TOLERANCE) {
+            const dx = playerX - lastPhysicsX;
+            const dy = playerY - lastPhysicsY;
+            const horizDist = Math.hypot(dx, dy);
+            const slope = horizDist > 1e-4 ? drop / horizDist : Infinity;
+            if (slope > MAX_WALK_SLOPE) {
+              // Steeper than any real staircase here — an actual edge/ledge. Release into a
+              // real fall instead of snapping/sliding down the drop.
+              isAirborne = true;
+              playerVerticalVelocity = Math.min(playerVerticalVelocity, 0);
+              airbornePeakElevation = playerElevationY;
+            } else {
+              // A real (if steep) walkable slope — follow it directly, same as before.
+              playerElevationY = groundY;
+            }
+          } else {
+            // Flat ground, climbing a ramp/stairs, or a negligible change — follow it
+            // directly, exactly like the original always-snapped behavior.
+            playerElevationY = groundY;
+          }
+        }
+        if (isAirborne) {
+          playerVerticalVelocity -= GRAVITY * dt;
+          playerElevationY += playerVerticalVelocity * dt;
+          if (playerElevationY > airbornePeakElevation) airbornePeakElevation = playerElevationY;
+          const currentGroundY = getElevation(playerX, playerY);
+          if (playerElevationY <= currentGroundY) {
+            const fallDistance = Math.max(0, airbornePeakElevation - currentGroundY);
+            playerElevationY = currentGroundY;
+            playerVerticalVelocity = 0;
+            isAirborne = false;
+            if (fallDistance > 0.06) {
+              // Scale the landing feedback with how far the player actually fell: a small
+              // step barely registers, a real drop (off a balcony, missed stair edge) gives
+              // a noticeably stronger bounce + dust puff, clamped so huge drops don't blow
+              // the effect out.
+              const strength = Math.max(0, Math.min(1, fallDistance / 2.2));
+              landingBounceStrength = Math.max(landingBounceStrength, 0.15 + strength * 0.85);
+              landingBounceAge = 0;
+              spawnLandingDust(playerX, currentGroundY, playerY, strength);
+            }
+          }
+        }
+        lastPhysicsX = playerX;
+        lastPhysicsY = playerY;
+      }
+      function tryJump() {
+        if (isAirborne) return;
+        const groundY = getElevation(playerX, playerY);
+        // Only allow launching from something the player is actually resting on (guards
+        // against jumping while mid-step-up onto a stair, which is handled as a snap above).
+        if (Math.abs(playerElevationY - groundY) > GROUND_SNAP_TOLERANCE) return;
+        isAirborne = true;
+        playerVerticalVelocity = JUMP_SPEED;
+        airbornePeakElevation = playerElevationY;
+      }
+      // A single 0..1 value (peaking the instant a landing happens, easing back to 0 over
+      // LANDING_BOUNCE_DURATION) shared by both the camera and the character mesh below so
+      // the dip/squash reads as one cohesive impact rather than two independently-timed ones.
+      function getLandingBounceFactor(): number {
+        if (landingBounceStrength <= 0) return 0;
+        const t = Math.min(1, landingBounceAge / LANDING_BOUNCE_DURATION);
+        return landingBounceStrength * (1 - t);
       }
 
       let targetCameraDistance = CAMERA_DEFAULT_DISTANCE;
@@ -7211,25 +7394,36 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const districtRoofColor = (d: CampusDistrict) => SCHOOL_GREEN.clone().lerp(districtColor(d.ceil), 0.12);
       const districtPathColor = (d: CampusDistrict) => SCHOOL_CONCRETE.clone().lerp(districtColor(d.floor), 0.06);
 
-      // --- indoor building footprints. Hand-placed to match CAMPUS_MAP's own documented
-      // layout (Laboratory / Classroom / Library / the three tier halls) exactly, so every
-      // real room gets a proper ceiling and every open plaza/corridor between buildings
-      // stays outdoors under open sky — a real campus of separate buildings joined by
-      // pathways, not one single roofed box.
-      // Every building now also carries a `style` — real campuses don't build every
-      // block from the same one plan, so this drives roof shape, wall-material tint,
-      // and one signature massing feature per building later in the render pass
-      // (addRoofForStyle / addSignatureFeature below), instead of the old one-size-
-      // fits-all box-with-a-flat-roof every building used to get.
+      // --- indoor building footprints. Hand-placed to match CAMPUS_MAP's own renovated
+      // layout exactly, so every real room gets a proper ceiling and every open
+      // plaza/corridor/loop-route between buildings stays outdoors under open sky — a
+      // real campus of separate, differently-shaped buildings joined by pathways, not
+      // one single roofed box, and not three identical boxes copy-pasted down the tier
+      // spine either: the Advanced Wing is a big hall plus two smaller offset side
+      // chambers, the Expert Enclave is four alcoves around a central open crossing, and
+      // the Mastery Vault is an outer gallery ring wrapped around a separate inner
+      // sanctum room — three genuinely different massing plans instead of one reused
+      // three times.
+      // Every building also carries a `style` — real campuses don't build every block
+      // from the same one plan, so this drives roof shape, wall-material tint, and one
+      // signature massing feature per building later in the render pass
+      // (addRoofForStyle / addSignatureFeature below), instead of a one-size-fits-all
+      // box-with-a-flat-roof for every building.
       const BUILDINGS: { x0: number; y0: number; x1: number; y1: number; districtId: string; label: string; style: 'civic' | 'lab' | 'classic' | 'library' | 'fortress' | 'industrial' | 'sleek' | 'vault' }[] = [
-        { x0: 9, y0: 1, x1: 18, y1: 7, districtId: 'foundation', label: 'Administration Hall', style: 'civic' },
-        { x0: 2, y0: 10, x1: 10, y1: 17, districtId: 'foundation', label: 'Laboratory', style: 'lab' },
-        { x0: 10, y0: 20, x1: 16, y1: 27, districtId: 'wilds', label: 'Classroom', style: 'classic' },
-        { x0: 18, y0: 20, x1: 24, y1: 27, districtId: 'wilds', label: 'Library', style: 'library' },
-        { x0: 8, y0: 31, x1: 20, y1: 39, districtId: 'citadel', label: 'Mastery Citadel', style: 'fortress' },
-        { x0: 1, y0: 43, x1: 26, y1: 52, districtId: 'advanced', label: 'Advanced Wing', style: 'industrial' },
-        { x0: 1, y0: 53, x1: 26, y1: 62, districtId: 'expert', label: 'Expert Enclave', style: 'sleek' },
-        { x0: 1, y0: 63, x1: 26, y1: 72, districtId: 'mastery', label: 'Mastery Vault', style: 'vault' },
+        { x0: 6, y0: 1, x1: 21, y1: 7, districtId: 'foundation', label: 'Administration Hall', style: 'civic' },
+        { x0: 1, y0: 9, x1: 12, y1: 19, districtId: 'foundation', label: 'Laboratory', style: 'lab' },
+        { x0: 6, y0: 20, x1: 14, y1: 28, districtId: 'wilds', label: 'Classroom', style: 'classic' },
+        { x0: 17, y0: 20, x1: 25, y1: 28, districtId: 'wilds', label: 'Library', style: 'library' },
+        { x0: 5, y0: 31, x1: 22, y1: 39, districtId: 'citadel', label: 'Mastery Citadel', style: 'fortress' },
+        { x0: 2, y0: 43, x1: 15, y1: 52, districtId: 'advanced', label: 'Advanced Wing — Main Hall', style: 'industrial' },
+        { x0: 16, y0: 43, x1: 25, y1: 48, districtId: 'advanced', label: 'Advanced Wing — Research Bay', style: 'industrial' },
+        { x0: 16, y0: 49, x1: 25, y1: 52, districtId: 'advanced', label: 'Advanced Wing — Review Office', style: 'industrial' },
+        { x0: 2, y0: 53, x1: 12, y1: 57, districtId: 'expert', label: 'Expert Enclave — Field Station', style: 'sleek' },
+        { x0: 15, y0: 53, x1: 25, y1: 57, districtId: 'expert', label: 'Expert Enclave — Lecture Hall', style: 'sleek' },
+        { x0: 2, y0: 58, x1: 12, y1: 61, districtId: 'expert', label: 'Expert Enclave — Training Circle', style: 'sleek' },
+        { x0: 15, y0: 58, x1: 25, y1: 61, districtId: 'expert', label: 'Expert Enclave — Examination Chamber', style: 'sleek' },
+        { x0: 3, y0: 63, x1: 24, y1: 71, districtId: 'mastery', label: 'Mastery Vault — Outer Gallery', style: 'vault' },
+        { x0: 10, y0: 65, x1: 17, y1: 69, districtId: 'mastery', label: 'Mastery Vault — Inner Sanctum', style: 'vault' },
       ];
       const buildingAt = (x: number, y: number) => BUILDINGS.find((b) => x >= b.x0 && x < b.x1 && y >= b.y0 && y < b.y1) ?? null;
 
@@ -7335,38 +7529,27 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             }
 
             if (tile === 7) {
-              // Window texture tile: base wall plus an inset glowing pane with mullions on
-              // every exposed face, so it reads as glass from whichever side you approach.
+              // Window texture tile: base wall plus a large inset glass pane on every
+              // exposed face, so it reads as glass from whichever side you approach. No
+              // vertical bars here anymore — those read as repetitive facade fins once
+              // multiplied across every window on campus, which fights the goal of clean
+              // wall surfaces and generous glazing. A single slim horizontal transom is
+              // the only framing, kept deliberately minimal.
               const wallColor = districtWallColor(district);
               const wallMat = new THREE.MeshStandardMaterial({ color: wallColor, map: brickTexture, roughness: 0.85 });
               worldGroup.add(new THREE.Mesh(new THREE.BoxGeometry(1, WALL_HEIGHT, 1), wallMat).translateX(cx).translateY(WALL_HEIGHT / 2).translateZ(cz));
               const paneMat = new THREE.MeshStandardMaterial({ color: 0xbfe3ec, emissive: new THREE.Color(0x6fc7dc), emissiveIntensity: 0.22, transparent: true, opacity: 0.55, roughness: 0.15, metalness: 0.1 });
-              const paneGeo = new THREE.PlaneGeometry(0.6, 1.15);
+              const paneGeo = new THREE.PlaneGeometry(0.78, 1.55);
               const mullionMat = new THREE.MeshStandardMaterial({ color: SCHOOL_GREEN.clone().lerp(new THREE.Color(0xffffff), 0.1), roughness: 0.55 });
-              const barMat = new THREE.MeshStandardMaterial({ color: 0x2b2f28, roughness: 0.4, metalness: 0.5 });
               [[0, 0.5, cz + 0.51, 0], [0, 0.5, cz - 0.51, Math.PI], [cx + 0.51, 0.5, 0, -Math.PI / 2], [cx - 0.51, 0.5, 0, Math.PI / 2]].forEach(([px, , pz, ry], side) => {
                 const pane = new THREE.Mesh(paneGeo, paneMat);
-                if (side < 2) pane.position.set(cx, WALL_HEIGHT * 0.52, pz as number);
-                else pane.position.set(px as number, WALL_HEIGHT * 0.52, cz);
+                if (side < 2) pane.position.set(cx, WALL_HEIGHT * 0.5, pz as number);
+                else pane.position.set(px as number, WALL_HEIGHT * 0.5, cz);
                 pane.rotation.y = ry as number;
-                const cross = new THREE.Group();
-                const vBar = new THREE.Mesh(new THREE.BoxGeometry(0.03, 1.15, 0.02), mullionMat);
-                const hBar = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.03, 0.02), mullionMat);
-                cross.add(vBar, hBar);
-                cross.position.copy(pane.position);
-                cross.rotation.y = ry as number;
-                worldGroup.add(pane, cross);
-                // Barred window: a small run of vertical steel bars standing proud of the
-                // glass, the classic covered-corridor classroom look.
-                const bars = new THREE.Group();
-                for (let bIdx = -2; bIdx <= 2; bIdx++) {
-                  const bar = new THREE.Mesh(new THREE.BoxGeometry(0.025, 1.05, 0.025), barMat);
-                  bar.position.set(bIdx * 0.11, 0, 0.035);
-                  bars.add(bar);
-                }
-                bars.position.copy(pane.position);
-                bars.rotation.y = ry as number;
-                worldGroup.add(bars);
+                const transom = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.03, 0.02), mullionMat);
+                transom.position.copy(pane.position);
+                transom.rotation.y = ry as number;
+                worldGroup.add(pane, transom);
               });
               continue;
             }
@@ -7387,6 +7570,152 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           const color = shade >= 0 ? districtWallColor(district).clone().lerp(new THREE.Color(0xffffff), shade) : districtWallColor(district).clone().lerp(new THREE.Color(0x000000), -shade);
           const mat = new THREE.MeshStandardMaterial({ color, map: brickTexture, roughness: 0.88 });
           worldGroup.add(new THREE.Mesh(mergeBoxes(entries), mat));
+        });
+      }
+
+      // --- real walk-in doorways: every literal gap a building leaves open in its own
+      // perimeter (or in a shared wall between two adjacent building footprints) is
+      // detected here straight from BUILDINGS + the map grid, and gets an actual door
+      // built into the wall at that exact spot — side jambs, a header lintel, a glazed
+      // transom above the door, a low threshold underfoot, a real hinged door leaf (or
+      // a pair, for wider openings) propped open with a knob — instead of the opening
+      // just being a bare hole. Movement/collision is untouched (still the flat `map`
+      // grid); this only decorates tiles that were already walkable, so nothing here can
+      // ever block or clip the player — the leaf is swung back flat against the inside
+      // wall face, clear of the walkway, the way a real propped-open school door sits.
+      // Very wide gaps (4+ tiles) are left alone — those are intentional open
+      // colonnades/loop-routes, not doorways, and forcing a "door" across one would look
+      // absurd rather than real.
+      {
+        const doorFrameMat = new THREE.MeshStandardMaterial({ color: SCHOOL_CREAM.clone().lerp(new THREE.Color(0x000000), 0.22), map: brickTexture, roughness: 0.82 });
+        const leafMat = new THREE.MeshStandardMaterial({ color: 0x2b3550, roughness: 0.5, metalness: 0.18 });
+        const handleMat = new THREE.MeshStandardMaterial({ color: 0xf2c96d, metalness: 0.65, roughness: 0.28 });
+        const transomMat = new THREE.MeshStandardMaterial({ color: 0xbfe3ec, emissive: new THREE.Color(0x6fc7dc), emissiveIntensity: 0.2, transparent: true, opacity: 0.5, roughness: 0.2, side: THREE.DoubleSide });
+        const thresholdMat = new THREE.MeshStandardMaterial({ color: SCHOOL_CONCRETE.clone().lerp(new THREE.Color(0x000000), 0.12), roughness: 0.9 });
+
+        const DOOR_HEIGHT = 2.05;      // human-scale leaf height, leaves a real header band up to WALL_HEIGHT
+        const JAMB_THICK = 0.1;
+        const JAMB_DEPTH = 0.85;       // matches the ~1-tile wall it's set into
+        const MAX_DOOR_TILES = 3;      // wider gaps are treated as open colonnades, not doors
+
+        const seenRuns = new Set<string>();
+        type DoorSpan = { cx: number; cz: number; alongX: boolean; tiles: number; swingX: number; swingZ: number };
+        const spans: DoorSpan[] = [];
+
+        const isFloor = (x: number, y: number) => x >= 0 && x < mapWidth && y >= 0 && y < mapHeight && map[y][x] === 0;
+
+        // Scans one straight border line of a building (a fixed column for its west/east
+        // wall, or a fixed row for its north/south wall) for runs of open floor tiles —
+        // each run is a doorway gap left in that wall.
+        const scanBorder = (alongX: boolean, fixed: number, from: number, to: number, insideOffset: 1 | -1) => {
+          let runStart: number | null = null;
+          const flush = (end: number) => {
+            if (runStart === null) return;
+            const a = runStart, b = end - 1;
+            const tiles = b - a + 1;
+            runStart = null;
+            if (tiles < 1 || tiles > MAX_DOOR_TILES) return;
+            const key = alongX ? `x:${fixed}:${a}` : `y:${fixed}:${a}`;
+            if (seenRuns.has(key)) return;
+            seenRuns.add(key);
+            const mid = a + tiles / 2;
+            const cx = alongX ? mid : fixed + 0.5;
+            const cz = alongX ? fixed + 0.5 : mid;
+            // Figure out which side of the wall is "inside" so the leaf swings back into
+            // the room instead of out across the walkway — checked from the actual
+            // building footprints on each side of the gap, not just assumed.
+            const insideX = alongX ? 0 : (buildingAt(fixed + insideOffset, Math.floor(mid)) ? insideOffset : -insideOffset);
+            const insideZ = alongX ? (buildingAt(Math.floor(mid), fixed + insideOffset) ? insideOffset : -insideOffset) : 0;
+            spans.push({ cx, cz, alongX, tiles, swingX: insideX, swingZ: insideZ });
+          };
+          for (let i = from; i < to; i++) {
+            const x = alongX ? i : fixed;
+            const y = alongX ? fixed : i;
+            if (isFloor(x, y)) { if (runStart === null) runStart = i; }
+            else flush(i);
+          }
+          flush(to);
+        };
+
+        BUILDINGS.forEach((b) => {
+          scanBorder(false, b.x0 - 1, b.y0, b.y1, 1);  // west wall: fixed column, scan rows, inside is +x
+          scanBorder(false, b.x1, b.y0, b.y1, -1);      // east wall: inside is -x
+          scanBorder(true, b.y0 - 1, b.x0, b.x1, 1);    // north wall: fixed row, scan columns, inside is +y(+z)
+          scanBorder(true, b.y1, b.x0, b.x1, -1);       // south wall: inside is -y(-z)
+        });
+
+        spans.forEach(({ cx, cz, alongX, tiles, swingX, swingZ }) => {
+          const district = getDistrictAt(cx, cz);
+          const wallColor = districtWallColor(district);
+          const frameMat = doorFrameMat.clone(); frameMat.color = wallColor.clone().lerp(new THREE.Color(0x000000), 0.2);
+          const totalWidth = tiles * 1.0;
+          const clearWidth = Math.max(0.5, totalWidth - JAMB_THICK * 2 - 0.05);
+          const leafCount = totalWidth > 1.5 ? 2 : 1;
+          const leafWidth = (clearWidth - (leafCount - 1) * 0.04) / leafCount;
+          const leafThickness = 0.06;
+
+          // Two side jambs, flush with the opening's ends, full door height.
+          [-1, 1].forEach((side) => {
+            const off = side * (totalWidth / 2 - JAMB_THICK / 2);
+            const jamb = new THREE.Mesh(
+              new THREE.BoxGeometry(alongX ? JAMB_THICK : JAMB_DEPTH, DOOR_HEIGHT, alongX ? JAMB_DEPTH : JAMB_THICK),
+              frameMat,
+            );
+            jamb.position.set(cx + (alongX ? off : 0), DOOR_HEIGHT / 2, cz + (alongX ? 0 : off));
+            worldGroup.add(jamb);
+          });
+
+          // Header lintel closing the gap from door height up to the ceiling line, plus a
+          // glazed transom set into it — a real window above the door, not a blank slab.
+          const headerH = WALL_HEIGHT - DOOR_HEIGHT;
+          const header = new THREE.Mesh(
+            new THREE.BoxGeometry(alongX ? totalWidth : JAMB_DEPTH, headerH, alongX ? JAMB_DEPTH : totalWidth),
+            frameMat,
+          );
+          header.position.set(cx, DOOR_HEIGHT + headerH / 2, cz);
+          worldGroup.add(header);
+          if (headerH > 0.45) {
+            const pane = new THREE.Mesh(new THREE.PlaneGeometry(totalWidth - 0.3, headerH - 0.14), transomMat);
+            const py = DOOR_HEIGHT + headerH / 2;
+            if (alongX) pane.position.set(cx, py, cz + JAMB_DEPTH / 2 + 0.01);
+            else { pane.rotation.y = Math.PI / 2; pane.position.set(cx + JAMB_DEPTH / 2 + 0.01, py, cz); }
+            worldGroup.add(pane);
+          }
+
+          // Threshold: a thin concrete strip flush with the floor, marking the sill.
+          const threshold = new THREE.Mesh(
+            new THREE.BoxGeometry(alongX ? totalWidth - 0.1 : 0.32, 0.04, alongX ? 0.32 : totalWidth - 0.1),
+            thresholdMat,
+          );
+          threshold.position.set(cx, 0.02, cz);
+          worldGroup.add(threshold);
+
+          // Door leaf/leaves: hinged at their outer jamb via a pivot group, swung open
+          // toward the inside of the room so the walkway through the opening stays clear.
+          const openAngle = (100 * Math.PI) / 180;
+          const hingeSides = leafCount === 1 ? [-1] : [-1, 1];
+          hingeSides.forEach((jSide) => {
+            const hingeOff = jSide * (totalWidth / 2 - JAMB_THICK - 0.02);
+            const pivot = new THREE.Group();
+            pivot.position.set(cx + (alongX ? hingeOff : 0), 0, cz + (alongX ? 0 : hingeOff));
+            const leafLocalOffset = -jSide * (leafWidth / 2);
+            const leaf = new THREE.Mesh(
+              new THREE.BoxGeometry(alongX ? leafWidth : leafThickness, DOOR_HEIGHT - 0.06, alongX ? leafThickness : leafWidth),
+              leafMat,
+            );
+            leaf.position.set(alongX ? leafLocalOffset : 0, (DOOR_HEIGHT - 0.06) / 2, alongX ? 0 : leafLocalOffset);
+            const handle = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), handleMat);
+            const handleEdge = -jSide * (leafWidth - 0.08);
+            handle.position.set(
+              alongX ? handleEdge : leafThickness * 0.8,
+              1.0,
+              alongX ? leafThickness * 0.8 : handleEdge,
+            );
+            pivot.add(leaf, handle);
+            const swingSign = alongX ? (swingZ || 1) : (swingX || 1);
+            pivot.rotation.y = -jSide * swingSign * openAngle;
+            worldGroup.add(pivot);
+          });
         });
       }
 
@@ -7459,18 +7788,22 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         const downspoutMat = new THREE.MeshStandardMaterial({ color: 0x5b6270, roughness: 0.45, metalness: 0.55 });
         const VERANDA_OUT = 0.9; // wider covered canopy/veranda overhang for the grander, more spacious buildings
         const STORY_HEIGHT = 2.8; // taller upper-floor bands to match the raised WALL_HEIGHT below
-        const WINDOW_BAND_H = 1.0;
+        const WINDOW_BAND_H = 1.4; // taller glazed band — a real glass section rather than a thin strip, balancing out the reduced facade ornament elsewhere
 
         const addColumnRun = (x0: number, z0: number, dx: number, dz: number, length: number) => {
           if (length <= 0) return;
-          const steps = Math.max(1, Math.round(length / 1.2));
+          // Wider spacing and a sturdier post than before: a handful of real structural
+          // columns holding up the veranda roof, not a dense repeating run of thin
+          // vertical fins along every facade. Keeps most of each wall reading clean and
+          // uninterrupted, with columns as an occasional accent rather than wallpaper.
+          const steps = Math.max(1, Math.round(length / 2.4));
           for (let i = 0; i <= steps; i++) {
             const t = i / steps;
             const px = x0 + dx * length * t, pz = z0 + dz * length * t;
             // Skip a post where it would land squarely inside a solid boundary wall —
             // keeps the veranda looking attached to the building, not embedded in walls.
             if (!getWalkableCell(Math.floor(px), Math.floor(pz)) && !getWalkableCell(Math.floor(px), Math.floor(pz) - 1)) continue;
-            columnEntries.push({ cx: px, cy: WALL_HEIGHT / 2, cz: pz, sx: 0.16, sy: WALL_HEIGHT, sz: 0.16 });
+            columnEntries.push({ cx: px, cy: WALL_HEIGHT / 2, cz: pz, sx: 0.22, sy: WALL_HEIGHT, sz: 0.22 });
           }
         };
 
@@ -7752,16 +8085,34 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
               // flat landing under the terrace. canMove()/the map grid never change —
               // every tile here was already open floor; this only adds how high standing
               // on it puts the player and the camera (see getElevation).
+              const rampX0 = axis === 'x' ? Math.min(baseX, topX) : baseX - STAIR_HALF_WIDTH;
+              const rampX1 = axis === 'x' ? Math.max(baseX, topX) : baseX + STAIR_HALF_WIDTH;
+              const rampY0 = axis === 'z' ? Math.min(baseZ, topZ) : baseZ - STAIR_HALF_WIDTH;
+              const rampY1 = axis === 'z' ? Math.max(baseZ, topZ) : baseZ + STAIR_HALF_WIDTH;
               elevationZones.push({
                 kind: 'ramp',
-                x0: axis === 'x' ? Math.min(baseX, topX) : baseX - STAIR_HALF_WIDTH,
-                x1: axis === 'x' ? Math.max(baseX, topX) : baseX + STAIR_HALF_WIDTH,
-                y0: axis === 'z' ? Math.min(baseZ, topZ) : baseZ - STAIR_HALF_WIDTH,
-                y1: axis === 'z' ? Math.max(baseZ, topZ) : baseZ + STAIR_HALF_WIDTH,
+                x0: rampX0, x1: rampX1, y0: rampY0, y1: rampY1,
                 axis: axis === 'x' ? 'x' : 'y',
                 from: sign > 0 ? 0 : terraceElevation,
                 to: sign > 0 ? terraceElevation : 0,
               });
+              // Solid flank boundaries, one hugging each long side of the flight (the
+              // stair's actual footprint — same bounds as the ramp zone above, just
+              // turned into real collision rather than a bare elevation rectangle). Runs
+              // exactly base-to-top along the climbing axis and stops there, so the open
+              // ends at the foot and at the terrace are left clear to walk in through.
+              const SIDE_WALL_THICK = 0.16;
+              if (axis === 'x') {
+                stairSideBoxes.push(
+                  { x0: rampX0, x1: rampX1, y0: rampY0 - SIDE_WALL_THICK, y1: rampY0 },
+                  { x0: rampX0, x1: rampX1, y0: rampY1, y1: rampY1 + SIDE_WALL_THICK },
+                );
+              } else {
+                stairSideBoxes.push(
+                  { x0: rampX0 - SIDE_WALL_THICK, x1: rampX0, y0: rampY0, y1: rampY1 },
+                  { x0: rampX1, x1: rampX1 + SIDE_WALL_THICK, y0: rampY0, y1: rampY1 },
+                );
+              }
               elevationZones.push({
                 kind: 'flat',
                 x0: axis === 'x' ? Math.min(topX, farX) : terraceMidX - STAIR_HALF_WIDTH,
@@ -8032,19 +8383,54 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           if (cfg.hair === 'long') { const back = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.32, 4, 6), hairMat); back.position.y = 1.32; g.add(back); }
           g.add(hair);
         }
+
+        // Legs and arms swing from real hip/shoulder pivots (empty Groups placed at the
+        // joint height), with the limb mesh — and, for legs, the shoe — as children offset
+        // *below* that pivot. Rotating the pivot therefore carries the whole limb (foot
+        // included) through the swing together, the same way a real leg or arm moves from
+        // its joint. Previously the leg capsule and shoe were separate, independently-placed
+        // siblings: rotating the leg mesh spun it around its own midpoint while the shoe
+        // stayed glued to the floor, which is what produced the "gliding/ice-skating" look
+        // instead of a walk — the feet never actually moved with the legs. The final world
+        // position of every mesh below is unchanged from before, so the idle/standing pose
+        // looks identical; only the pivot origin used for animation has moved to the joint.
         const legGeo = new THREE.CapsuleGeometry(0.085, 0.42, 4, 6);
-        const legL = new THREE.Mesh(legGeo, bottomMat); legL.position.set(-0.095, 0.42, 0);
-        const legR = legL.clone(); legR.position.x = 0.095;
-        g.add(legL, legR);
+        const legLen = 0.42 + 2 * 0.085; // full capsule height including the rounded caps
+        const hipY = 0.715; // matches the previous leg capsule's top (0.42 + legLen/2)
         const shoeGeo = new THREE.BoxGeometry(0.11, 0.08, 0.2);
-        const shoeL = new THREE.Mesh(shoeGeo, shoeMat); shoeL.position.set(-0.095, 0.06, 0.03);
-        const shoeR = shoeL.clone(); shoeR.position.x = 0.095;
-        g.add(shoeL, shoeR);
+        function makeLeg(xOff: number): THREE.Group {
+          const pivot = new THREE.Group();
+          pivot.position.set(xOff, hipY, 0);
+          const leg = new THREE.Mesh(legGeo, bottomMat);
+          leg.position.y = -legLen / 2;
+          const shoe = new THREE.Mesh(shoeGeo, shoeMat);
+          shoe.position.set(0, 0.06 - hipY, 0.03); // world y=0.06 at rest, same as before
+          pivot.add(leg, shoe);
+          return pivot;
+        }
+        const legPivotL = makeLeg(-0.095);
+        const legPivotR = makeLeg(0.095);
+        g.add(legPivotL, legPivotR);
+
         const armGeo = new THREE.CapsuleGeometry(0.055, 0.38, 4, 6);
-        const armL = new THREE.Mesh(armGeo, topMat); armL.position.set(-0.26, 0.95, 0);
-        const armR = armL.clone(); armR.position.x = 0.26;
-        g.add(armL, armR);
-        g.userData.legL = legL; g.userData.legR = legR; g.userData.armL = armL; g.userData.armR = armR; g.userData.torso = torso;
+        const armLen = 0.38 + 2 * 0.055;
+        const shoulderY = 0.95 + armLen / 2; // matches the previous arm capsule's top
+        function makeArm(xOff: number): { pivot: THREE.Group; mesh: THREE.Mesh } {
+          const pivot = new THREE.Group();
+          pivot.position.set(xOff, shoulderY, 0);
+          const mesh = new THREE.Mesh(armGeo, topMat);
+          mesh.position.y = -armLen / 2;
+          pivot.add(mesh);
+          return { pivot, mesh };
+        }
+        const armL = makeArm(-0.26);
+        const armR = makeArm(0.26);
+        g.add(armL.pivot, armR.pivot);
+
+        g.userData.legL = legPivotL; g.userData.legR = legPivotR;
+        g.userData.armL = armL.mesh; g.userData.armR = armR.mesh;
+        g.userData.armPivotL = armL.pivot; g.userData.armPivotR = armR.pivot;
+        g.userData.torso = torso;
         return g;
       }
 
@@ -8278,6 +8664,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             if (hit) interact(hit.target, hit.worldX, hit.worldY);
           }
         }
+        // Jump — purely a vertical-physics action (see updateVerticalPhysics/tryJump above),
+        // doesn't touch movement, battles, quests, or anything else gameplay-related.
+        if (key === ' ') {
+          e.preventDefault();
+          tryJump();
+        }
       };
       const handleKeyUp = (e: KeyboardEvent) => { keys[e.key.toLowerCase()] = false; };
       const handleMouseMove = (e: MouseEvent) => { if (pointerLocked) mouseDX += e.movementX; };
@@ -8499,8 +8891,23 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         }
         return false;
       }
+      // Same circle-vs-box test as circleHitsWall above, just against the stair flank
+      // boxes instead of tile-grid walls — real geometry, no raycasting. This is what
+      // stops the player drifting sideways into a staircase while walking a corridor
+      // that merely runs past it: the flanks are solid, so the only way in is through
+      // the open front or back, exactly like a real staircase with real side walls.
+      function circleHitsStairSide(cx: number, cy: number, radius: number) {
+        for (let i = 0; i < stairSideBoxes.length; i++) {
+          const bxx = stairSideBoxes[i];
+          const closestX = Math.max(bxx.x0, Math.min(cx, bxx.x1));
+          const closestY = Math.max(bxx.y0, Math.min(cy, bxx.y1));
+          const dx = cx - closestX, dy = cy - closestY;
+          if (dx * dx + dy * dy < radius * radius) return true;
+        }
+        return false;
+      }
       function canMove(nx: number, ny: number) {
-        return !circleHitsWall(nx, ny, PLAYER_RADIUS);
+        return !circleHitsWall(nx, ny, PLAYER_RADIUS) && !circleHitsStairSide(nx, ny, PLAYER_RADIUS);
       }
 
       const NPC_RADIUS = 0.3;
@@ -8628,7 +9035,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // flight of stairs raises the whole view continuously instead of snapping.
         const camGroundElevation = getElevation(camX, camY);
         smoothCamElevation += (camGroundElevation - smoothCamElevation) * followT;
-        const cameraDisplayHeight = currentCameraHeight + bobHeight + smoothCamElevation;
+        // A small camera dip on landing, sharing the same decaying factor as the character's
+        // squash above so the two read as one impact rather than two separate effects. Scaled
+        // down from the character's own squash since the camera sits further from the ground.
+        const cameraBounceDip = getLandingBounceFactor() * 0.12;
+        const cameraDisplayHeight = currentCameraHeight + bobHeight + smoothCamElevation - cameraBounceDip;
 
         camera.fov = fovDeg;
         camera.updateProjectionMatrix();
@@ -8701,7 +9112,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         const showPlayerBody = currentCameraDistance > CAMERA_CLOSE_DISTANCE * 0.78;
         playerMesh.visible = showPlayerBody;
         if (showPlayerBody) {
-          playerMesh.position.set(playerX, getElevation(playerX, playerY), playerY);
+          const bounceF = getLandingBounceFactor();
+          // Landing squash: a brief, decaying compress-on-Y/stretch-on-XZ right as the
+          // player touches down, stronger for a hard landing (bigger bounceF from a bigger
+          // fall) and barely perceptible for an ordinary footstep down a curb.
+          const squashY = 1 - bounceF * 0.22;
+          const squashXZ = 1 + bounceF * 0.11;
+          playerMesh.scale.set(squashXZ, squashY, squashXZ);
+          playerMesh.position.set(playerX, playerElevationY, playerY);
           playerMesh.rotation.y = -playerAngle + Math.PI / 2;
           const cfg = avatarRef.current;
           if (playerMesh.userData.lastTop !== cfg.topColor) {
@@ -8710,11 +9128,22 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             ((playerMesh.userData.armL as THREE.Mesh).material as THREE.MeshStandardMaterial).color.setHex(TOP_COLOR_HEX[cfg.topColor]);
             ((playerMesh.userData.armR as THREE.Mesh).material as THREE.MeshStandardMaterial).color.setHex(TOP_COLOR_HEX[cfg.topColor]);
           }
-          const swing = playerWalking ? Math.sin(walkPhase) * 0.5 : 0;
-          (playerMesh.userData.legL as THREE.Mesh).rotation.x = swing;
-          (playerMesh.userData.legR as THREE.Mesh).rotation.x = -swing;
-          (playerMesh.userData.armL as THREE.Mesh).rotation.x = -swing;
-          (playerMesh.userData.armR as THREE.Mesh).rotation.x = swing;
+          if (isAirborne) {
+            // Simple, natural airborne pose — legs tucked slightly, arms trailing — instead
+            // of continuing the ground walk-cycle mid-air.
+            const risingT = Math.max(-1, Math.min(1, playerVerticalVelocity / JUMP_SPEED));
+            const tuck = 0.35 + Math.max(0, risingT) * 0.25;
+            (playerMesh.userData.legL as THREE.Object3D).rotation.x = tuck;
+            (playerMesh.userData.legR as THREE.Object3D).rotation.x = tuck * 0.6;
+            (playerMesh.userData.armPivotL as THREE.Object3D).rotation.x = -0.3;
+            (playerMesh.userData.armPivotR as THREE.Object3D).rotation.x = -0.3;
+          } else {
+            const swing = playerWalking ? Math.sin(walkPhase) * 0.5 : 0;
+            (playerMesh.userData.legL as THREE.Object3D).rotation.x = swing;
+            (playerMesh.userData.legR as THREE.Object3D).rotation.x = -swing;
+            (playerMesh.userData.armPivotL as THREE.Object3D).rotation.x = -swing;
+            (playerMesh.userData.armPivotR as THREE.Object3D).rotation.x = swing;
+          }
         }
 
         const discoveredCount = signaledIds.size + collectedNotes.size + triggeredGuides.size;
@@ -8751,15 +9180,28 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             moveY += Math.sin(playerAngle) * forward + Math.sin(playerAngle + Math.PI / 2) * strafe;
           }
           const len = Math.sqrt(moveX * moveX + moveY * moveY);
-          const isWalking = len > 0;
-          playerWalking = isWalking;
-          if (isWalking) {
-            walkPhase += dt * (isMobile ? 9.5 : 10.5);
+          const wantsToWalk = len > 0;
+          let actuallyMoved = false;
+          if (wantsToWalk) {
             moveX = (moveX / len) * moveSpeed * dt; moveY = (moveY / len) * moveSpeed * dt;
             const nx = playerX + moveX, ny = playerY + moveY;
-            if (canMove(nx, playerY) && !collidesWithNpc(nx, playerY)) playerX = nx;
-            if (canMove(playerX, ny) && !collidesWithNpc(playerX, ny)) playerY = ny;
+            if (canMove(nx, playerY) && !collidesWithNpc(nx, playerY)) { playerX = nx; actuallyMoved = true; }
+            if (canMove(playerX, ny) && !collidesWithNpc(playerX, ny)) { playerY = ny; actuallyMoved = true; }
           }
+          // The walk cycle only plays while the player is actually covering ground, not just
+          // holding a direction key — walking straight into a wall now stops the legs instead
+          // of animating in place, and its cadence is directly proportional to moveSpeed
+          // (STRIDE_RATE_PER_SPEED world-units of animation-rad/s per unit of move speed) so
+          // faster movement always reads as a faster stride, never a faster glide.
+          playerWalking = actuallyMoved;
+          if (actuallyMoved) {
+            const STRIDE_RATE_PER_SPEED = 3.5;
+            walkPhase += dt * moveSpeed * STRIDE_RATE_PER_SPEED;
+          }
+          // Vertical motion (gravity, jumping, landing) runs every frame regardless of
+          // horizontal input — see the block above canMove()'s definition for details.
+          updateVerticalPhysics(dt);
+          updateDustParticles(dt);
           updateScene(dt, timestamp);
         }
         raf = requestAnimationFrame(gameLoop);
@@ -8789,7 +9231,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             mats.forEach((m) => m?.dispose?.());
           }
         });
-        [brickTexture, floorTexture, planksTexture].forEach((t) => t.dispose());
+        [brickTexture, floorTexture, planksTexture, dustTexture].forEach((t) => t.dispose());
         renderer.dispose();
       };
     }, []);
