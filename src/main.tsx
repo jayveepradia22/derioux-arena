@@ -806,6 +806,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     font-weight: 700;
     transition: transform .2s, background .2s;
     white-space: nowrap;
+    cursor: pointer;
   }
 
   .btn-primary:hover {
@@ -833,6 +834,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     font-weight: 600;
     transition: transform .2s, border .2s, color .2s;
     white-space: nowrap;
+    cursor: pointer;
   }
 
   .btn-secondary:hover {
@@ -1907,6 +1909,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     color: var(--cyan);
     font: 8px var(--app-font-mono);
     letter-spacing: .08em;
+    cursor: pointer;
     touch-action: manipulation;
   }
   .holo-discovery-btn:hover {
@@ -3629,6 +3632,20 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     display: block;
     width: 100%;
     height: 100%;
+    /* Baseline cursor for the 3D world — JS (updateHoverCursor) swaps this to
+       'pointer' only while the mouse is over something actually interactable
+       (an in-range, still-live NPC/note/guide/gate) and back to 'default'
+       otherwise, including the instant the mouse leaves the canvas. */
+    cursor: default;
+    /* Desktop camera look is driven by a plain mousedown+mousemove drag (see
+       handleCanvasMouseDown/handleMouseMove). Without these, holding the mouse down
+       and moving it can kick off the browser's native text-selection or drag-image
+       gesture instead, which visibly stalls the drag mid-motion and can make it look
+       like WASD movement "drops" while looking around. */
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-user-drag: none;
+    touch-action: none;
   }
   .campus-hud-bar {
     position: absolute;
@@ -3885,6 +3902,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     font-weight: 600;
     white-space: nowrap;
     flex: 0 0 auto;
+    cursor: pointer;
   }
   @media (max-width: 700px) {
     .campus-hud-bar { top: 8px; left: 8px; right: 8px; gap: 5px; }
@@ -3994,9 +4012,22 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   .campus-look-layer {
     position: absolute;
     inset: 0;
-    pointer-events: auto;
+    /* This layer exists purely to catch TOUCH look/pinch gestures (see the
+       lookLayer pointerdown/move/up handlers below, which explicitly ignore
+       pointerType 'mouse'). It must default to pointer-events: none —
+       otherwise, sitting visually on top of the canvas (z-index 4) with
+       pointer-events: auto, it silently swallows every desktop mousedown
+       before it ever reaches the canvas underneath, which is what made
+       click-and-drag camera look do nothing at all. Only re-enable it for
+       touch-primary devices, where the mobile listeners actually need it. */
+    pointer-events: none;
     z-index: 4;
     touch-action: none;
+  }
+  @media (pointer: coarse) {
+    .campus-look-layer {
+      pointer-events: auto;
+    }
   }
   .campus-joystick-zone {
     position: absolute;
@@ -5979,16 +6010,26 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // Every tier boundary is a single full-width wall with one locked gate cell in it (see
   // CAMPUS_GATES), keeping every checkpoint a real choke point even though the halls on
   // both sides of it are wide open.
+  // Facing directions for NPCs/guides — a full 4-way compass instead of the old
+  // east/west-only flip, expressed directly as a rotation.y angle. Paired with the new
+  // eyes on the head model (see makeHumanoid), each NPC now visibly looks toward whichever
+  // direction actually reads as "into the room" for where they're standing (away from the
+  // wall at their back, generally toward the entrance/aisle a player would approach from)
+  // instead of only ever facing straight up or down the map.
+  const FACE_S = 0;             // faces +Y (south / deeper into the map)
+  const FACE_N = Math.PI;       // faces -Y (north / back toward the entrance)
+  const FACE_E = Math.PI / 2;   // faces +X (east)
+  const FACE_W = -Math.PI / 2;  // faces -X (west)
   const CAMPUS_CHALLENGERS: (CampusChallenger & { x: number; y: number; dir: number })[] = [
     {
-      id: 'npc_1', x: 21.5, y: 13.5, dir: 1, districtId: 'peaks',
+      id: 'npc_1', x: 21.5, y: 13.5, dir: FACE_S, districtId: 'peaks',
       name: 'Dr. Reyes, Senior Faculty', area: '🏔️ Challenge Peaks: Advanced Research Wing',
       statement: "I don't go easy on advanced material. Show me you've earned the right to be up here.",
       questTitle: 'The Research Defense', lore: "Dr. Reyes doesn't curve grades. Passing here means the upper-division coursework won't blindside you.",
       recommendedLevel: 5, rewardXp: 250, rewardCoins: 120, style: 'researcher',
     },
     {
-      id: 'npc_2', x: 5.5, y: 17.5, dir: -1, districtId: 'foundation',
+      id: 'npc_2', x: 5.5, y: 17.5, dir: FACE_N, districtId: 'foundation',
       name: 'TA Priya Santos', area: '🏘️ Foundation District: Intro Studies Office',
       statement: "Before you go further, let's make sure the basics actually stuck. Pass my review quiz first.",
       questTitle: 'Foundations Check-In', lore: 'Every term starts here — a quick review checkpoint before the real coursework begins.',
@@ -5998,14 +6039,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // Standing in the open corridor between the Classroom and Library — matches
       // "Practice Wilds: repeated application" better than being inside either room, and
       // keeps this spot clear of both buildings' walls.
-      id: 'npc_3', x: 16.5, y: 23.5, dir: 1, districtId: 'wilds',
+      id: 'npc_3', x: 16.5, y: 23.5, dir: FACE_S, districtId: 'wilds',
       name: 'Teaching Fellow Owens', area: '🌲 Practice Wilds: Weekly Problem-Set Review',
       statement: "Out here it's just reps. Answer set after set until it's automatic — starting now.",
       questTitle: 'The Problem-Set Gauntlet', lore: 'No new material out here — just repetition until the concepts stop feeling foreign.',
       recommendedLevel: 3, rewardXp: 150, rewardCoins: 75, style: 'coach',
     },
     {
-      id: 'npc_4', x: 13.5, y: 34.5, dir: -1, districtId: 'citadel',
+      id: 'npc_4', x: 13.5, y: 34.5, dir: FACE_S, districtId: 'citadel',
       name: 'Dean Alvarez', area: '🏰 Mastery Citadel: Comprehensive Examination Hall',
       statement: "You've cleared every district. Now for the exam that actually counts.",
       questTitle: 'Comprehensive Examination', lore: "The exam that decides whether the term's work actually stuck. Every district's material is fair game.",
@@ -6018,84 +6059,84 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // that never overlaps anything in the original QUESTION_BANK. Rewards climb with every
     // tier. See QUEST_TIERS below for how these four-per-tier groups gate one another.
     {
-      id: 'npc_5', x: 8.5, y: 45.5, dir: 1, districtId: 'advanced',
+      id: 'npc_5', x: 8.5, y: 45.5, dir: FACE_S, districtId: 'advanced',
       name: 'Instructor Kade Villareal', area: '⚙️ Advanced Wing: Drill Yard',
       statement: 'Foundations are done. Now we push past comfortable.',
       questTitle: 'The Advanced Drill', lore: "Kade runs the Wing's opening trial — the first taste of Advanced-tier pressure.",
       recommendedLevel: 10, rewardXp: 450, rewardCoins: 220, style: 'coach', questionIndex: 0,
     },
     {
-      id: 'npc_6', x: 5.5, y: 49.5, dir: -1, districtId: 'advanced',
+      id: 'npc_6', x: 5.5, y: 49.5, dir: FACE_E, districtId: 'advanced',
       name: 'Dr. Lena Ibarra', area: '⚙️ Advanced Wing: Applied Research Bay',
       statement: "Theory's easy. Let's see you apply it under pressure.",
       questTitle: 'Applied Reasoning', lore: 'Dr. Ibarra tests whether concepts actually transfer to new problems.',
       recommendedLevel: 11, rewardXp: 500, rewardCoins: 240, style: 'researcher', questionIndex: 1,
     },
     {
-      id: 'npc_7', x: 20.5, y: 45.5, dir: 1, districtId: 'advanced',
+      id: 'npc_7', x: 20.5, y: 45.5, dir: FACE_W, districtId: 'advanced',
       name: 'Professor Wilhelm Cruz', area: '⚙️ Advanced Wing: Seminar Hall',
       statement: "One question, no room for guessing. Show me you've internalized this.",
       questTitle: 'The Cross-Topic Seminar', lore: "Professor Cruz's seminar questions are famously unforgiving of surface-level study.",
       recommendedLevel: 12, rewardXp: 550, rewardCoins: 270, style: 'professor', questionIndex: 2,
     },
     {
-      id: 'npc_8', x: 15.5, y: 49.5, dir: -1, districtId: 'advanced',
+      id: 'npc_8', x: 15.5, y: 49.5, dir: FACE_N, districtId: 'advanced',
       name: 'Assistant Dean Farrow', area: '⚙️ Advanced Wing: Review Office',
       statement: 'Clear my review and the Wing is officially yours.',
       questTitle: 'Advanced Wing Review', lore: "Farrow signs off on every student who's proven they belong at this level.",
       recommendedLevel: 13, rewardXp: 600, rewardCoins: 300, style: 'dean', questionIndex: 3,
     },
     {
-      id: 'npc_9', x: 13.5, y: 54.5, dir: 1, districtId: 'expert',
+      id: 'npc_9', x: 13.5, y: 54.5, dir: FACE_S, districtId: 'expert',
       name: 'Field Researcher Odessa Marsh', area: '🧭 Expert Enclave: Field Station',
       statement: "Out here, half-answers don't survive contact with the real question.",
       questTitle: 'The Field Trial', lore: "Odessa's field trial marks the entrance to Expert-tier territory.",
       recommendedLevel: 15, rewardXp: 650, rewardCoins: 320, style: 'researcher', questionIndex: 0,
     },
     {
-      id: 'npc_10', x: 6.5, y: 55.5, dir: -1, districtId: 'expert',
+      id: 'npc_10', x: 6.5, y: 55.5, dir: FACE_E, districtId: 'expert',
       name: 'Elite Coach Tobias Reyne', area: '🧭 Expert Enclave: Elite Training Circle',
       statement: "Everyone who's gotten this far thought they were ready too.",
       questTitle: 'Elite Conditioning', lore: "Tobias trains only those who've already cleared the Advanced Wing.",
       recommendedLevel: 16, rewardXp: 700, rewardCoins: 340, style: 'coach', questionIndex: 1,
     },
     {
-      id: 'npc_11', x: 20.5, y: 55.5, dir: 1, districtId: 'expert',
+      id: 'npc_11', x: 20.5, y: 55.5, dir: FACE_W, districtId: 'expert',
       name: 'Professor Selin Duarte', area: '🧭 Expert Enclave: Advanced Lecture Hall',
       statement: 'My question has one right answer and several convincing wrong ones.',
       questTitle: 'The Duarte Standard', lore: 'Professor Duarte sets the bar every Expert-tier candidate must clear.',
       recommendedLevel: 17, rewardXp: 750, rewardCoins: 370, style: 'professor', questionIndex: 2,
     },
     {
-      id: 'npc_12', x: 13.5, y: 59.5, dir: -1, districtId: 'expert',
+      id: 'npc_12', x: 13.5, y: 59.5, dir: FACE_N, districtId: 'expert',
       name: 'Examiner Dean Holt', area: '🧭 Expert Enclave: Examination Chamber',
       statement: "Pass this and you've earned a shot at Mastery.",
       questTitle: 'Expert Enclave Examination', lore: "Dean Holt's exam is the final checkpoint before the Mastery Vault opens.",
       recommendedLevel: 18, rewardXp: 800, rewardCoins: 400, style: 'dean', questionIndex: 3,
     },
     {
-      id: 'npc_13', x: 13.5, y: 64.5, dir: 1, districtId: 'mastery',
+      id: 'npc_13', x: 13.5, y: 64.5, dir: FACE_E, districtId: 'mastery',
       name: 'Grandmaster Iris Calloway', area: '👑 Mastery Vault: Grandmaster Study',
       statement: 'Few make it this far. Fewer still finish what they start.',
       questTitle: 'The Grandmaster Study', lore: "Calloway's study opens the Mastery Vault's trial sequence.",
       recommendedLevel: 20, rewardXp: 850, rewardCoins: 420, style: 'professor', questionIndex: 0,
     },
     {
-      id: 'npc_14', x: 6.5, y: 67.5, dir: -1, districtId: 'mastery',
+      id: 'npc_14', x: 6.5, y: 67.5, dir: FACE_E, districtId: 'mastery',
       name: 'Grandmaster Researcher Voss', area: '👑 Mastery Vault: Deep Archive',
       statement: "Everything you've learned, all at once — that's the point.",
       questTitle: 'The Deep Archive Trial', lore: 'Voss draws from the hardest material the Vault has to offer.',
       recommendedLevel: 22, rewardXp: 950, rewardCoins: 470, style: 'researcher', questionIndex: 1,
     },
     {
-      id: 'npc_15', x: 20.5, y: 67.5, dir: 1, districtId: 'mastery',
+      id: 'npc_15', x: 20.5, y: 67.5, dir: FACE_W, districtId: 'mastery',
       name: 'Grandmaster Coach Renner', area: '👑 Mastery Vault: Final Circuit',
       statement: 'This is the last drill before the Vault itself opens to you.',
       questTitle: 'The Final Circuit', lore: "Renner's circuit is designed to be the hardest single question in the game.",
       recommendedLevel: 24, rewardXp: 1000, rewardCoins: 500, style: 'coach', questionIndex: 2,
     },
     {
-      id: 'npc_16', x: 13.5, y: 67.5, dir: -1, districtId: 'mastery',
+      id: 'npc_16', x: 13.5, y: 67.5, dir: FACE_N, districtId: 'mastery',
       name: 'Dean Emeritus Castellan', area: '👑 Mastery Vault: Emeritus Chamber',
       statement: 'Clear my verdict, and there is nothing left this campus can ask of you.',
       questTitle: 'The Emeritus Verdict', lore: "Castellan's verdict is the capstone of the entire Mastery tier.",
@@ -6328,15 +6369,15 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // so guides feel like real campus resources you'd want to seek out, not just lore triggers.
   type CampusGuide = { id: string; x: number; y: number; dir: number; name: string; lines: string[]; reward?: { coins: number; xp: number } };
   const CAMPUS_GUIDES: CampusGuide[] = [
-    { id: 'guide_1', x: 13.5, y: 8.5, dir: 1, name: 'Campus Custodian Reyes', lines: [
+    { id: 'guide_1', x: 13.5, y: 8.5, dir: FACE_S, name: 'Campus Custodian Reyes', lines: [
       "The Mastery Citadel gate won't budge till all three Districts are cleared.",
       'I sweep these halls every night — still find lost notes tucked under the benches.',
     ] },
-    { id: 'guide_2', x: 5.5, y: 19.5, dir: -1, name: 'Peer Tutor Mira Santos', lines: [
+    { id: 'guide_2', x: 5.5, y: 19.5, dir: FACE_S, name: 'Peer Tutor Mira Santos', lines: [
       'Teaching Fellow Owens runs the review sessions out in the Practice Wilds — south of here.',
       'TA Priya Santos holds office hours in the Foundation District. Fundamentals-first questions, mostly.',
     ] },
-    { id: 'guide_3', x: 20.5, y: 28.5, dir: 1, name: 'Head Librarian Alderman', lines: [
+    { id: 'guide_3', x: 20.5, y: 28.5, dir: FACE_W, name: 'Head Librarian Alderman', lines: [
       "Here — every student who actually stops by gets a little something for it.",
       "Dr. Reyes up in the Peaks has a reputation, but the material is fair if you've studied.",
     ], reward: { coins: 25, xp: 15 } },
@@ -6437,7 +6478,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // Rendering (see the `signs.forEach` pass in CampusExplorer) uses that normal to fade the
   // sign out entirely from the wrong side of the wall and to foreshorten it, like a real flat
   // plaque, the further the player's viewing angle strays from square-on.
-  type CampusSign = { id: string; x: number; y: number; label: string; side: 'N' | 'S' | 'E' | 'W' };
+  type CampusSign = { id: string; x: number; y: number; label: string; side: 'N' | 'S' | 'E' | 'W'; elevation?: number };
   const CAMPUS_SIGNS: CampusSign[] = [
     // Laboratory's east exterior wall (solid col 11) — faces the open courtyard, where
     // anyone approaching from that side sees it.
@@ -6903,6 +6944,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const dismissDiscovery = () => {
         if (discoveryTimer) { window.clearTimeout(discoveryTimer); discoveryTimer = null; }
         discoveryActive = null;
+        // An NPC card being dismissed (tapped or timed out) always means whatever
+        // interaction opened it has finished — hand control of the world back to the
+        // player (movement/click/keyboard) and clear the guard so the same or another
+        // eligible NPC can be approached/clicked again right away. Harmless no-op when
+        // the dismissed card came from a note/guide, since those never touch either flag.
+        roamingActive = true;
+        interactionActive = false;
         advanceDiscoveryQueue();
       };
       const pushDiscovery = (card: DiscoveryCard) => { discoveryQueue.push(card); advanceDiscoveryQueue(); };
@@ -6947,7 +6995,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // that blocks the player (walls, buildings, gates, NPCs) also blocks the camera.
       const CAMERA_OBSTRUCTION_PULL_IN_RATE = 26;
       const CAMERA_OBSTRUCTION_PUSH_OUT_RATE = 7;
-      const CAMERA_ZOOM_RATE = 14;
+      const CAMERA_ZOOM_RATE = 20;
       const CAMERA_COLLIDER_RADIUS = 0.15;
       // Eye-level for the humanoid rig built in makeHumanoid (head center sits at 1.46,
       // eyes a touch below the top of the head) — first-person now actually looks out
@@ -7182,13 +7230,48 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       let smoothCameraBackDist = CAMERA_DEFAULT_DISTANCE;
       let pointerLocked = false;
       let roamingActive = true;
+      // Guards a single NPC interaction (card shown, or hand-off to the quest
+      // briefing/battle in progress) so a second click/tap/'E' press on the same or
+      // another NPC while one is already resolving can never fire a duplicate
+      // battle/quest trigger. Cleared the moment that interaction finishes (see
+      // dismissDiscovery and the tail of interactNpc below), which is also what lets
+      // roamingActive — and therefore clicking/tapping the NPC again — come back once
+      // the player is eligible to interact again, instead of staying stuck off for
+      // the rest of this mount.
+      let interactionActive = false;
       let raf = 0;
       let walkPhase = 0;
       let playerWalking = false;
 
       const keys: Record<string, boolean> = {};
       let mouseDX = 0;
+      let mouseDY = 0;
+      // User-driven vertical look offset (radians), added on top of the automatic
+      // first/third-person pitch blend below — same drag gesture that drives yaw
+      // (mouseDX -> playerAngle) also drives this for vertical drag. Clamped well
+      // short of +/-90deg so the look direction can never flip past straight up/down.
+      let userPitchOffset = 0;
+      const PITCH_OFFSET_MIN = -1.0;
+      const PITCH_OFFSET_MAX = 0.7;
       let touchLookDX = 0;
+      // Desktop Roblox-style "hold left mouse + drag to look" state. Camera yaw/pitch
+      // rotate only while mouseDragActive is true (set on left mousedown, cleared on
+      // mouseup/blur) — plain mouse movement with the button up never touches mouseDX/
+      // mouseDY (see handleMouseMove), and there's no click-to-lock fallback, so the
+      // camera never rotates on its own. mouseMoveTotal (see handleCanvasClick) still
+      // tells a genuine click apart from the mouseup that ends a drag, so releasing a
+      // look-drag over an NPC/gate never accidentally fires an interaction.
+      let mouseDragActive = false;
+      let mouseDownTime = 0;
+      let mouseMoveTotal = 0;
+      // Last known real (unlocked) cursor position, used purely to drive the hover
+      // cursor (see updateHoverCursor) — refreshed on every mousemove and re-checked
+      // once per frame so the cursor also updates as the player walks a target into
+      // or out of interaction range without needing the mouse to move again. Never
+      // read by movement/camera/interaction logic.
+      let lastMouseClientX = 0;
+      let lastMouseClientY = 0;
+      let mouseInsideCanvas = false;
       const isMobile = 'ontouchstart' in window;
       const moveSpeed = isMobile ? 2.0 : 3.0;
       const sensitivity = 0.0016;
@@ -7201,6 +7284,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       function clampCameraDistance(value: number) {
         return Math.max(CAMERA_MIN_DISTANCE, Math.min(CAMERA_MAX_DISTANCE, value));
       }
+      // Tuned so a single desktop wheel notch or one normal pinch motion produces an
+      // immediately noticeable change (Roblox-style snappy zoom) while still leaving
+      // room for the per-frame lerp below (CAMERA_ZOOM_RATE) to smooth it out rather
+      // than let the camera visibly jump.
+      const CAMERA_ZOOM_STEP_MIN = 0.09;
+      const CAMERA_ZOOM_STEP_RATIO = 0.11;
+      const CAMERA_ZOOM_FOV_STEP_DEG = 3.2;
       function setCameraZoomFromInput(delta: number) {
         if (!Number.isFinite(delta) || delta === 0) return;
         const direction = delta > 0 ? 1 : -1;
@@ -7208,16 +7298,16 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // Already fully first-person and still trying to zoom in further: nothing left
         // to dolly, so route the gesture into a gentle FOV narrow instead of ignoring it.
         if (direction < 0 && targetCameraDistance <= CAMERA_FIRST_PERSON_DISTANCE + 0.03) {
-          targetFovOffsetDeg = Math.max(CAMERA_FOV_OFFSET_MIN, Math.min(CAMERA_FOV_OFFSET_MAX, targetFovOffsetDeg - 2.4 * magnitude));
+          targetFovOffsetDeg = Math.max(CAMERA_FOV_OFFSET_MIN, Math.min(CAMERA_FOV_OFFSET_MAX, targetFovOffsetDeg - CAMERA_ZOOM_FOV_STEP_DEG * magnitude));
           return;
         }
         // Zooming back out: relax any FOV narrowing first, then start pulling the
         // camera back once the FOV has returned to its neutral resting point.
         if (direction > 0 && targetFovOffsetDeg !== 0) {
-          targetFovOffsetDeg = Math.max(CAMERA_FOV_OFFSET_MIN, Math.min(CAMERA_FOV_OFFSET_MAX, targetFovOffsetDeg + 2.4 * magnitude));
+          targetFovOffsetDeg = Math.max(CAMERA_FOV_OFFSET_MIN, Math.min(CAMERA_FOV_OFFSET_MAX, targetFovOffsetDeg + CAMERA_ZOOM_FOV_STEP_DEG * magnitude));
           return;
         }
-        const step = Math.max(0.05, targetCameraDistance * 0.02) * magnitude;
+        const step = Math.max(CAMERA_ZOOM_STEP_MIN, targetCameraDistance * CAMERA_ZOOM_STEP_RATIO) * magnitude;
         targetCameraDistance = clampCameraDistance(targetCameraDistance + direction * step);
       }
 
@@ -7474,7 +7564,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // Every real door tile registers its position here so the entrance-canopy /
       // exterior-lighting pass below can attach a canopy + sconce to the actual doorway
       // instead of guessing — one purposeful fixture per entrance, not a scatter of props.
-      const doorEntrances: { cx: number; cz: number }[] = [];
+      const doorEntrances: { cx: number; cz: number; dirX: number; dirZ: number }[] = [];
       {
         const wallEntriesByDistrict = new Map<string, { cx: number; cy: number; cz: number; sx: number; sy: number; sz: number }[]>();
         for (let y = 0; y < mapHeight; y++) {
@@ -7524,7 +7614,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
               const knob = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), new THREE.MeshStandardMaterial({ color: 0xf2c96d, metalness: 0.6, roughness: 0.3 }));
               knob.position.set(cx + 0.12, 1.0, cz + 0.72);
               worldGroup.add(door, knob);
-              doorEntrances.push({ cx, cz });
+              doorEntrances.push({ cx, cz, dirX: 0, dirZ: 1 });
               continue;
             }
 
@@ -7589,7 +7679,9 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       {
         const doorFrameMat = new THREE.MeshStandardMaterial({ color: SCHOOL_CREAM.clone().lerp(new THREE.Color(0x000000), 0.22), map: brickTexture, roughness: 0.82 });
         const leafMat = new THREE.MeshStandardMaterial({ color: 0x2b3550, roughness: 0.5, metalness: 0.18 });
+        const panelMat = new THREE.MeshStandardMaterial({ color: 0x374266, roughness: 0.42, metalness: 0.15 });
         const handleMat = new THREE.MeshStandardMaterial({ color: 0xf2c96d, metalness: 0.65, roughness: 0.28 });
+        const trimMat = new THREE.MeshStandardMaterial({ color: SCHOOL_CREAM.clone().lerp(new THREE.Color(0xffffff), 0.35), roughness: 0.6 });
         const transomMat = new THREE.MeshStandardMaterial({ color: 0xbfe3ec, emissive: new THREE.Color(0x6fc7dc), emissiveIntensity: 0.2, transparent: true, opacity: 0.5, roughness: 0.2, side: THREE.DoubleSide });
         const thresholdMat = new THREE.MeshStandardMaterial({ color: SCHOOL_CONCRETE.clone().lerp(new THREE.Color(0x000000), 0.12), roughness: 0.9 });
 
@@ -7644,6 +7736,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           scanBorder(true, b.y1, b.x0, b.x1, -1);       // south wall: inside is -y(-z)
         });
 
+        // Batched picture-frame casing — a painted trim strip standing slightly proud of
+        // the brick on both wall faces of every opening. This is the detail that makes a
+        // doorway read as a real carpentered door frame rather than just a same-colored
+        // recess in the wall; collected here and merged into one draw call below.
+        const trimEntries: { cx: number; cy: number; cz: number; sx: number; sy: number; sz: number }[] = [];
+
         spans.forEach(({ cx, cz, alongX, tiles, swingX, swingZ }) => {
           const district = getDistrictAt(cx, cz);
           const wallColor = districtWallColor(district);
@@ -7652,7 +7750,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           const clearWidth = Math.max(0.5, totalWidth - JAMB_THICK * 2 - 0.05);
           const leafCount = totalWidth > 1.5 ? 2 : 1;
           const leafWidth = (clearWidth - (leafCount - 1) * 0.04) / leafCount;
-          const leafThickness = 0.06;
+          const leafThickness = 0.07; // a touch thicker than before — reads as a solid slab, not a card
 
           // Two side jambs, flush with the opening's ends, full door height.
           [-1, 1].forEach((side) => {
@@ -7682,6 +7780,21 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             worldGroup.add(pane);
           }
 
+          // Casing: a painted trim strip outlining the door-height opening on both wall
+          // faces, standing slightly proud of the brick — two uprights plus a head piece,
+          // the same shape a real door architrave takes.
+          const faceOff = JAMB_DEPTH / 2 + 0.018;
+          [-1, 1].forEach((face) => {
+            [-1, 1].forEach((side) => {
+              trimEntries.push(alongX
+                ? { cx: cx + side * (totalWidth / 2 + 0.025), cy: (DOOR_HEIGHT + 0.08) / 2, cz: cz + face * faceOff, sx: 0.09, sy: DOOR_HEIGHT + 0.08, sz: 0.03 }
+                : { cx: cx + face * faceOff, cy: (DOOR_HEIGHT + 0.08) / 2, cz: cz + side * (totalWidth / 2 + 0.025), sx: 0.03, sy: DOOR_HEIGHT + 0.08, sz: 0.09 });
+            });
+            trimEntries.push(alongX
+              ? { cx, cy: DOOR_HEIGHT + 0.08, cz: cz + face * faceOff, sx: totalWidth + 0.2, sy: 0.09, sz: 0.03 }
+              : { cx: cx + face * faceOff, cy: DOOR_HEIGHT + 0.08, cz, sx: 0.03, sy: 0.09, sz: totalWidth + 0.2 });
+          });
+
           // Threshold: a thin concrete strip flush with the floor, marking the sill.
           const threshold = new THREE.Mesh(
             new THREE.BoxGeometry(alongX ? totalWidth - 0.1 : 0.32, 0.04, alongX ? 0.32 : totalWidth - 0.1),
@@ -7692,30 +7805,74 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
           // Door leaf/leaves: hinged at their outer jamb via a pivot group, swung open
           // toward the inside of the room so the walkway through the opening stays clear.
-          const openAngle = (100 * Math.PI) / 180;
+          // Tuned to ~65° rather than nearly-flat-against-the-wall — enough to read as
+          // genuinely open and to leave the tile grid's walkway completely clear, but not
+          // so far that the slab folds away edge-on and disappears from view. Each leaf
+          // carries a raised center panel on both faces (a real door has visible structure,
+          // not a flat painted card) and a lever handle on a backplate near its free edge.
+          const openAngle = (65 * Math.PI) / 180;
           const hingeSides = leafCount === 1 ? [-1] : [-1, 1];
           hingeSides.forEach((jSide) => {
             const hingeOff = jSide * (totalWidth / 2 - JAMB_THICK - 0.02);
             const pivot = new THREE.Group();
             pivot.position.set(cx + (alongX ? hingeOff : 0), 0, cz + (alongX ? 0 : hingeOff));
             const leafLocalOffset = -jSide * (leafWidth / 2);
+            const leafH = DOOR_HEIGHT - 0.06;
             const leaf = new THREE.Mesh(
-              new THREE.BoxGeometry(alongX ? leafWidth : leafThickness, DOOR_HEIGHT - 0.06, alongX ? leafThickness : leafWidth),
+              new THREE.BoxGeometry(alongX ? leafWidth : leafThickness, leafH, alongX ? leafThickness : leafWidth),
               leafMat,
             );
-            leaf.position.set(alongX ? leafLocalOffset : 0, (DOOR_HEIGHT - 0.06) / 2, alongX ? 0 : leafLocalOffset);
-            const handle = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), handleMat);
-            const handleEdge = -jSide * (leafWidth - 0.08);
-            handle.position.set(
-              alongX ? handleEdge : leafThickness * 0.8,
-              1.0,
-              alongX ? leafThickness * 0.8 : handleEdge,
-            );
-            pivot.add(leaf, handle);
+            leaf.position.set(alongX ? leafLocalOffset : 0, leafH / 2, alongX ? 0 : leafLocalOffset);
+            pivot.add(leaf);
+
+            // Raised center panel, one on each face of the leaf.
+            const panelW = Math.max(0.1, leafWidth - 0.16);
+            const panelH = leafH - 0.34;
+            [-1, 1].forEach((pf) => {
+              const panel = new THREE.Mesh(
+                new THREE.BoxGeometry(alongX ? panelW : 0.016, panelH, alongX ? 0.016 : panelW),
+                panelMat,
+              );
+              panel.position.set(
+                alongX ? leafLocalOffset : pf * (leafThickness / 2 + 0.01),
+                leafH / 2,
+                alongX ? pf * (leafThickness / 2 + 0.01) : leafLocalOffset,
+              );
+              pivot.add(panel);
+            });
+
+            // Lever handle on a backplate, mounted near the leaf's free (non-hinge) edge —
+            // a small horizontal bar reads as real hardware from any viewing angle, unlike
+            // the bare sphere knob this replaces.
+            const handleEdge = -jSide * (leafWidth - 0.1);
+            const leverInset = handleEdge + jSide * 0.09;
+            const backplate = new THREE.Mesh(new THREE.BoxGeometry(alongX ? 0.03 : 0.05, 0.16, alongX ? 0.05 : 0.03), handleMat);
+            const lever = new THREE.Mesh(new THREE.BoxGeometry(alongX ? 0.16 : 0.05, 0.03, alongX ? 0.05 : 0.16), handleMat);
+            backplate.position.set(alongX ? handleEdge : leafThickness * 0.85, 1.0, alongX ? leafThickness * 0.85 : handleEdge);
+            lever.position.set(alongX ? leverInset : leafThickness * 0.85, 1.0, alongX ? leafThickness * 0.85 : leverInset);
+            pivot.add(backplate, lever);
+
             const swingSign = alongX ? (swingZ || 1) : (swingX || 1);
             pivot.rotation.y = -jSide * swingSign * openAngle;
             worldGroup.add(pivot);
           });
+        });
+
+        if (trimEntries.length) worldGroup.add(new THREE.Mesh(mergeBoxes(trimEntries), trimMat));
+
+        // Every span whose "outside" (opposite the inside/swing direction) is not itself
+        // another building's interior is a genuine exterior entrance — register it, with
+        // which way it actually faces, for the canopy + doorway-lighting pass below.
+        // Interior partition doorways between two adjacent room footprints are left out on
+        // purpose; a canopy floating inside a hallway would look wrong.
+        spans.forEach(({ cx, cz, alongX, swingX, swingZ }) => {
+          const dirX = alongX ? 0 : -(swingX || 1);
+          const dirZ = alongX ? -(swingZ || 1) : 0;
+          const outsideX = Math.floor(cx + dirX * 0.6);
+          const outsideZ = Math.floor(cz + dirZ * 0.6);
+          if (!buildingAt(outsideX, outsideZ)) {
+            doorEntrances.push({ cx, cz, dirX, dirZ });
+          }
         });
       }
 
@@ -7741,19 +7898,38 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // from its sconce glass alone, restrained rather than a stage light per door.
         let porchLightBudget = 6;
 
-        doorEntrances.forEach(({ cx, cz }, i) => {
-          canopyEntries.push({ cx, cy: WALL_HEIGHT * 0.78, cz: cz + 0.42, sx: 1.0, sy: 0.08, sz: 0.6 });
-          bracketEntries.push({ cx: cx - 0.38, cy: WALL_HEIGHT * 0.7, cz: cz + 0.2, sx: 0.05, sy: 0.28, sz: 0.05 });
-          bracketEntries.push({ cx: cx + 0.38, cy: WALL_HEIGHT * 0.7, cz: cz + 0.2, sx: 0.05, sy: 0.28, sz: 0.05 });
-          sconceEntries.push({ cx: cx + 0.44, cy: 1.75, cz: cz + 0.52, sx: 0.09, sy: 0.14, sz: 0.07 });
-          thresholdEntries.push({ cx, cy: 0.03, cz: cz + 0.6, sx: 0.9, sy: 0.05, sz: 0.32 });
+        doorEntrances.forEach(({ cx, cz, dirX, dirZ }, i) => {
+          // facesZ: door opens onto a north/south wall (canopy spans in x). Otherwise it
+          // opens onto an east/west wall (canopy spans in z). tx/tz is the unit vector
+          // running along the wall face, used to place the two brackets either side and
+          // to keep the sconce mounted flush against the wall rather than floating in air.
+          const facesZ = dirZ !== 0;
+          const tx = facesZ ? 1 : 0;
+          const tz = facesZ ? 0 : 1;
+          canopyEntries.push({
+            cx: cx + dirX * 0.42, cy: WALL_HEIGHT * 0.78, cz: cz + dirZ * 0.42,
+            sx: facesZ ? 1.0 : 0.6, sy: 0.08, sz: facesZ ? 0.6 : 1.0,
+          });
+          [-1, 1].forEach((side) => {
+            bracketEntries.push({
+              cx: cx + dirX * 0.2 + side * tx * 0.38, cy: WALL_HEIGHT * 0.7, cz: cz + dirZ * 0.2 + side * tz * 0.38,
+              sx: 0.05, sy: 0.28, sz: 0.05,
+            });
+          });
+          const sconceX = cx + dirX * 0.52 + tx * 0.44;
+          const sconceZ = cz + dirZ * 0.52 + tz * 0.44;
+          sconceEntries.push({ cx: sconceX, cy: 1.75, cz: sconceZ, sx: facesZ ? 0.09 : 0.07, sy: 0.14, sz: facesZ ? 0.07 : 0.09 });
+          thresholdEntries.push({
+            cx: cx + dirX * 0.6, cy: 0.03, cz: cz + dirZ * 0.6,
+            sx: facesZ ? 0.9 : 0.32, sy: 0.05, sz: facesZ ? 0.32 : 0.9,
+          });
           const glass = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), sconceGlassMat);
-          glass.position.set(cx + 0.44, 1.68, cz + 0.58);
+          glass.position.set(cx + dirX * 0.58 + tx * 0.44, 1.68, cz + dirZ * 0.58 + tz * 0.44);
           worldGroup.add(glass);
           if (porchLightBudget > 0 && i % 2 === 0) {
             porchLightBudget -= 1;
             const porchLight = new THREE.PointLight(0xffc978, 0.5, 4, 2);
-            porchLight.position.set(cx + 0.2, 1.9, cz + 0.6);
+            porchLight.position.set(cx + dirX * 0.35, 1.9, cz + dirZ * 0.35);
             worldGroup.add(porchLight);
           }
         });
@@ -7807,20 +7983,25 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           }
         };
 
-        // --- REAL, PHYSICALLY WALKABLE STAIRS + UPPER-LEVEL TERRACES --------------------
+        // --- REAL, PHYSICALLY WALKABLE STAIRS + UPPER-FLOOR CORRIDOR + ROOM DOOR --------
         // Every "extraStories" building now earns one genuine exterior stair — registered
         // as an ElevationZone ramp, so the player's own height actually rises tread by
-        // tread — leading to a real open-air terrace/balcony at the springline of its
-        // upper stories (elevation WALL_HEIGHT, exactly where that story's window band and
-        // railing already sit). The terrace is a small, walkable, railed deck cantilevered
-        // off one facade, positioned entirely in the open plaza/veranda strip beyond the
-        // building's own footprint — it never overlaps the solid decorative upper-story
-        // mass above. The site is *found*, not hand-placed: it walks outward from each of
-        // the building's four facades looking for a strip of already-open, already-
-        // walkable ground that isn't within 1.3 tiles of any NPC, note, guide, prop, or
-        // gate, so a stair can never land somewhere that blocks or overlaps a piece of
-        // gameplay logic — and a building simply goes without a stair if no clear side
-        // exists, rather than risk placing one somewhere unsafe.
+        // tread — leading to a real corridor at the springline of its upper stories
+        // (elevation WALL_HEIGHT, exactly where that story's window band and railing
+        // already sit). The stair is never decorative: it always connects the ground
+        // level to this corridor, and the corridor always ends at a real wall with a
+        // centered doorway and a sign naming the room behind it (see
+        // upperDestinationLabel/the door-wall block below) — never an open railing
+        // looking out at nothing. The corridor is railed along its two long open sides,
+        // walled and doored at the far end, positioned entirely in the open plaza/veranda
+        // strip beyond the building's own footprint — it never overlaps the solid
+        // decorative upper-story mass above, it sits right at that mass's base, so the
+        // door reads as a real entrance into it. The site is *found*, not hand-placed: it
+        // walks outward from each of the building's four facades looking for a strip of
+        // already-open, already-walkable ground that isn't within 1.3 tiles of any NPC,
+        // note, guide, prop, or gate, so a stair can never land somewhere that blocks or
+        // overlaps a piece of gameplay logic — and a building simply goes without a stair
+        // if no clear side exists, rather than risk placing one somewhere unsafe.
         const entityKeepClear: [number, number][] = [
           ...challengers.map((c) => [c.x, c.y] as [number, number]),
           ...guides.map((g) => [g.x, g.y] as [number, number]),
@@ -7830,7 +8011,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         ];
         const tooCloseToEntity = (x: number, y: number) => entityKeepClear.some(([ox, oy]) => Math.hypot(ox - x, oy - y) < 1.3);
         const STAIR_RUN = 3; // tiles of horizontal run to climb one full story
-        const TERRACE_DEPTH = 1.6;
+        // Depth of the walkable landing/corridor at the top of the stairs, running from
+        // the top step out to the room door at the far end (see the door + sign built
+        // below). Deep enough to read as a real short corridor a player walks *through*
+        // to reach a destination, not a token step-off platform.
+        const TERRACE_DEPTH = 3.2;
         const STAIR_HALF_WIDTH = 0.9;
         type StairSite = { axis: 'x' | 'z'; sign: 1 | -1; baseX: number; baseZ: number };
         function findStairSite(b: { x0: number; y0: number; x1: number; y1: number }, midX: number, midZ: number): StairSite | null {
@@ -7851,6 +8036,31 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             return { axis, sign, baseX, baseZ };
           };
           return tryAxis('z', 1) || tryAxis('z', -1) || tryAxis('x', 1) || tryAxis('x', -1);
+        }
+        // What a staircase in this building is actually *for* — a real named room or
+        // office the corridor at the top of the stairs leads into, picked from the
+        // building's own label/style so it always reads as a plausible destination
+        // (never a generic "terrace"). Falls back to a generic-but-still-real
+        // "Upper Floor" suffix for any building not covered explicitly below, so a
+        // stair is never built without a labeled destination waiting at the top.
+        function upperDestinationLabel(b: (typeof BUILDINGS)[number]): string {
+          const byLabel: Record<string, string> = {
+            'Laboratory': '🔬 UPPER LAB',
+            'Classroom': '🏫 FACULTY ROOM',
+            'Library': '📖 READING GALLERY',
+            'Administration Hall': '🗄️ FACULTY OFFICES',
+            'Mastery Citadel': '🏰 UPPER SANCTUM',
+            'Advanced Wing — Main Hall': '🏢 UPPER CORRIDOR',
+            'Advanced Wing — Research Bay': '🧪 RESEARCH ANNEX',
+            'Advanced Wing — Review Office': '🗂️ RECORDS OFFICE',
+            'Expert Enclave — Field Station': '📡 OBSERVATION DECK',
+            'Expert Enclave — Lecture Hall': '🎓 FACULTY LOUNGE',
+            'Expert Enclave — Training Circle': '🥋 UPPER DOJO',
+            'Expert Enclave — Examination Chamber': '📝 PROCTOR\u2019S OFFICE',
+            'Mastery Vault — Outer Gallery': '🖼️ UPPER GALLERY',
+            'Mastery Vault — Inner Sanctum': '🔒 VAULT OFFICE',
+          };
+          return byLabel[b.label] ?? `🚪 ${b.label.toUpperCase()} — UPPER FLOOR`;
         }
 
         BUILDINGS.forEach((b) => {
@@ -8030,10 +8240,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             downspoutEntries.push({ cx: dx, cy: topY / 2, cz: dz, sx: 0.05, sy: topY, sz: 0.05 });
           });
 
-          // A real exterior stair up to a genuine, walkable upper-level terrace — see
-          // findStairSite/entityKeepClear above. Every tread here has a matching
-          // ElevationZone registered below, so a player actually climbing it rises in
-          // real time instead of walking through a decorative silhouette.
+          // A real exterior stair up to a genuine, walkable upper-floor corridor that
+          // ends at a real, named room door — see findStairSite/entityKeepClear above.
+          // Every tread here has a matching ElevationZone registered below, so a player
+          // actually climbing it rises in real time instead of walking through a
+          // decorative silhouette.
           if (extraStories > 0) {
             const site = findStairSite(b, midX, midZ);
             if (site) {
@@ -8060,8 +8271,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                 });
               }
 
-              // Terrace floor slab + a railing on its three outer edges — the fourth,
-              // facing back down the stair, stays open so it's actually walkable onto.
+              // Landing/corridor floor slab, running from the top of the stairs out to a
+              // real doorway at the far end. Railing runs the two long open sides (a real
+              // corridor rail, not a bare ledge); the far end — where a bare railing used
+              // to just look out over nothing — is now a proper wall with a centered
+              // doorway and a room sign, so the corridor always ends at an actual named
+              // destination instead of a dead stop in mid-air.
               const terraceMidX = (topX + farX) / 2, terraceMidZ = (topZ + farZ) / 2;
               const terraceSx = axis === 'x' ? Math.abs(farX - topX) : STAIR_HALF_WIDTH * 2;
               const terraceSz = axis === 'z' ? Math.abs(farZ - topZ) : STAIR_HALF_WIDTH * 2;
@@ -8071,14 +8286,79 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                 railEntries.push(
                   { cx: terraceMidX - terraceSx / 2, cy: railY, cz: terraceMidZ, sx: 0.06, sy: 0.06, sz: terraceSz },
                   { cx: terraceMidX + terraceSx / 2, cy: railY, cz: terraceMidZ, sx: 0.06, sy: 0.06, sz: terraceSz },
-                  { cx: terraceMidX, cy: railY, cz: farZ, sx: terraceSx, sy: 0.06, sz: 0.06 },
                 );
               } else {
                 railEntries.push(
                   { cx: terraceMidX, cy: railY, cz: terraceMidZ - terraceSz / 2, sx: terraceSx, sy: 0.06, sz: 0.06 },
                   { cx: terraceMidX, cy: railY, cz: terraceMidZ + terraceSz / 2, sx: terraceSx, sy: 0.06, sz: 0.06 },
-                  { cx: farX, cy: railY, cz: terraceMidZ, sx: 0.06, sy: 0.06, sz: terraceSz },
                 );
+              }
+
+              // The room door at the far end of the corridor — a real wall with a centered
+              // doorway (flanking jambs + a closed door panel) instead of the open railing
+              // a bare terrace would have there, plus a mounted sign naming whatever this
+              // building's upper floor actually is (see upperDestinationLabel above). This
+              // is what gives the player an actual reason to climb the stairs: every one of
+              // them ends at a specific, named room, not open air.
+              {
+                const DOOR_W = 1.0;
+                const END_WALL_H = STORY_HEIGHT;
+                const DOOR_H = 2.05;
+                const doorWallMat = new THREE.MeshStandardMaterial({ color: wallColor, map: brickTexture, roughness: 0.85 });
+                const doorMat = new THREE.MeshStandardMaterial({ color: 0x4b3524, roughness: 0.6 });
+                const endWallEntries: { cx: number; cy: number; cz: number; sx: number; sy: number; sz: number }[] = [];
+                const doorEntries: { cx: number; cy: number; cz: number; sx: number; sy: number; sz: number }[] = [];
+                const corridorWidth = axis === 'z' ? terraceSx : terraceSz;
+                const jamb = Math.max(0.15, (corridorWidth - DOOR_W) / 2);
+                if (axis === 'z') {
+                  endWallEntries.push(
+                    { cx: terraceMidX - corridorWidth / 2 + jamb / 2, cy: terraceElevation + END_WALL_H / 2, cz: farZ, sx: jamb, sy: END_WALL_H, sz: 0.14 },
+                    { cx: terraceMidX + corridorWidth / 2 - jamb / 2, cy: terraceElevation + END_WALL_H / 2, cz: farZ, sx: jamb, sy: END_WALL_H, sz: 0.14 },
+                    { cx: terraceMidX, cy: terraceElevation + DOOR_H + (END_WALL_H - DOOR_H) / 2, cz: farZ, sx: DOOR_W, sy: END_WALL_H - DOOR_H, sz: 0.14 },
+                  );
+                  doorEntries.push({ cx: terraceMidX, cy: terraceElevation + DOOR_H / 2, cz: farZ, sx: DOOR_W - 0.08, sy: DOOR_H, sz: 0.06 });
+                } else {
+                  endWallEntries.push(
+                    { cx: farX, cy: terraceElevation + END_WALL_H / 2, cz: terraceMidZ - corridorWidth / 2 + jamb / 2, sx: 0.14, sy: END_WALL_H, sz: jamb },
+                    { cx: farX, cy: terraceElevation + END_WALL_H / 2, cz: terraceMidZ + corridorWidth / 2 - jamb / 2, sx: 0.14, sy: END_WALL_H, sz: jamb },
+                    { cx: farX, cy: terraceElevation + DOOR_H + (END_WALL_H - DOOR_H) / 2, cz: terraceMidZ, sx: 0.14, sy: END_WALL_H - DOOR_H, sz: DOOR_W },
+                  );
+                  doorEntries.push({ cx: farX, cy: terraceElevation + DOOR_H / 2, cz: terraceMidZ, sx: 0.06, sy: DOOR_H, sz: DOOR_W - 0.08 });
+                }
+                worldGroup.add(new THREE.Mesh(mergeBoxes(endWallEntries), doorWallMat));
+                worldGroup.add(new THREE.Mesh(mergeBoxes(doorEntries), doorMat));
+                // Lever handle on both faces of the panel — this door is a fixed closed
+                // slab (the terrace corridor always ends here, nothing to swing open), but
+                // it still needs real hardware to read as a door and not a colored insert.
+                const roomDoorHandleMat = new THREE.MeshStandardMaterial({ color: 0xf2c96d, metalness: 0.65, roughness: 0.28 });
+                if (axis === 'z') {
+                  const hx = terraceMidX + (DOOR_W - 0.08) / 2 - 0.14;
+                  [-1, 1].forEach((f) => {
+                    const lever = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.03, 0.03), roomDoorHandleMat);
+                    lever.position.set(hx, 1.0, farZ + f * 0.05);
+                    worldGroup.add(lever);
+                  });
+                } else {
+                  const hz = terraceMidZ + (DOOR_W - 0.08) / 2 - 0.14;
+                  [-1, 1].forEach((f) => {
+                    const lever = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.16), roomDoorHandleMat);
+                    lever.position.set(farX + f * 0.05, 1.0, hz);
+                    worldGroup.add(lever);
+                  });
+                }
+                signs.push({
+                  id: `sign_stair_${b.label}`,
+                  x: axis === 'x' ? farX : terraceMidX,
+                  y: axis === 'z' ? farZ : terraceMidZ,
+                  label: upperDestinationLabel(b),
+                  // Mounted on the door wall, but readable from the corridor side the
+                  // player actually approaches from — i.e. the OPPOSITE of the direction
+                  // the corridor extends in (the far/door-wall side is unreachable, so a
+                  // normal facing further that way would be invisible from anywhere the
+                  // player can actually stand).
+                  side: axis === 'z' ? (sign > 0 ? 'N' : 'S') : (sign > 0 ? 'W' : 'E'),
+                  elevation: terraceElevation + DOOR_H + 0.1,
+                });
               }
 
               // The actual walkable elevation: a ramp under the stair treads, then a
@@ -8113,12 +8393,41 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                   { x0: rampX1, x1: rampX1 + SIDE_WALL_THICK, y0: rampY0, y1: rampY1 },
                 );
               }
+              // Terrace bounds — identical box to the 'flat' elevation zone pushed just
+              // below, named here so the collision boxes below can share it exactly (no
+              // second, slightly-different copy of the footprint to drift out of sync).
+              const terraceX0 = axis === 'x' ? Math.min(topX, farX) : terraceMidX - STAIR_HALF_WIDTH;
+              const terraceX1 = axis === 'x' ? Math.max(topX, farX) : terraceMidX + STAIR_HALF_WIDTH;
+              const terraceY0 = axis === 'z' ? Math.min(topZ, farZ) : terraceMidZ - STAIR_HALF_WIDTH;
+              const terraceY1 = axis === 'z' ? Math.max(topZ, farZ) : terraceMidZ + STAIR_HALF_WIDTH;
+              // Corridor flank + far-door collision, mirroring the 2 railed long edges
+              // and the end wall/door built above — only the edge facing back down the
+              // stair (at topX/topZ, the same line the ramp climbs into) is left open.
+              // The two long sides and the far end (now a real wall+door, not a railing)
+              // are solid, so — this is the actual root-cause fix for the "rises when
+              // walking beside/behind the stairs" bug — the corridor's elevated footprint
+              // can only ever be reached by climbing the ramp itself, never by walking up
+              // to it at ground level from any other side.
+              if (axis === 'x') {
+                stairSideBoxes.push(
+                  { x0: terraceX0, x1: terraceX1, y0: terraceY0 - SIDE_WALL_THICK, y1: terraceY0 },
+                  { x0: terraceX0, x1: terraceX1, y0: terraceY1, y1: terraceY1 + SIDE_WALL_THICK },
+                );
+                stairSideBoxes.push(sign > 0
+                  ? { x0: terraceX1, x1: terraceX1 + SIDE_WALL_THICK, y0: terraceY0, y1: terraceY1 }
+                  : { x0: terraceX0 - SIDE_WALL_THICK, x1: terraceX0, y0: terraceY0, y1: terraceY1 });
+              } else {
+                stairSideBoxes.push(
+                  { x0: terraceX0 - SIDE_WALL_THICK, x1: terraceX0, y0: terraceY0, y1: terraceY1 },
+                  { x0: terraceX1, x1: terraceX1 + SIDE_WALL_THICK, y0: terraceY0, y1: terraceY1 },
+                );
+                stairSideBoxes.push(sign > 0
+                  ? { x0: terraceX0, x1: terraceX1, y0: terraceY1, y1: terraceY1 + SIDE_WALL_THICK }
+                  : { x0: terraceX0, x1: terraceX1, y0: terraceY0 - SIDE_WALL_THICK, y1: terraceY0 });
+              }
               elevationZones.push({
                 kind: 'flat',
-                x0: axis === 'x' ? Math.min(topX, farX) : terraceMidX - STAIR_HALF_WIDTH,
-                x1: axis === 'x' ? Math.max(topX, farX) : terraceMidX + STAIR_HALF_WIDTH,
-                y0: axis === 'z' ? Math.min(topZ, farZ) : terraceMidZ - STAIR_HALF_WIDTH,
-                y1: axis === 'z' ? Math.max(topZ, farZ) : terraceMidZ + STAIR_HALF_WIDTH,
+                x0: terraceX0, x1: terraceX1, y0: terraceY0, y1: terraceY1,
                 elevation: terraceElevation,
               });
             }
@@ -8352,7 +8661,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
           const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6, side: THREE.FrontSide });
           const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.68, 0.68), mat);
-          plaque.position.set(sign.x + nx * 0.012, 1.55, sign.y + ny * 0.012);
+          plaque.position.set(sign.x + nx * 0.012, 1.55 + (sign.elevation ?? 0), sign.y + ny * 0.012);
           plaque.rotation.y = Math.atan2(nx, ny);
           signGroup.add(plaque);
         });
@@ -8373,13 +8682,34 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
         const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.19, 0.42, 4, 8), topMat);
         torso.position.y = 0.98;
-        const head = new THREE.Mesh(new THREE.SphereGeometry(0.155, 14, 12), skinMat);
-        head.position.y = 1.46;
-        g.add(torso, head);
+        // Slightly broadens the shoulder/chest line and narrows the waist without moving
+        // the torso mesh itself (so the arm pivots, which are separate objects positioned
+        // independently below, stay exactly where the walk animation expects them) — a
+        // plain uniform capsule reads as a soft cylinder; this gentle per-gender taper
+        // reads as an actual ribcage/shoulder line instead.
+        torso.scale.set(cfg.gender === 'feminine' ? 1.02 : 1.1, 1, cfg.gender === 'feminine' ? 0.92 : 1);
+        // Short neck so the head doesn't look like it's resting directly on the collar —
+        // purely a fill piece between torso top (~1.38) and the head sphere below.
+        const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.075, 0.12, 8), skinMat);
+        neck.position.y = 1.36;
+        // A slightly smaller, less bobble-headed sphere than before — closer to an adult
+        // head-to-body ratio while staying simple/low-poly.
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 16, 14), skinMat);
+        head.position.y = 1.445;
+        g.add(torso, neck, head);
+
+        // Two small eyes on the front (+Z) face of the head, so a standing NPC actually has
+        // a legible "front" once it's rotated to face a given direction — previously the
+        // whole body was rotationally symmetric and facing was invisible regardless of dir.
+        const eyeMat = new THREE.MeshStandardMaterial({ color: 0x241d1a, roughness: 0.4 });
+        const eyeGeo = new THREE.SphereGeometry(0.016, 6, 6);
+        const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.05, head.position.y + 0.01, 0.128);
+        const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.05, head.position.y + 0.01, 0.128);
+        g.add(eyeL, eyeR);
 
         if (cfg.hair !== 'bald') {
-          const hair = new THREE.Mesh(new THREE.SphereGeometry(0.165, 12, 10, 0, Math.PI * 2, 0, cfg.hair === 'long' ? 2.4 : 1.9), hairMat);
-          hair.position.y = 1.5;
+          const hair = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 10, 0, Math.PI * 2, 0, cfg.hair === 'long' ? 2.4 : 1.9), hairMat);
+          hair.position.y = head.position.y + 0.045;
           if (cfg.hair === 'long') { const back = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.32, 4, 6), hairMat); back.position.y = 1.32; g.add(back); }
           g.add(hair);
         }
@@ -8440,7 +8770,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         const cfg = challengerAvatars.get(term.id)!;
         const mesh = makeHumanoid(cfg, 0xff5555);
         mesh.position.set(term.x, 0, term.y);
-        mesh.rotation.y = term.dir > 0 ? 0 : Math.PI;
+        mesh.rotation.y = term.dir;
         const badgeTex = makeCanvasTexture((cctx, size) => {
           cctx.clearRect(0, 0, size, size);
           cctx.fillStyle = 'rgba(20,10,10,0.85)';
@@ -8468,7 +8798,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         const cfg: AvatarConfig = { gender: 'neutral', skin: '#e2b48c', hair: 'short', hairColor: '#2c2c2c', topType: 'jacket', topColor: 'cyan', bottomType: 'pants', shoes: 'dark' };
         const mesh = makeHumanoid(cfg, 0x67cdd1);
         mesh.position.set(guide.x, 0, guide.y);
-        mesh.rotation.y = guide.dir > 0 ? 0 : Math.PI;
+        mesh.rotation.y = guide.dir;
         const bubbleTex = makeCanvasTexture((cctx, size) => {
           cctx.clearRect(0, 0, size, size);
           cctx.fillStyle = 'rgba(10,30,28,0.85)';
@@ -8540,6 +8870,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         | { kind: 'guide'; data: (typeof guides)[number] }
         | { kind: 'gate'; data: (typeof gates)[number] };
       const INTERACT_RANGE = 4.5;
+      // Screen-projected "hint" badge (the floating tap icon shown above whichever
+      // live NPC/guide/note/gate is nearest) — tracks whatever target it's currently
+      // glued to so a click/tap on the badge itself can re-run the exact same
+      // interact() call a click on the NPC/marker in the 3D scene would have.
+      let currentHintTarget: { target: InteractTarget; worldX: number; worldY: number } | null = null;
+      const hintProjectVec = new THREE.Vector3();
 
       let resizeRaf = 0;
       const resizeCanvas = () => {
@@ -8569,11 +8905,45 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const hideFieldUi = () => {
         prompt.style.display = 'none';
         badge.style.display = 'none';
+        // Whatever was under the cursor stops being clickable the moment the world
+        // freezes for an interaction, so drop any lingering pointer cursor right away
+        // instead of waiting for the next mousemove to notice.
+        canvas.style.cursor = 'default';
+      };
+
+      // Hover feedback for the 3D scene: shows a pointer cursor only while the mouse
+      // is over an NPC/note/guide/gate that's both still "live" (per
+      // hitTestWithRaycaster's own filtering — a collected note, an already-triggered
+      // guide, or an open gate is never a hit) and actually within INTERACT_RANGE, i.e.
+      // exactly the set of things a click would do something with. Purely cosmetic —
+      // it only ever reads state (player position, camera, raycast hits) and writes
+      // canvas.style.cursor, never interaction state, so it can't change what
+      // clicking/tapping/'E' actually does.
+      const updateHoverCursor = (clientX: number, clientY: number) => {
+        if (!roamingActive || interactionActive || mouseDragActive || pointerLocked) {
+          canvas.style.cursor = 'default';
+          return;
+        }
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
+        const hit = hitTestAt((clientX - rect.left) * scaleX, (clientY - rect.top) * scaleY);
+        const inRange = !!hit && (playerX - hit.worldX) ** 2 + (playerY - hit.worldY) ** 2 <= INTERACT_RANGE * INTERACT_RANGE;
+        canvas.style.cursor = inRange ? 'pointer' : 'default';
       };
 
       const interactNpc = (target: (typeof challengers)[number]) => {
         if (!target.active) return;
+        // An interaction (card up, or already handing off to the briefing/battle
+        // screen) is already in flight — ignore this click/tap/'E' rather than
+        // opening a second card or firing a second onFoundRef hand-off for the
+        // same or a different NPC. Cleared by dismissDiscovery once the card
+        // currently showing is resolved (see below).
+        if (interactionActive) return;
         if (defeatedIdsRef.current.includes(target.id)) {
+          interactionActive = true;
+          roamingActive = false;
+          hideFieldUi();
+          if (document.pointerLockElement === canvas) document.exitPointerLock();
           pushDiscovery({
             title: `[${target.area}]`,
             body: `${target.name} — QUEST CLEARED. Tap to retry and try to beat your best score.`,
@@ -8585,6 +8955,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         if (!signaledIds.has(target.id)) {
           signaledIds.add(target.id);
           onDiscoverRef.current('challenger', target.id);
+          interactionActive = true;
           roamingActive = false;
           hideFieldUi();
           if (document.pointerLockElement === canvas) document.exitPointerLock();
@@ -8596,10 +8967,17 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           });
           return;
         }
+        // Already discovered and not defeated: no card needed, hand off to the
+        // briefing straight away. No discovery card will dismiss to clear the
+        // guard here, so clear it right after the (synchronous) hand-off — if the
+        // parent screen swaps away (the normal case) this is moot; if it doesn't,
+        // the player is left able to interact again rather than stuck.
+        interactionActive = true;
         roamingActive = false;
         hideFieldUi();
         if (document.pointerLockElement === canvas) document.exitPointerLock();
         onFoundRef.current(target, { x: playerX, y: playerY, angle: playerAngle });
+        interactionActive = false;
       };
 
       const interactNote = (note: (typeof notes)[number]) => {
@@ -8646,6 +9024,82 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         }
       };
 
+      // Finds the closest still-live interactable within INTERACT_RANGE, independent of
+      // where the camera is aimed. This is what makes the on-screen hint badge below
+      // stay clickable for any in-range NPC/guide the whole time the player is near
+      // it — not just the instant frame the player happens to be looking straight at
+      // its body or its in-world icon.
+      const findNearestInteractable = (): { target: InteractTarget; worldX: number; worldY: number } | null => {
+        let best: { target: InteractTarget; worldX: number; worldY: number } | null = null;
+        let bestDistSq = INTERACT_RANGE * INTERACT_RANGE;
+        for (const obj of interactiveObjects) {
+          const t = obj.userData.target as InteractTarget | undefined;
+          if (!t) continue;
+          if (t.kind === 'gate' && t.data.open) continue;
+          if (t.kind === 'note' && collectedNotes.has(t.data.id)) continue;
+          if (t.kind === 'guide' && triggeredGuides.has(t.data.id)) continue;
+          const wx = obj.userData.worldX as number;
+          const wy = obj.userData.worldY as number;
+          const distSq = (playerX - wx) ** 2 + (playerY - wy) ** 2;
+          if (distSq <= bestDistSq) { bestDistSq = distSq; best = { target: t, worldX: wx, worldY: wy }; }
+        }
+        return best;
+      };
+
+      // Matches each target kind's actual in-world icon height (npc's ⚔ badge, guide's
+      // 💬 bubble, etc.) so the DOM hint badge lines up with the icon it's standing in for.
+      const HINT_ICON_HEIGHT: Record<InteractTarget['kind'], number> = { npc: 1.95, guide: 1.9, note: 0.85, gate: 1.4 };
+
+      const projectHintPoint = (gx: number, gy: number, height: number): { x: number; y: number } | null => {
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        const toPoint = new THREE.Vector3(gx - camera.position.x, height - camera.position.y, gy - camera.position.z);
+        if (toPoint.dot(camDir) <= 0) return null; // behind the camera — never show the badge for it
+        hintProjectVec.set(gx, height, gy).project(camera);
+        const rect = canvas.getBoundingClientRect();
+        if (!rect.width || !rect.height) return null;
+        return {
+          x: (hintProjectVec.x * 0.5 + 0.5) * rect.width,
+          y: (1 - (hintProjectVec.y * 0.5 + 0.5)) * rect.height,
+        };
+      };
+
+      // Re-derived every frame (see the animate loop below) so the badge stays glued to
+      // whatever's nearest as the player walks around, and — critically — comes right
+      // back the moment the player is back in range of the same or a different
+      // NPC/guide. Nothing here ever marks a target as "used up"; only the underlying
+      // interact()/interactNpc()/interactGuide() calls do that, and only for guides
+      // (one-time) — the hint itself never permanently disables.
+      const updateInteractHint = () => {
+        if (!roamingActive || interactionActive) {
+          currentHintTarget = null;
+          badge.style.display = 'none';
+          return;
+        }
+        const nearest = findNearestInteractable();
+        const screen = nearest ? projectHintPoint(nearest.worldX, nearest.worldY, HINT_ICON_HEIGHT[nearest.target.kind]) : null;
+        if (!nearest || !screen) {
+          currentHintTarget = null;
+          badge.style.display = 'none';
+          return;
+        }
+        currentHintTarget = nearest;
+        badge.style.display = 'flex';
+        badge.style.transform = 'translate(-50%, -50%)';
+        badge.style.left = `${screen.x}px`;
+        badge.style.top = `${screen.y}px`;
+      };
+
+      // Clicking/tapping the floating hint badge fires the exact same interact() call
+      // a click on the NPC (or its in-world icon) would — it's just a second, always-
+      // reachable way in to the same valid interaction, never a different path.
+      const handleHintBadgeActivate = (e: Event) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!currentHintTarget || !roamingActive || interactionActive) return;
+        interact(currentHintTarget.target, currentHintTarget.worldX, currentHintTarget.worldY);
+      };
+
       const handleWheel = (e: WheelEvent) => {
         if (!roamingActive) return;
         e.preventDefault();
@@ -8672,30 +9126,82 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         }
       };
       const handleKeyUp = (e: KeyboardEvent) => { keys[e.key.toLowerCase()] = false; };
-      const handleMouseMove = (e: MouseEvent) => { if (pointerLocked) mouseDX += e.movementX; };
+      const handleMouseMove = (e: MouseEvent) => {
+        // Camera rotation reads from the same mouseDX accumulator regardless of whether
+        // it came from Pointer Lock or a plain click-and-drag — same sensitivity, same
+        // smoothing, just two ways of feeding it (see gameLoop's rotation line).
+        if (pointerLocked || mouseDragActive) { mouseDX += e.movementX; mouseDY += e.movementY; }
+        if (mouseDragActive) mouseMoveTotal += Math.abs(e.movementX) + Math.abs(e.movementY);
+        lastMouseClientX = e.clientX;
+        lastMouseClientY = e.clientY;
+        if (mouseInsideCanvas) updateHoverCursor(e.clientX, e.clientY);
+      };
+      const handleCanvasMouseDown = (e: MouseEvent) => {
+        if (!roamingActive || e.button !== 0) return;
+        mouseDragActive = true;
+        mouseDownTime = performance.now();
+        mouseMoveTotal = 0;
+        // Stops the browser's native text-selection / drag-image gesture from hijacking
+        // the drag — that hijack is what made camera look (and, by extension, WASD,
+        // since movement never actually stopped but looked stuck alongside a frozen
+        // camera) feel like it "broke" mid-drag.
+        e.preventDefault();
+      };
+      const handleMouseUp = (e: MouseEvent) => {
+        if (e.button !== 0) return;
+        mouseDragActive = false;
+      };
       const handleCanvasClick = (e: MouseEvent) => {
         if (!roamingActive) return;
-        if (pointerLocked) {
-          const hit = hitTestAtCenter();
-          if (hit) interact(hit.target, hit.worldX, hit.worldY);
-          return;
-        }
+        // A plain click (not a drag) still lets the player interact with whatever's
+        // directly under the cursor — no Pointer Lock involved, so the cursor stays at
+        // its real screen position and this hit-test uses that position directly.
+        // The mouseup that ends a look-drag also fires a native 'click' — tell that
+        // apart from an intentional click the same way touch already does for taps vs.
+        // drags (see lookEnd below), so releasing a drag over an NPC/note/gate never
+        // triggers interact() (which can set roamingActive = false).
+        if (mouseMoveTotal > 10) return;
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
         const hit = hitTestAt((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY);
         if (hit) { interact(hit.target, hit.worldX, hit.worldY); return; }
-        if (!isMobile) canvas.requestPointerLock();
+      };
+      const handleWindowBlur = () => {
+        // Losing window focus mid-drag or mid-keypress (alt-tab, a permission prompt,
+        // switching apps) must never leave a stale "key still down" or "still dragging"
+        // state behind — that's the classic cause of WASD going unresponsive or
+        // "sticking" after interacting with the mouse. Keyboard/mouse listeners stay
+        // attached the whole time; this just resets the state they feed.
+        for (const k of Object.keys(keys)) keys[k] = false;
+        mouseDragActive = false;
+        mouseDX = 0;
+        mouseDY = 0;
       };
       const handlePointerLockChange = () => {
         pointerLocked = document.pointerLockElement === canvas;
         if (pointerLocked) tapStart.style.display = 'none';
         else if (!isMobile && roamingActive) tapStart.style.display = 'block';
+        // The OS hides the system cursor entirely under Pointer Lock, so any pointer
+        // cursor left over from just before locking would otherwise still be "set"
+        // (just invisible) and could flash back in stale the instant the lock releases.
+        if (pointerLocked) canvas.style.cursor = 'default';
       };
+      const handleCanvasMouseEnter = () => { mouseInsideCanvas = true; updateHoverCursor(lastMouseClientX, lastMouseClientY); };
+      const handleCanvasMouseLeave = () => { mouseInsideCanvas = false; canvas.style.cursor = 'default'; };
+      const handleDragStart = (e: DragEvent) => e.preventDefault();
       document.addEventListener('keydown', handleKeyDown);
       document.addEventListener('keyup', handleKeyUp);
       document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      window.addEventListener('blur', handleWindowBlur);
+      canvas.addEventListener('mousedown', handleCanvasMouseDown);
+      canvas.addEventListener('dragstart', handleDragStart);
       canvas.addEventListener('click', handleCanvasClick);
       canvas.addEventListener('wheel', handleWheel, { passive: false });
+      canvas.addEventListener('mouseenter', handleCanvasMouseEnter);
+      canvas.addEventListener('mouseleave', handleCanvasMouseLeave);
+      badge.addEventListener('click', handleHintBadgeActivate);
+      badge.addEventListener('touchstart', handleHintBadgeActivate, { passive: false });
       document.addEventListener('pointerlockchange', handlePointerLockChange);
 
       const joyCleanups: Array<() => void> = [];
@@ -8806,8 +9312,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             if (lookPointers.size >= 2) {
               const distance = getPinchDistance();
               if (pinchLastDistance > 0 && distance > 0) {
-                const distanceDelta = pinchLastDistance - distance;
-                if (Math.abs(distanceDelta) >= 0.35) setCameraZoomFromInput(distanceDelta * 0.055);
+                // Positive when fingers spread apart (pinch out) -> zoom out; negative
+                // when fingers move together (pinch in) -> zoom in. Virtually no dead
+                // zone (just enough to ignore sub-pixel sensor noise) and a much higher
+                // sensitivity than the wheel's raw deltaY units so normal pinch speed
+                // reliably drives continuous, responsive zooming instead of stalling.
+                const distanceDelta = distance - pinchLastDistance;
+                if (Math.abs(distanceDelta) > 0.02) setCameraZoomFromInput(distanceDelta * 0.4);
               }
               pinchLastDistance = distance;
               wasPinching = true;
@@ -8939,7 +9450,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         for (let dist = CAMERA_CLEARANCE_STEP; dist <= maxDist; dist += CAMERA_CLEARANCE_STEP) {
           const checkX = playerX + dirX * dist;
           const checkY = playerY + dirY * dist;
-          if (circleHitsWall(checkX, checkY, CAMERA_COLLIDER_RADIUS) || collidesWithNpc(checkX, checkY)) break;
+          if (circleHitsWall(checkX, checkY, CAMERA_COLLIDER_RADIUS) || circleHitsStairSide(checkX, checkY, CAMERA_COLLIDER_RADIUS) || collidesWithNpc(checkX, checkY)) break;
           clear = dist;
         }
         return clear;
@@ -9006,7 +9517,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // corner — pull it directly toward the player along its own current direction
         // until clear, instead of teleporting across to the unrelated ideal spot. This
         // keeps any correction small and local rather than a visible jump/glitch.
-        if (circleHitsWall(smoothCamX, smoothCamY, CAMERA_COLLIDER_RADIUS)) {
+        if (circleHitsWall(smoothCamX, smoothCamY, CAMERA_COLLIDER_RADIUS) || circleHitsStairSide(smoothCamX, smoothCamY, CAMERA_COLLIDER_RADIUS)) {
           const awayAngle = Math.atan2(smoothCamY - playerY, smoothCamX - playerX);
           const awayDist = Math.hypot(smoothCamX - playerX, smoothCamY - playerY);
           const safeDist = findClearCameraDistance(awayAngle, awayDist);
@@ -9028,6 +9539,16 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // stays in step with the footfalls rather than running on its own clock.
         const bobFade = 1 - firstPersonBlend;
         const bobHeight = playerWalking && bobFade > 0.01 ? Math.sin(walkPhase * 2) * 0.045 * bobFade : 0;
+        // First-person jump lift — reads the exact same physics state driving the
+        // player mesh (playerElevationY vs. the ground directly under the player, see
+        // updateVerticalPhysics/tryJump above), so the camera actually rises and falls
+        // with the real jump arc rather than a separate faked motion: same height, same
+        // timing, same gravity. Uses bobFade (1 at true first-person, fading to 0 by the
+        // close third-person threshold) so it's felt only in first person and leaves
+        // third-person exactly as it already was — the camera there has never read
+        // jump height and still doesn't.
+        const playerJumpLift = Math.max(0, playerElevationY - getElevation(playerX, playerY));
+        const fpJumpLift = playerJumpLift * bobFade;
         // Camera rides the ground/stair/balcony height directly beneath its own (x,y) —
         // not just the player's — so it never sinks into a stair tread or floats off a
         // balcony edge while trailing behind the player mid-climb. Smooths toward it at
@@ -9039,12 +9560,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // squash above so the two read as one impact rather than two separate effects. Scaled
         // down from the character's own squash since the camera sits further from the ground.
         const cameraBounceDip = getLandingBounceFactor() * 0.12;
-        const cameraDisplayHeight = currentCameraHeight + bobHeight + smoothCamElevation - cameraBounceDip;
+        const cameraDisplayHeight = currentCameraHeight + bobHeight + fpJumpLift + smoothCamElevation - cameraBounceDip;
 
         camera.fov = fovDeg;
         camera.updateProjectionMatrix();
         camera.position.set(camX, cameraDisplayHeight, camY);
-        const pitchAngle = Math.atan(currentCameraPitch);
+        const pitchAngle = Math.atan(currentCameraPitch) + userPitchOffset;
         const lookDist = 6;
         const forwardX = Math.cos(playerAngle) * Math.cos(pitchAngle);
         const forwardZ = Math.sin(playerAngle) * Math.cos(pitchAngle);
@@ -9156,6 +9677,18 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
         badge!.style.display = 'none';
         hideFieldUi();
+        // Re-derive the floating hint badge every frame — same reset-then-recompute
+        // pattern as the hover cursor just below. hideFieldUi() above always hides it
+        // first; this puts it back (repositioned and re-registered as a click target)
+        // the instant there's a live, in-range NPC/guide/note/gate, so it never stays
+        // stuck hidden or stuck pointing at a stale target.
+        updateInteractHint();
+        // Re-derive the world's hover cursor every frame (not just on mousemove) so it
+        // still reacts correctly as the player walks an NPC into/out of range or turns
+        // to face one, even with the mouse sitting still. hideFieldUi() just above
+        // always resets to 'default' first; this recomputes the correct state from
+        // scratch afterward, so it's always authoritative.
+        if (mouseInsideCanvas) updateHoverCursor(lastMouseClientX, lastMouseClientY);
 
         renderer.render(scene, camera);
       }
@@ -9166,7 +9699,15 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         lastTime = timestamp;
         updateNpcRetreats(timestamp);
         if (roamingActive) {
-          if (pointerLocked) { playerAngle += mouseDX * sensitivity * cameraSensitivityRef.current; mouseDX = 0; }
+          if (pointerLocked || mouseDragActive) {
+            playerAngle += mouseDX * sensitivity * cameraSensitivityRef.current;
+            mouseDX = 0;
+            // Vertical drag -> pitch, same accumulator/sensitivity pattern as yaw above.
+            // Not inverted: dragging up (movementY negative) looks up.
+            userPitchOffset += mouseDY * sensitivity * cameraSensitivityRef.current;
+            userPitchOffset = Math.max(PITCH_OFFSET_MIN, Math.min(PITCH_OFFSET_MAX, userPitchOffset));
+            mouseDY = 0;
+          }
           if (touchLookDX !== 0) { playerAngle += touchLookDX * getTouchLookSensitivity(); touchLookDX = 0; }
           playerAngle = playerAngle % (Math.PI * 2);
           let moveX = 0, moveY = 0;
@@ -9216,11 +9757,19 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         document.removeEventListener('keydown', handleKeyDown);
         document.removeEventListener('keyup', handleKeyUp);
         document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+        window.removeEventListener('blur', handleWindowBlur);
+        canvas.removeEventListener('mousedown', handleCanvasMouseDown);
+        canvas.removeEventListener('dragstart', handleDragStart);
         canvas.removeEventListener('click', handleCanvasClick);
         canvas.removeEventListener('wheel', handleWheel);
+        canvas.removeEventListener('mouseenter', handleCanvasMouseEnter);
+        canvas.removeEventListener('mouseleave', handleCanvasMouseLeave);
         document.removeEventListener('pointerlockchange', handlePointerLockChange);
         discoveryBtn.removeEventListener('click', handleDiscoveryTap);
         discoveryBtn.removeEventListener('touchstart', handleDiscoveryTap);
+        badge.removeEventListener('click', handleHintBadgeActivate);
+        badge.removeEventListener('touchstart', handleHintBadgeActivate);
         if (discoveryTimer) window.clearTimeout(discoveryTimer);
         joyCleanups.forEach((fn) => fn());
         if (document.pointerLockElement === canvas) document.exitPointerLock();
@@ -9319,7 +9868,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             <ChevronRight size={12} className="campus-joystick-arrow right" />
             <div className="campus-joystick-thumb" ref={leftThumbRef} />
           </div>
-          <div ref={tapStartRef} className="campus-tap-start">CLICK TO LOOK AROUND<span>WASD to move, mouse to look</span></div>
+          <div ref={tapStartRef} className="campus-tap-start" />
         </div>
       </div>
     );
