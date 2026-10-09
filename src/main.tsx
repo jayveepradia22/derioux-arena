@@ -2430,6 +2430,106 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     font: clamp(9px, 2.2vw, 10px) var(--app-font-mono);
   }
 
+  /* Per-question countdown, mounted on the arena's center plate under the score. Big
+     monospace digits for at-a-glance reading mid-fight, with a thin bar that drains via a
+     pure CSS animation (duration set inline from the level's time limit) and shifts
+     cyan → amber → coral. Only the whole-second digits are React state, so the bar costs
+     no re-renders. In the last five seconds the digits turn coral and pop on every tick,
+     and a pulsing red glow rims the whole arena. */
+  .battle-clock {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+    width: 100%;
+    margin-top: 4px;
+  }
+
+  .battle-clock-readout {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    color: var(--amber);
+    font: 700 clamp(18px, 5.4vw, 26px)/1 var(--app-font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: .04em;
+    text-shadow: 0 0 12px rgba(248, 184, 78, .3);
+  }
+
+  .battle-clock.urgent .battle-clock-readout {
+    color: var(--coral);
+    text-shadow: 0 0 14px rgba(239, 117, 103, .75);
+    animation: battle-clock-pop .45s ease-out;
+  }
+
+  .battle-clock.expired .battle-clock-readout {
+    color: var(--coral);
+    font-size: clamp(12px, 3.2vw, 15px);
+    letter-spacing: .1em;
+    animation: battle-clock-shake .4s ease-out;
+  }
+
+  .battle-timer-track {
+    height: 5px;
+    border-radius: 20px;
+    background: #242b44;
+    overflow: hidden;
+  }
+
+  .battle-timer-fill {
+    width: 100%;
+    height: 100%;
+    border-radius: 20px;
+    background: var(--cyan);
+    transform-origin: left center;
+    animation-name: battle-timer-drain;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+  }
+
+  /* Danger rim: an overlay (not a box-shadow on the panel itself) so it can't fight the
+     panel's own styling or the screen-shake, and never intercepts clicks. */
+  .battle-arena.time-critical::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    box-shadow: inset 0 0 36px rgba(239, 117, 103, .42);
+    animation: battle-danger-pulse 1s ease-in-out infinite;
+  }
+
+  @keyframes battle-timer-drain {
+    0% { transform: scaleX(1); background: var(--cyan); }
+    55% { background: var(--amber); }
+    85% { background: var(--coral); }
+    100% { transform: scaleX(0); background: var(--coral); }
+  }
+
+  @keyframes battle-clock-pop {
+    0% { transform: scale(1.4); }
+    100% { transform: scale(1); }
+  }
+
+  @keyframes battle-clock-shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-4px); }
+    40% { transform: translateX(4px); }
+    60% { transform: translateX(-3px); }
+    80% { transform: translateX(2px); }
+  }
+
+  @keyframes battle-danger-pulse {
+    0%, 100% { opacity: .35; }
+    50% { opacity: 1; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .battle-clock.urgent .battle-clock-readout,
+    .battle-clock.expired .battle-clock-readout { animation: none; }
+    .battle-arena.time-critical::after { animation: none; opacity: .8; }
+  }
+
   .question-text {
     margin: clamp(6px, 1.6vh, 10px) 0 clamp(14px, 3vh, 22px);
     font-size: clamp(16px, 4vw, 20px);
@@ -4071,6 +4171,58 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     will-change: transform;
   }
 
+  /* ===== Campus HUD polish pass =====
+     Placed after the base campus rules (and their breakpoints) on purpose: same selector
+     specificity, so source order lets these win. Goals: readable text and a map you can
+     actually read on phones, safe-area aware edges (notches / home bar), larger touch
+     targets, and no overlap between HUD, discovery card, prompt and joystick in portrait
+     or landscape. */
+  .campus-hud-bar {
+    top: max(14px, env(safe-area-inset-top, 0px));
+    left: max(14px, env(safe-area-inset-left, 0px));
+    right: max(14px, env(safe-area-inset-right, 0px));
+  }
+  .campus-joystick-zone {
+    left: max(16px, env(safe-area-inset-left, 0px));
+    bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  }
+  .campus-chip, .campus-exit-btn { text-shadow: 0 1px 2px rgba(0,0,0,.5); }
+  @media (max-width: 700px) {
+    .campus-hud-bar { top: max(8px, env(safe-area-inset-top, 0px)); left: max(8px, env(safe-area-inset-left, 0px)); right: max(8px, env(safe-area-inset-right, 0px)); }
+    .campus-hud-row .campus-chip { padding: 3px 7px; font-size: 9px; }
+    .campus-exit-btn { padding: 5px 9px; font-size: 10px; min-height: 28px; }
+    .campus-minimap { width: 112px; max-width: 112px; }
+    .campus-hud-left { max-width: calc(100% - 66px); }
+    .campus-prompt { font-size: 10px; padding: 6px 12px; }
+    /* Sits below the HUD stack (chips + minimap) instead of on top of it. */
+    .holo-discovery-card { top: calc(max(8px, env(safe-area-inset-top, 0px)) + 96px); width: min(300px, calc(100% - 24px)); }
+    .holo-discovery-eyebrow { font-size: 9px; }
+    .holo-discovery-body { font-size: 10.5px; }
+    .holo-discovery-btn { padding: 6px 12px; font-size: 9px; }
+  }
+  @media (max-width: 430px) {
+    .campus-hud-row .campus-chip { padding: 2px 6px; font-size: 8.5px; }
+    .campus-exit-btn { padding: 4px 8px; font-size: 9px; }
+    .campus-minimap { width: 100px; max-width: 100px; }
+    .campus-hud-left { max-width: calc(100% - 58px); }
+    .holo-discovery-card { top: calc(max(6px, env(safe-area-inset-top, 0px)) + 90px); }
+  }
+  /* Touch devices: comfortable tap targets for the settings gear and exit. */
+  @media (pointer: coarse) {
+    .campus-settings-btn { width: 32px; height: 32px; flex-basis: 32px; }
+    .campus-settings-btn svg { width: 14px; height: 14px; }
+    .campus-exit-btn { min-height: 32px; }
+    .campus-settings-panel { top: 36px; }
+  }
+  /* Short landscape screens (phones turned sideways): keep the minimap compact, move the
+     prompt out of the HUD's way, and keep the discovery card clear of both. */
+  @media (max-height: 520px) {
+    .campus-minimap { width: 92px; max-width: 92px; }
+    .campus-prompt { top: auto; bottom: 14px; max-width: calc(100% - 290px); }
+    .holo-discovery-card { top: max(8px, env(safe-area-inset-top, 0px)); width: min(300px, calc(100% - 320px)); }
+    .campus-joystick-zone { width: 104px; height: 104px; }
+  }
+
   /* ===== PHONE (<=640px) ===== */
   @media (max-width: 640px) {
     .derioux-shell {
@@ -4643,8 +4795,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // on the same phone/browser must keep independent tutorial progress.
   const CAMERA_SENSITIVITY_STORAGE_KEY = 'derioux_campus_camera_sensitivity_v1';
   const DEFAULT_CAMERA_SENSITIVITY = 1;
-  const MIN_CAMERA_SENSITIVITY = 0.55;
-  const MAX_CAMERA_SENSITIVITY = 1.65;
+  const MIN_CAMERA_SENSITIVITY = 0.35;
+  const MAX_CAMERA_SENSITIVITY = 2.4;
   function readCameraSensitivity(): number {
     try {
       const raw = Number(window.localStorage.getItem(CAMERA_SENSITIVITY_STORAGE_KEY));
@@ -5951,20 +6103,20 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
     [1,1,1,1,1,1,1,1,1,1,1,1,1,5,1,1,1,1,1,1,1,1,1,1,1,1,1],
-    [1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,1,0,1],
-    [1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,1,0,1],
-    [1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,1,0,1],
-    [1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],
-    [1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,1],
-    [1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,1,1,1,1,1,1,1,0,1],
-    [1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,1],
-    [1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,1,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,1,1,1],
+    [1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,1,1,1],
+    [1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1],
+    [1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,1,1,1],
     [1,1,1,1,1,1,1,1,1,1,1,1,1,5,1,1,1,1,1,1,1,1,1,1,1,1,1],
-    [1,0,1,1,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,1,1,0,1],
-    [1,0,1,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,1,0,1],
-    [1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],
-    [1,0,1,1,1,1,1,1,1,1,1,0,0,0,0,0,1,1,1,1,1,1,1,1,1,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,1,1,1],
+    [1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1],
     [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
     [1,0,1,1,1,1,1,1,1,1,1,0,0,0,0,0,1,1,1,1,1,1,1,1,1,0,1],
     [1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],
@@ -6351,6 +6503,30 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     return questionSetCache[key];
   };
 
+  // Per-question countdown, scaled to the difficulty of the level. Every district has a
+  // base time that shrinks as the district gets harder (this lines up with the
+  // recommendedLevel ladder: Foundation Lv1 → Mastery Lv25), and the three quest-tier
+  // districts shave one more second off per NPC (questionIndex 0–3) so the climb inside a
+  // tier is felt too. The result is monotonic: a higher-level quest never gives more time
+  // than a lower-level one.
+  //   foundation 30s · wilds 26s · peaks 22s · citadel 20s
+  //   advanced 18→15s · expert 14→11s · mastery 11→8s
+  // A small reading allowance is then added for unusually long questions/options, so a
+  // wordy question never turns into a pure reading-speed test (see below).
+  const BATTLE_BASE_SECONDS: Record<string, number> = {
+    foundation: 30, wilds: 26, peaks: 22, citadel: 20, advanced: 18, expert: 14, mastery: 11,
+  };
+  const BATTLE_MIN_SECONDS = 8;
+  const getQuestionTimeLimit = (challenger: Pick<CampusChallenger, 'districtId' | 'questionIndex'> | null, question: Question): number => {
+    const base = BATTLE_BASE_SECONDS[challenger?.districtId ?? ''] ?? 25;
+    const isTier = challenger?.districtId === 'advanced' || challenger?.districtId === 'expert' || challenger?.districtId === 'mastery';
+    const tierPenalty = isTier ? Math.min(3, challenger?.questionIndex ?? 0) : 0;
+    const words = `${question.question} ${question.options.join(' ')}`.trim().split(/\s+/).length;
+    // Roughly 1s per 8 words past a ~25-word typical question, capped at +6s.
+    const readingBonus = Math.min(6, Math.max(0, Math.ceil((words - 25) / 8)));
+    return Math.max(BATTLE_MIN_SECONDS, base - tierPenalty) + readingBonus;
+  };
+
   // Lost Notes: small pickups scattered around the map. Walking over one reveals a bite-size
   // review tip via a toast — low-commitment content for players who just want to poke around.
   type CampusNote = { id: string; x: number; y: number; title: string; hint: string };
@@ -6480,21 +6656,31 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // plaque, the further the player's viewing angle strays from square-on.
   type CampusSign = { id: string; x: number; y: number; label: string; side: 'N' | 'S' | 'E' | 'W'; elevation?: number };
   const CAMPUS_SIGNS: CampusSign[] = [
-    // Laboratory's east exterior wall (solid col 11) — faces the open courtyard, where
-    // anyone approaching from that side sees it.
-    { id: 'sign_1', x: 11.04, y: 11.5, label: '🔬 SCIENCE LABS', side: 'E' },
-    // Library's west wall (solid col 17) — faces the wide central promenade it and the
-    // Classroom sit on opposite sides of.
+    // Every plaque is mounted on the OUTER face of a solid wall and verified to face an
+    // open walkable tile. (Wall tiles are full 1x1 boxes centered on the tile, so an east/
+    // south-facing plaque sits at col+1.04 / row+1.04 — the older east-wall signs sat inside
+    // the wall and were invisible.) Grouped: entrance + districts, tier gates (both sides),
+    // then the individual rooms of the Advanced / Expert / Mastery wings.
+    { id: 'sign_1', x: 12.04, y: 11.5, label: '🔬 SCIENCE LABS', side: 'E' },
     { id: 'sign_2', x: 16.96, y: 21.5, label: '📚 LIBRARY', side: 'W' },
-    // Mounted on the Mastery Citadel Gate's own wall row (row 30), one cell west of the
-    // gate itself, facing north into the courtyard everyone approaches the gate from.
-    { id: 'sign_3', x: 12.5, y: 29.96, label: '🏰 MASTERY CITADEL', side: 'N' },
-    // Also on the Laboratory's east wall, further down — reads as the Foundation
-    // District's own building marker for anyone approaching from further south.
-    { id: 'sign_4', x: 11.04, y: 16.5, label: '🏘️ FOUNDATION DISTRICT', side: 'E' },
-    // Classroom's east wall (solid col 13) — faces the same promenade as the Library
-    // sign opposite it.
-    { id: 'sign_5', x: 13.04, y: 21.5, label: '🏫 CLASSROOM', side: 'E' },
+    { id: 'sign_3', x: 11.5, y: 29.96, label: '🏰 MASTERY CITADEL', side: 'N' },
+    { id: 'sign_4', x: 12.04, y: 16.5, label: '🏘️ FOUNDATION DISTRICT', side: 'E' },
+    { id: 'sign_5', x: 14.04, y: 21.5, label: '🏫 CLASSROOM', side: 'E' },
+    { id: 'sign_6', x: 11.5, y: 7.04, label: '🏛️ ADMINISTRATION HALL', side: 'S' },
+    { id: 'sign_7', x: 16.5, y: 7.04, label: '🚪 MAIN ENTRANCE', side: 'S' },
+    { id: 'sign_8', x: 9.5, y: 8.96, label: '🔬 LAB ENTRANCE', side: 'N' },
+    { id: 'sign_9', x: 25.96, y: 13.5, label: '🏔️ CHALLENGE PEAKS', side: 'W' },
+    { id: 'sign_10', x: 11.5, y: 41.96, label: '⚙️ ADVANCED WING', side: 'N' },
+    { id: 'sign_11', x: 15.0, y: 43.04, label: '⚙️ ADVANCED WING', side: 'S' },
+    { id: 'sign_12', x: 15.96, y: 44.5, label: '🔎 RESEARCH BAY', side: 'W' },
+    { id: 'sign_13', x: 16.96, y: 49.0, label: '📝 REVIEW OFFICE', side: 'W' },
+    { id: 'sign_14', x: 15.0, y: 51.96, label: '🧭 EXPERT ENCLAVE', side: 'N' },
+    { id: 'sign_16', x: 6.5, y: 57.04, label: '🌿 FIELD STATION', side: 'S' },
+    { id: 'sign_17', x: 20.5, y: 57.04, label: '🎓 LECTURE HALL', side: 'S' },
+    { id: 'sign_18', x: 6.5, y: 57.96, label: '🏋️ TRAINING CIRCLE', side: 'N' },
+    { id: 'sign_19', x: 20.5, y: 57.96, label: '📋 EXAM CHAMBER', side: 'N' },
+    { id: 'sign_20', x: 11.5, y: 61.96, label: '👑 MASTERY VAULT', side: 'N' },
+    { id: 'sign_22', x: 11.5, y: 64.96, label: '✨ INNER SANCTUM', side: 'N' },
   ];
   // Outward-facing normal vector for each wall face a sign can be mounted on — used to
   // tell whether the player is standing on the readable side of the sign, and to
@@ -6635,6 +6821,35 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // is currently looking (never world north). Unchanged from the previous raycasting
       // build — this is a HUD overlay, entirely independent of how the main 3D view is
       // rendered, so it keeps its own 2D canvas and its own draw pass.
+      // Static minimap layer (grid + every wall tile) baked once to an offscreen canvas and
+      // blitted each redraw — instead of re-stroking ~30 grid lines and filling ~1000 wall
+      // rects every 33ms. Rebuilt only when the map actually changes (a gate opening), so
+      // the minimap always matches the live 3D campus.
+      const MINI_LAYER_TILE = 10;
+      const miniLayer = document.createElement('canvas');
+      miniLayer.width = mapWidth * MINI_LAYER_TILE;
+      miniLayer.height = mapHeight * MINI_LAYER_TILE;
+      const miniLayerCtx = miniLayer.getContext('2d')!;
+      let miniLayerDirty = true;
+      const rebuildMiniLayer = () => {
+        const T = MINI_LAYER_TILE;
+        miniLayerCtx.clearRect(0, 0, miniLayer.width, miniLayer.height);
+        miniLayerCtx.strokeStyle = 'rgba(148, 163, 184, 0.07)';
+        miniLayerCtx.lineWidth = 1.5;
+        miniLayerCtx.beginPath();
+        for (let x = 0; x <= mapWidth; x += 2) { miniLayerCtx.moveTo(x * T, 0); miniLayerCtx.lineTo(x * T, mapHeight * T); }
+        for (let y = 0; y <= mapHeight; y += 2) { miniLayerCtx.moveTo(0, y * T); miniLayerCtx.lineTo(mapWidth * T, y * T); }
+        miniLayerCtx.stroke();
+        const inset = Math.max(0.5, T * 0.12);
+        const size = Math.max(1, T - inset);
+        miniLayerCtx.fillStyle = 'rgba(104, 119, 143, 0.78)';
+        for (let y = 0; y < mapHeight; y++) {
+          for (let x = 0; x < mapWidth; x++) {
+            if (map[y][x]) miniLayerCtx.fillRect(x * T + inset / 2, y * T + inset / 2, size, size);
+          }
+        }
+        miniLayerDirty = false;
+      };
       const drawMiniMap = (now: number) => {
         if (now - lastMiniMapDrawAt < MINIMAP_REDRAW_INTERVAL_MS) return;
         lastMiniMapDrawAt = now;
@@ -6688,29 +6903,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         miniCtx.fillStyle = 'rgba(38, 48, 68, 0.72)';
         miniCtx.fillRect(pad, pad, innerW, innerH);
 
-        const rowStart = Math.max(0, Math.floor(viewTop) - 1);
-        const rowEnd = Math.min(mapHeight, Math.ceil(viewTop + viewRows) + 1);
-
-        miniCtx.strokeStyle = 'rgba(148, 163, 184, 0.055)';
-        miniCtx.lineWidth = 1;
-        for (let x = 0; x <= mapWidth; x += 2) {
-          miniCtx.beginPath(); miniCtx.moveTo(ox + x * scale, oy + rowStart * scale); miniCtx.lineTo(ox + x * scale, oy + rowEnd * scale); miniCtx.stroke();
-        }
-        for (let y = rowStart; y <= rowEnd; y += 1) {
-          if (y % 2 !== 0) continue;
-          miniCtx.beginPath(); miniCtx.moveTo(ox, oy + y * scale); miniCtx.lineTo(ox + mapWidth * scale, oy + y * scale); miniCtx.stroke();
-        }
-
-        const wallInset = Math.max(0.5, scale * 0.12);
-        const wallSize = Math.max(1, scale - wallInset);
-        for (let y = rowStart; y < rowEnd; y++) {
-          for (let x = 0; x < mapWidth; x++) {
-            if (map[y]?.[x]) {
-              miniCtx.fillStyle = 'rgba(104, 119, 143, 0.78)';
-              miniCtx.fillRect(ox + x * scale + wallInset / 2, oy + y * scale + wallInset / 2, wallSize, wallSize);
-            }
-          }
-        }
+        if (miniLayerDirty) rebuildMiniLayer();
+        miniCtx.drawImage(miniLayer, ox, oy, mapWidth * scale, mapHeight * scale);
 
         const dot = (x: number, y: number, radius: number, fill: string, stroke?: string) => {
           const sx = ox + x * scale;
@@ -6756,7 +6950,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
         guides.forEach((g) => dot(g.x, g.y, 2.8, '#67cdd1'));
         notes.forEach((n) => { if (!collectedNotes.has(n.id)) dot(n.x, n.y, 2.1, '#d8b4fe'); });
-        gates.forEach((g) => dot(g.x, g.y, 3.1, '#fb7185', 'rgba(255,255,255,.7)'));
+        gates.forEach((g) => { if (!g.open) dot(g.x, g.y, 3.1, '#fb7185', 'rgba(255,255,255,.7)'); });
 
         miniCtx.restore();
 
@@ -6809,7 +7003,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       let currentDistrictId: string | null = null;
       let lastProgressCount = -1;
       let lastMiniMapDrawAt = 0;
-      const MINIMAP_REDRAW_INTERVAL_MS = 33;
+      const MINIMAP_REDRAW_INTERVAL_MS = 'ontouchstart' in window ? 50 : 33;
       const totalDiscoverable = challengers.length + notes.length + guides.length;
 
       const checkGateUnlock = () => {
@@ -6818,6 +7012,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           if (gate.requiredIds.every((id) => defeatedIdsRef.current.includes(id))) {
             gate.open = true;
             map[gate.y][gate.x] = 0;
+            miniLayerDirty = true;
             if (gate.announceUnlock !== false) {
               notifyRef.current(gate.label, gate.openMessage);
               if (soundEnabledRef.current) playAchievementSfx();
@@ -6993,8 +7188,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // zoom-out reads as a smooth recovery rather than a pop. Both are driven by the
       // same underlying collider-based clearance check as player movement, so anything
       // that blocks the player (walls, buildings, gates, NPCs) also blocks the camera.
-      const CAMERA_OBSTRUCTION_PULL_IN_RATE = 26;
-      const CAMERA_OBSTRUCTION_PUSH_OUT_RATE = 7;
+            const CAMERA_OBSTRUCTION_PUSH_OUT_RATE = 7;
       const CAMERA_ZOOM_RATE = 20;
       const CAMERA_COLLIDER_RADIUS = 0.15;
       // Eye-level for the humanoid rig built in makeHumanoid (head center sits at 1.46,
@@ -7027,7 +7221,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // then read every frame by the player/camera update further down.
       type ElevationZone =
         | { kind: 'flat'; x0: number; y0: number; x1: number; y1: number; elevation: number }
-        | { kind: 'ramp'; x0: number; y0: number; x1: number; y1: number; axis: 'x' | 'y'; from: number; to: number };
+        | { kind: 'ramp'; x0: number; y0: number; x1: number; y1: number; axis: 'x' | 'y'; from: number; to: number; steps?: number };
       const elevationZones: ElevationZone[] = [];
       // Real solid collision for the two long sides of every stair flight — accurate,
       // narrow AABBs hugging the actual stair geometry (see the stair-building pass
@@ -7045,8 +7239,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           if (x < z.x0 || x >= z.x1 || y < z.y0 || y >= z.y1) continue;
           if (z.kind === 'flat') return z.elevation;
           const span = z.axis === 'x' ? z.x1 - z.x0 : z.y1 - z.y0;
-          const t = span > 0 ? (z.axis === 'x' ? (x - z.x0) : (y - z.y0)) / span : 0;
-          return z.from + (z.to - z.from) * Math.max(0, Math.min(1, t));
+          let t = Math.max(0, Math.min(1, span > 0 ? (z.axis === 'x' ? (x - z.x0) : (y - z.y0)) / span : 0));
+          // Stairs: snap to the height of the tread actually underfoot (treads are centred on
+          // k/steps of the run, so rounding matches the rendered geometry exactly). Feet rest
+          // ON a tread instead of floating/sinking along a continuous slope.
+          if (z.steps) t = Math.round(t * z.steps) / z.steps;
+          return z.from + (z.to - z.from) * t;
         }
         return 0;
       }
@@ -7073,7 +7271,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // amount) makes this frame-rate independent and correctly leaves smooth stair descent
       // alone while still catching real edges, including small ones.
       const MAX_WALK_SLOPE = 2.4;
+      // Largest single drop still walked down (one stair tread) rather than treated as a fall,
+      // and how quickly the visual height eases onto the ground height underfoot.
+      const MAX_STEP_DOWN = 0.5;
+      const GROUND_FOLLOW_RATE = 24;
       let playerElevationY = getElevation(playerX, playerY);
+      let playerGroundY = playerElevationY; // physical ground height; playerElevationY is the eased visual height
       let playerVerticalVelocity = 0;
       let isAirborne = false;
       let airbornePeakElevation = playerElevationY;
@@ -7147,26 +7350,26 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         }
         const groundY = getElevation(playerX, playerY);
         if (!isAirborne) {
-          const drop = playerElevationY - groundY;
-          if (drop > GROUND_SNAP_TOLERANCE) {
-            const dx = playerX - lastPhysicsX;
-            const dy = playerY - lastPhysicsY;
-            const horizDist = Math.hypot(dx, dy);
+          let fell = false;
+          const drop = playerGroundY - groundY;
+          if (drop > MAX_STEP_DOWN) {
+            const horizDist = Math.hypot(playerX - lastPhysicsX, playerY - lastPhysicsY);
             const slope = horizDist > 1e-4 ? drop / horizDist : Infinity;
             if (slope > MAX_WALK_SLOPE) {
-              // Steeper than any real staircase here — an actual edge/ledge. Release into a
-              // real fall instead of snapping/sliding down the drop.
+              // A real ledge, not a stair tread: release into a genuine fall.
               isAirborne = true;
               playerVerticalVelocity = Math.min(playerVerticalVelocity, 0);
               airbornePeakElevation = playerElevationY;
-            } else {
-              // A real (if steep) walkable slope — follow it directly, same as before.
-              playerElevationY = groundY;
+              fell = true;
             }
-          } else {
-            // Flat ground, climbing a ramp/stairs, or a negligible change — follow it
-            // directly, exactly like the original always-snapped behavior.
-            playerElevationY = groundY;
+          }
+          if (!fell) {
+            // Walking: ease the visual height onto the tread/floor underfoot (frame-rate
+            // independent). Treads read as quick, smooth steps; flat ground is exact.
+            playerGroundY = groundY;
+            const follow = 1 - Math.exp(-GROUND_FOLLOW_RATE * Math.max(dt, 0));
+            playerElevationY += (groundY - playerElevationY) * follow;
+            if (Math.abs(groundY - playerElevationY) < GROUND_SNAP_TOLERANCE * 0.15) playerElevationY = groundY;
           }
         }
         if (isAirborne) {
@@ -7176,14 +7379,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           const currentGroundY = getElevation(playerX, playerY);
           if (playerElevationY <= currentGroundY) {
             const fallDistance = Math.max(0, airbornePeakElevation - currentGroundY);
-            playerElevationY = currentGroundY;
+            playerGroundY = currentGroundY;
+            // Landing beside/onto a tread slightly above the feet: let the walk-follow ease
+            // up instead of teleporting up.
+            if (currentGroundY - playerElevationY <= 0.25) playerElevationY = currentGroundY;
             playerVerticalVelocity = 0;
             isAirborne = false;
             if (fallDistance > 0.06) {
-              // Scale the landing feedback with how far the player actually fell: a small
-              // step barely registers, a real drop (off a balcony, missed stair edge) gives
-              // a noticeably stronger bounce + dust puff, clamped so huge drops don't blow
-              // the effect out.
               const strength = Math.max(0, Math.min(1, fallDistance / 2.2));
               landingBounceStrength = Math.max(landingBounceStrength, 0.15 + strength * 0.85);
               landingBounceAge = 0;
@@ -7196,10 +7398,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       }
       function tryJump() {
         if (isAirborne) return;
+        // Launch from whatever the player is standing on (even mid-way through easing onto a
+        // tread), never from below it.
         const groundY = getElevation(playerX, playerY);
-        // Only allow launching from something the player is actually resting on (guards
-        // against jumping while mid-step-up onto a stair, which is handled as a snap above).
-        if (Math.abs(playerElevationY - groundY) > GROUND_SNAP_TOLERANCE) return;
+        if (groundY > playerElevationY) playerElevationY = groundY;
+        playerGroundY = groundY;
         isAirborne = true;
         playerVerticalVelocity = JUMP_SPEED;
         airbornePeakElevation = playerElevationY;
@@ -7222,12 +7425,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       let smoothFovOffsetDeg = 0;
       let smoothCamX = playerX - Math.cos(playerAngle) * CAMERA_DEFAULT_DISTANCE;
       let smoothCamY = playerY - Math.sin(playerAngle) * CAMERA_DEFAULT_DISTANCE;
-      let smoothCamElevation = 0; // eased world-space height under the camera's own (x,y) — see getElevation
+      let smoothCamElevation = getElevation(playerX, playerY); // eased ground height used by the third-person camera
       // Last frame's obstruction-clamped back distance — compared against this frame's
       // freshly-raycast value every frame to decide whether the camera is being pulled
       // in (something now blocks it) or pushed back out (it just cleared), so each
-      // direction can ease at its own rate. See CAMERA_OBSTRUCTION_PULL_IN_RATE / _OUT.
+      // direction can ease at its own rate. See CAMERA_OBSTRUCTION_PUSH_OUT_RATE.
       let smoothCameraBackDist = CAMERA_DEFAULT_DISTANCE;
+      // Max distance an obstacle currently allows behind the player: clamps in instantly, eases back out.
+      let smoothCameraObstructionLimit = 99;
       let pointerLocked = false;
       let roamingActive = true;
       // Guards a single NPC interaction (card shown, or hand-off to the quest
@@ -7254,6 +7459,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const PITCH_OFFSET_MIN = -1.0;
       const PITCH_OFFSET_MAX = 0.7;
       let touchLookDX = 0;
+      let touchLookDY = 0;
+      const TOUCH_PITCH_RATIO = 0.55;
       // Desktop Roblox-style "hold left mouse + drag to look" state. Camera yaw/pitch
       // rotate only while mouseDragActive is true (set on left mousedown, cleared on
       // mouseup/blur) — plain mouse movement with the button up never touches mouseDX/
@@ -7288,13 +7495,15 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // immediately noticeable change (Roblox-style snappy zoom) while still leaving
       // room for the per-frame lerp below (CAMERA_ZOOM_RATE) to smooth it out rather
       // than let the camera visibly jump.
-      const CAMERA_ZOOM_STEP_MIN = 0.09;
-      const CAMERA_ZOOM_STEP_RATIO = 0.11;
+      const CAMERA_ZOOM_STEP_MIN = 0.12;
+      const CAMERA_ZOOM_STEP_RATIO = 0.16;
       const CAMERA_ZOOM_FOV_STEP_DEG = 3.2;
       function setCameraZoomFromInput(delta: number) {
         if (!Number.isFinite(delta) || delta === 0) return;
+        // `delta` is in wheel "notches" (+ = zoom out, - = zoom in); proportional, so slow
+        // trackpad scrolls and slow pinches move a little and fast ones move a lot.
         const direction = delta > 0 ? 1 : -1;
-        const magnitude = Math.min(Math.abs(delta), 5) / 5;
+        const magnitude = Math.min(Math.abs(delta), 3);
         // Already fully first-person and still trying to zoom in further: nothing left
         // to dolly, so route the gesture into a gentle FOV narrow instead of ignoring it.
         if (direction < 0 && targetCameraDistance <= CAMERA_FIRST_PERSON_DISTANCE + 0.03) {
@@ -7322,7 +7531,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // camera framing, interaction, gates, quests and the minimap above are all completely
       // unchanged — this section only supplies what the camera actually sees.
       // ===================================================================================
-      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias: !isMobile, powerPreference: 'high-performance' });
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.shadowMap.enabled = false;
       const scene = new THREE.Scene();
@@ -7335,13 +7544,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
       const camera = new THREE.PerspectiveCamera(72, 1, 0.05, 140);
 
-      const hemi = new THREE.HemisphereLight(0xffffff, 0x7fa66b, 1.0);
+      const hemi = new THREE.HemisphereLight(0xf4f8ff, 0xb9b5aa, 0.95);
       scene.add(hemi);
-      const sun = new THREE.DirectionalLight(0xfff6df, 1.35);
+      const sun = new THREE.DirectionalLight(0xfff3dc, 1.3);
       sun.position.set(16, 30, 11);
       scene.add(sun);
       scene.add(sun.target);
-      const fill = new THREE.AmbientLight(0xffffff, 0.45);
+      const fill = new THREE.AmbientLight(0xffffff, 0.42);
       scene.add(fill);
 
       // --- shared low-cost procedural textures ------------------------------------------
@@ -7360,65 +7569,39 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const brickTexture = makeCanvasTexture((cctx, size) => {
         cctx.fillStyle = '#ffffff';
         cctx.fillRect(0, 0, size, size);
-        cctx.strokeStyle = 'rgba(0,0,0,0.10)';
-        cctx.lineWidth = 1.5;
-        const bands = 3;
-        for (let r = 0; r <= bands; r++) {
-          const y = (r / bands) * size;
-          cctx.beginPath(); cctx.moveTo(0, y); cctx.lineTo(size, y); cctx.stroke();
-        }
-        cctx.strokeStyle = 'rgba(0,0,0,0.06)';
+        // One faint horizontal panel joint only; no vertical streaks.
+        cctx.strokeStyle = 'rgba(0,0,0,0.045)';
         cctx.lineWidth = 1;
-        cctx.beginPath(); cctx.moveTo(size / 2, 0); cctx.lineTo(size / 2, size); cctx.stroke();
-        // faint weathering streaks, kept subtle so the panels still read as clean
-        cctx.strokeStyle = 'rgba(0,0,0,0.035)';
-        for (let i = 0; i < 5; i++) {
-          const x = (i / 5) * size + size / 10;
-          cctx.beginPath(); cctx.moveTo(x, 0); cctx.lineTo(x, size); cctx.stroke();
-        }
+        cctx.beginPath(); cctx.moveTo(0, size - 0.5); cctx.lineTo(size, size - 0.5); cctx.stroke();
       });
-      // Jointed concrete pavement for the outdoor courtyard and covered walkways —
-      // broad slabs with control joints, the way a real paved schoolyard is scored.
+      // Large-format concrete pavers, joints barely visible.
       const floorTexture = makeCanvasTexture((cctx, size) => {
         cctx.fillStyle = '#ffffff';
         cctx.fillRect(0, 0, size, size);
-        cctx.strokeStyle = 'rgba(0,0,0,0.16)';
-        cctx.lineWidth = 2.5;
-        const cells = 2;
-        for (let i = 0; i <= cells; i++) {
-          const p = (i / cells) * size;
-          cctx.beginPath(); cctx.moveTo(p, 0); cctx.lineTo(p, size); cctx.stroke();
-          cctx.beginPath(); cctx.moveTo(0, p); cctx.lineTo(size, p); cctx.stroke();
-        }
-        cctx.strokeStyle = 'rgba(0,0,0,0.05)';
-        cctx.lineWidth = 1;
-        for (let i = 0; i < size; i += size / 8) {
-          cctx.beginPath(); cctx.moveTo(i, 0); cctx.lineTo(i + size / 20, size); cctx.stroke();
-        }
+        cctx.strokeStyle = 'rgba(0,0,0,0.09)';
+        cctx.lineWidth = 1.5;
+        cctx.beginPath(); cctx.moveTo(0.5, 0); cctx.lineTo(0.5, size); cctx.stroke();
+        cctx.beginPath(); cctx.moveTo(0, 0.5); cctx.lineTo(size, 0.5); cctx.stroke();
       });
-      // Pale ceramic classroom-floor tile for interiors — small even grid, glossier.
+      // Wide floor boards for interiors: a handful of long seams instead of a dense grid.
       const planksTexture = makeCanvasTexture((cctx, size) => {
         cctx.fillStyle = '#ffffff';
         cctx.fillRect(0, 0, size, size);
-        cctx.strokeStyle = 'rgba(0,0,0,0.13)';
-        cctx.lineWidth = 1.5;
-        const cells = 4;
-        for (let i = 0; i <= cells; i++) {
-          const p = (i / cells) * size;
-          cctx.beginPath(); cctx.moveTo(p, 0); cctx.lineTo(p, size); cctx.stroke();
-          cctx.beginPath(); cctx.moveTo(0, p); cctx.lineTo(size, p); cctx.stroke();
+        cctx.strokeStyle = 'rgba(60,40,20,0.10)';
+        cctx.lineWidth = 1;
+        for (let i = 0; i < 2; i++) {
+          const x = (i / 2) * size + 0.5;
+          cctx.beginPath(); cctx.moveTo(x, 0); cctx.lineTo(x, size); cctx.stroke();
         }
       });
-      // Ribbed galvanized-iron roof sheeting — the corrugated pattern real school roofs
-      // are built from, tinted green in the material color rather than baked in here.
+      // Standing-seam metal roof: four wide, faint seams.
       const roofTexture = makeCanvasTexture((cctx, size) => {
         cctx.fillStyle = '#ffffff';
         cctx.fillRect(0, 0, size, size);
-        cctx.strokeStyle = 'rgba(0,0,0,0.22)';
-        cctx.lineWidth = 1.5;
-        const ribs = 10;
-        for (let i = 0; i <= ribs; i++) {
-          const x = (i / ribs) * size;
+        cctx.strokeStyle = 'rgba(0,0,0,0.10)';
+        cctx.lineWidth = 1;
+        for (let i = 0; i < 4; i++) {
+          const x = (i / 4) * size + 0.5;
           cctx.beginPath(); cctx.moveTo(x, 0); cctx.lineTo(x, size); cctx.stroke();
         }
       }, 32);
@@ -7475,14 +7658,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // paths). Each district's own accent color (from CAMPUS_DISTRICTS) is kept as a
       // faint tint on top of that base — enough to still help with wayfinding — instead
       // of driving the whole building's color the way it used to.
-      const SCHOOL_CREAM = new THREE.Color(0xede4c8);
-      const SCHOOL_GREEN = new THREE.Color(0x2f6b47);
-      const SCHOOL_CONCRETE = new THREE.Color(0xc7c3b4);
+      const SCHOOL_CREAM = new THREE.Color(0xf2efe8); // clean warm-white plaster
+      const SCHOOL_GREEN = new THREE.Color(0x2e4660); // slate navy: the single accent for roofs, rails, frames (name kept for existing references)
+      const SCHOOL_CONCRETE = new THREE.Color(0xcfd1d2); // cool light concrete
       const districtColor = (rgb: [number, number, number]) => new THREE.Color(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255);
-      const districtWallColor = (d: CampusDistrict) => SCHOOL_CREAM.clone().lerp(districtColor(d.ceil), 0.08);
-      const districtFloorColor = (d: CampusDistrict) => SCHOOL_CREAM.clone().lerp(new THREE.Color(0x8a7a55), 0.35).lerp(districtColor(d.floor), 0.06);
-      const districtRoofColor = (d: CampusDistrict) => SCHOOL_GREEN.clone().lerp(districtColor(d.ceil), 0.12);
-      const districtPathColor = (d: CampusDistrict) => SCHOOL_CONCRETE.clone().lerp(districtColor(d.floor), 0.06);
+      const districtWallColor = (d: CampusDistrict) => SCHOOL_CREAM.clone().lerp(districtColor(d.ceil), 0.03);
+      const districtFloorColor = (d: CampusDistrict) => new THREE.Color(0xdcd9d0).lerp(districtColor(d.floor), 0.04); // pale stone plaza
+      const districtRoofColor = (d: CampusDistrict) => SCHOOL_GREEN.clone().lerp(districtColor(d.ceil), 0.05);
+      const districtPathColor = (d: CampusDistrict) => SCHOOL_CONCRETE.clone().lerp(new THREE.Color(0x9a9ea3), 0.2).lerp(districtColor(d.floor), 0.03);
 
       // --- indoor building footprints. Hand-placed to match CAMPUS_MAP's own renovated
       // layout exactly, so every real room gets a proper ceiling and every open
@@ -7543,7 +7726,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             const kind = indoor ? 'indoor' : plaza ? 'plaza' : 'path';
             const key = `${district.id}:${kind}`;
             if (!byKey.has(key)) {
-              const color = indoor ? districtFloorColor(district).lerp(new THREE.Color(0x3a2c1c), 0.25)
+              const color = indoor ? new THREE.Color(0xc4a982).lerp(districtColor(district.floor), 0.04) // warm oak-tone interior floor
                 : plaza ? districtFloorColor(district)
                 : districtPathColor(district);
               byKey.set(key, { entries: [], color, map: indoor ? planksTexture : floorTexture, roughness: indoor ? 0.8 : 0.95 });
@@ -7558,6 +7741,47 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         });
       }
 
+      // --- interior ceilings: every indoor floor cell gets a real plaster ceiling slab at the
+      // wall line (so the sky can never show above a room), with cross beams, perimeter
+      // coving and recessed light panels. The slab doubles as the underside of the second-
+      // floor structure. Purely visual: collision, elevation and the walkable grid are untouched.
+      {
+        const SLAB_BOTTOM = WALL_HEIGHT - 0.02, SLAB_T = 0.16;
+        const slabEntries: { cx: number; cy: number; cz: number; sx: number; sy: number; sz: number }[] = [];
+        const beamEntries: typeof slabEntries = [];
+        const coveEntries: typeof slabEntries = [];
+        const panelEntries: typeof slabEntries = [];
+        const isIndoorCell = (x: number, y: number) => x >= 0 && y >= 0 && x < mapWidth && y < mapHeight && map[y][x] === 0 && !!buildingAt(x, y);
+        for (let y = 0; y < mapHeight; y++) {
+          let runStart = -1;
+          for (let x = 0; x <= mapWidth; x++) {
+            const inside = isIndoorCell(x, y);
+            if (inside && runStart < 0) runStart = x;
+            if (!inside && runStart >= 0) {
+              const len = x - runStart;
+              slabEntries.push({ cx: runStart + len / 2, cy: SLAB_BOTTOM + SLAB_T / 2, cz: y + 0.5, sx: len + 0.02, sy: SLAB_T, sz: 1.02 });
+              runStart = -1;
+            }
+            if (!inside) continue;
+            if (x % 4 === 0) beamEntries.push({ cx: x + 0.5, cy: SLAB_BOTTOM - 0.08, cz: y + 0.5, sx: 0.18, sy: 0.16, sz: 1 });
+            if ((x + y) % 3 === 0 && isIndoorCell(x - 1, y) && isIndoorCell(x + 1, y) && isIndoorCell(x, y - 1) && isIndoorCell(x, y + 1)) {
+              panelEntries.push({ cx: x + 0.5, cy: SLAB_BOTTOM - 0.02, cz: y + 0.5, sx: 0.55, sy: 0.04, sz: 0.55 });
+            }
+            if (!isIndoorCell(x, y - 1) && map[y - 1]?.[x] !== 0) coveEntries.push({ cx: x + 0.5, cy: SLAB_BOTTOM - 0.06, cz: y + 0.06, sx: 1, sy: 0.12, sz: 0.12 });
+            if (!isIndoorCell(x, y + 1) && map[y + 1]?.[x] !== 0) coveEntries.push({ cx: x + 0.5, cy: SLAB_BOTTOM - 0.06, cz: y + 0.94, sx: 1, sy: 0.12, sz: 0.12 });
+            if (!isIndoorCell(x - 1, y) && map[y]?.[x - 1] !== 0) coveEntries.push({ cx: x + 0.06, cy: SLAB_BOTTOM - 0.06, cz: y + 0.5, sx: 0.12, sy: 0.12, sz: 1 });
+            if (!isIndoorCell(x + 1, y) && map[y]?.[x + 1] !== 0) coveEntries.push({ cx: x + 0.94, cy: SLAB_BOTTOM - 0.06, cz: y + 0.5, sx: 0.12, sy: 0.12, sz: 1 });
+          }
+        }
+        const ceilingMat = new THREE.MeshStandardMaterial({ color: 0xf4f2ec, roughness: 0.95 });
+        const beamMat = new THREE.MeshStandardMaterial({ color: 0xe2dfd6, roughness: 0.85 });
+        const panelMat = new THREE.MeshStandardMaterial({ color: 0xfff6dc, emissive: new THREE.Color(0xfff0c8), emissiveIntensity: 0.55, roughness: 0.4 });
+        if (slabEntries.length) worldGroup.add(new THREE.Mesh(mergeBoxes(slabEntries), ceilingMat));
+        if (beamEntries.length) worldGroup.add(new THREE.Mesh(mergeBoxes(beamEntries), beamMat));
+        if (coveEntries.length) worldGroup.add(new THREE.Mesh(mergeBoxes(coveEntries), beamMat));
+        if (panelEntries.length) worldGroup.add(new THREE.Mesh(mergeBoxes(panelEntries), panelMat));
+      }
+
       // --- walls, doors, windows, lockers, notice boards, gates --------------------------
       const gateMeshes: { gate: (typeof gates)[number]; group: THREE.Group; shield: THREE.Mesh; wasOpen: boolean; openedAt: number | null }[] = [];
       const interactiveObjects: THREE.Object3D[] = [];
@@ -7565,6 +7789,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // exterior-lighting pass below can attach a canopy + sconce to the actual doorway
       // instead of guessing — one purposeful fixture per entrance, not a scatter of props.
       const doorEntrances: { cx: number; cz: number; dirX: number; dirZ: number }[] = [];
+      const windowFrameEntries: { cx: number; cy: number; cz: number; sx: number; sy: number; sz: number }[] = [];
       {
         const wallEntriesByDistrict = new Map<string, { cx: number; cy: number; cz: number; sx: number; sy: number; sz: number }[]>();
         for (let y = 0; y < mapHeight; y++) {
@@ -7607,7 +7832,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
               const wallColor = districtWallColor(district);
               const frameMat = new THREE.MeshStandardMaterial({ color: wallColor.clone().lerp(new THREE.Color(0x000000), 0.15), map: brickTexture, roughness: 0.85 });
               worldGroup.add(new THREE.Mesh(new THREE.BoxGeometry(1, WALL_HEIGHT, 1), frameMat).translateX(cx).translateY(WALL_HEIGHT / 2).translateZ(cz));
-              const doorMat = new THREE.MeshStandardMaterial({ color: 0x2b3550, roughness: 0.55, metalness: 0.15 });
+              const doorMat = new THREE.MeshStandardMaterial({ color: 0x7a5535, roughness: 0.55, metalness: 0.05 });
               const door = new THREE.Mesh(new THREE.BoxGeometry(0.62, 1.9, 0.06), doorMat);
               door.position.set(cx - 0.16, 1.0, cz + 0.47);
               door.rotation.y = 0.55; // slightly ajar, reads as a real door rather than a flat panel
@@ -7628,18 +7853,26 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
               const wallColor = districtWallColor(district);
               const wallMat = new THREE.MeshStandardMaterial({ color: wallColor, map: brickTexture, roughness: 0.85 });
               worldGroup.add(new THREE.Mesh(new THREE.BoxGeometry(1, WALL_HEIGHT, 1), wallMat).translateX(cx).translateY(WALL_HEIGHT / 2).translateZ(cz));
-              const paneMat = new THREE.MeshStandardMaterial({ color: 0xbfe3ec, emissive: new THREE.Color(0x6fc7dc), emissiveIntensity: 0.22, transparent: true, opacity: 0.55, roughness: 0.15, metalness: 0.1 });
+              const paneMat = new THREE.MeshStandardMaterial({ color: 0xa9cbd8, emissive: new THREE.Color(0x4f8fa6), emissiveIntensity: 0.12, transparent: true, opacity: 0.5, roughness: 0.08, metalness: 0.25 });
               const paneGeo = new THREE.PlaneGeometry(0.78, 1.55);
-              const mullionMat = new THREE.MeshStandardMaterial({ color: SCHOOL_GREEN.clone().lerp(new THREE.Color(0xffffff), 0.1), roughness: 0.55 });
+              // (mullion material removed with the transom bar)
               [[0, 0.5, cz + 0.51, 0], [0, 0.5, cz - 0.51, Math.PI], [cx + 0.51, 0.5, 0, -Math.PI / 2], [cx - 0.51, 0.5, 0, Math.PI / 2]].forEach(([px, , pz, ry], side) => {
                 const pane = new THREE.Mesh(paneGeo, paneMat);
                 if (side < 2) pane.position.set(cx, WALL_HEIGHT * 0.5, pz as number);
                 else pane.position.set(px as number, WALL_HEIGHT * 0.5, cz);
                 pane.rotation.y = ry as number;
-                const transom = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.03, 0.02), mullionMat);
-                transom.position.copy(pane.position);
-                transom.rotation.y = ry as number;
-                worldGroup.add(pane, transom);
+                worldGroup.add(pane);
+                // Slim frame (4 bars) + projecting sill, merged below into one draw call.
+                const fx = pane.position.x, fy = pane.position.y, fz = pane.position.z;
+                const zFace = side < 2;
+                const nrm = zFace ? (side === 0 ? 1 : -1) : (side === 2 ? 1 : -1);
+                const bar = (ox: number, oy: number, bw: number, bh: number) => windowFrameEntries.push(zFace
+                  ? { cx: fx + ox, cy: fy + oy, cz: fz, sx: bw, sy: bh, sz: 0.05 }
+                  : { cx: fx, cy: fy + oy, cz: fz + ox, sx: 0.05, sy: bh, sz: bw });
+                bar(0, 0.8, 0.86, 0.06); bar(0, -0.8, 0.86, 0.06); bar(-0.41, 0, 0.06, 1.62); bar(0.41, 0, 0.06, 1.62);
+                windowFrameEntries.push(zFace
+                  ? { cx: fx, cy: fy - 0.86, cz: fz + nrm * 0.08, sx: 1.0, sy: 0.06, sz: 0.2 }
+                  : { cx: fx + nrm * 0.08, cy: fy - 0.86, cz: fz, sx: 0.2, sy: 0.06, sz: 1.0 });
               });
               continue;
             }
@@ -7653,6 +7886,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             wallEntriesByDistrict.get(key)!.push({ cx, cy: WALL_HEIGHT / 2, cz, sx: 1, sy: WALL_HEIGHT, sz: 1 });
           }
         }
+        if (windowFrameEntries.length) worldGroup.add(new THREE.Mesh(mergeBoxes(windowFrameEntries), new THREE.MeshStandardMaterial({ color: SCHOOL_GREEN, roughness: 0.5, metalness: 0.2 })));
         wallEntriesByDistrict.forEach((entries, key) => {
           const [districtId, shadeStr] = key.split(':');
           const district = CAMPUS_DISTRICTS.find((d) => d.id === districtId)!;
@@ -7678,11 +7912,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // absurd rather than real.
       {
         const doorFrameMat = new THREE.MeshStandardMaterial({ color: SCHOOL_CREAM.clone().lerp(new THREE.Color(0x000000), 0.22), map: brickTexture, roughness: 0.82 });
-        const leafMat = new THREE.MeshStandardMaterial({ color: 0x2b3550, roughness: 0.5, metalness: 0.18 });
-        const panelMat = new THREE.MeshStandardMaterial({ color: 0x374266, roughness: 0.42, metalness: 0.15 });
+        const leafMat = new THREE.MeshStandardMaterial({ color: 0x7a5535, roughness: 0.55, metalness: 0.05 });
+        const panelMat = new THREE.MeshStandardMaterial({ color: 0x8a6342, roughness: 0.5, metalness: 0.05 });
         const handleMat = new THREE.MeshStandardMaterial({ color: 0xf2c96d, metalness: 0.65, roughness: 0.28 });
         const trimMat = new THREE.MeshStandardMaterial({ color: SCHOOL_CREAM.clone().lerp(new THREE.Color(0xffffff), 0.35), roughness: 0.6 });
-        const transomMat = new THREE.MeshStandardMaterial({ color: 0xbfe3ec, emissive: new THREE.Color(0x6fc7dc), emissiveIntensity: 0.2, transparent: true, opacity: 0.5, roughness: 0.2, side: THREE.DoubleSide });
+        const transomMat = new THREE.MeshStandardMaterial({ color: 0xa9cbd8, emissive: new THREE.Color(0x4f8fa6), emissiveIntensity: 0.12, transparent: true, opacity: 0.5, roughness: 0.2, side: THREE.DoubleSide });
         const thresholdMat = new THREE.MeshStandardMaterial({ color: SCHOOL_CONCRETE.clone().lerp(new THREE.Color(0x000000), 0.12), roughness: 0.9 });
 
         const DOOR_HEIGHT = 2.05;      // human-scale leaf height, leaves a real header band up to WALL_HEIGHT
@@ -7745,7 +7979,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         spans.forEach(({ cx, cz, alongX, tiles, swingX, swingZ }) => {
           const district = getDistrictAt(cx, cz);
           const wallColor = districtWallColor(district);
-          const frameMat = doorFrameMat.clone(); frameMat.color = wallColor.clone().lerp(new THREE.Color(0x000000), 0.2);
+          const frameMat = doorFrameMat.clone(); frameMat.color = SCHOOL_GREEN.clone();
           const totalWidth = tiles * 1.0;
           const clearWidth = Math.max(0.5, totalWidth - JAMB_THICK * 2 - 0.05);
           const leafCount = totalWidth > 1.5 ? 2 : 1;
@@ -7972,14 +8206,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           // columns holding up the veranda roof, not a dense repeating run of thin
           // vertical fins along every facade. Keeps most of each wall reading clean and
           // uninterrupted, with columns as an occasional accent rather than wallpaper.
-          const steps = Math.max(1, Math.round(length / 2.4));
+          const steps = Math.max(1, Math.round(length / 6)); // structural bays only: corners + one post per ~6 tiles
           for (let i = 0; i <= steps; i++) {
             const t = i / steps;
             const px = x0 + dx * length * t, pz = z0 + dz * length * t;
             // Skip a post where it would land squarely inside a solid boundary wall —
             // keeps the veranda looking attached to the building, not embedded in walls.
             if (!getWalkableCell(Math.floor(px), Math.floor(pz)) && !getWalkableCell(Math.floor(px), Math.floor(pz) - 1)) continue;
-            columnEntries.push({ cx: px, cy: WALL_HEIGHT / 2, cz: pz, sx: 0.22, sy: WALL_HEIGHT, sz: 0.22 });
+            columnEntries.push({ cx: px, cy: WALL_HEIGHT / 2, cz: pz, sx: 0.3, sy: WALL_HEIGHT, sz: 0.3 });
           }
         };
 
@@ -8105,7 +8339,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             const storyMat = new THREE.MeshStandardMaterial({ color: wallColor, map: brickTexture, roughness: 0.85 });
             upperWallEntries.push({ cx: midX, cy: topY + STORY_HEIGHT / 2, cz: midZ, sx: sw, sy: STORY_HEIGHT, sz: sd });
             worldGroup.add(new THREE.Mesh(new THREE.BoxGeometry(sw, STORY_HEIGHT, sd), storyMat).translateX(midX).translateY(topY + STORY_HEIGHT / 2).translateZ(midZ));
-            const bandMat = new THREE.MeshStandardMaterial({ color: 0xbfe3ec, emissive: new THREE.Color(0x6fc7dc), emissiveIntensity: 0.18, transparent: true, opacity: 0.5, roughness: 0.2 });
+            const bandMat = new THREE.MeshStandardMaterial({ color: 0xa9cbd8, emissive: new THREE.Color(0x4f8fa6), emissiveIntensity: 0.1, transparent: true, opacity: 0.5, roughness: 0.08, metalness: 0.25 });
             const bandY = topY + STORY_HEIGHT * 0.58;
             [[midX, midZ - sd / 2 - 0.01, sw - 0.6, WINDOW_BAND_H, 0], [midX, midZ + sd / 2 + 0.01, sw - 0.6, WINDOW_BAND_H, 0],
              [midX - sw / 2 - 0.01, midZ, sd - 0.6, WINDOW_BAND_H, Math.PI / 2], [midX + sw / 2 + 0.01, midZ, sd - 0.6, WINDOW_BAND_H, Math.PI / 2]]
@@ -8123,7 +8357,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
               { cx: midX - sw / 2, cy: railY, cz: midZ, sx: 0.06, sy: 0.06, sz: sd },
               { cx: midX + sw / 2, cy: railY, cz: midZ, sx: 0.06, sy: 0.06, sz: sd },
             ];
-            railEntries.push(...railRunEntries);
+            void railRunEntries; // perimeter rails removed: they sat inside the facade plane and only added lines
             topY += STORY_HEIGHT;
           }
 
@@ -8136,7 +8370,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           const roofMat = new THREE.MeshStandardMaterial({ color: roofColor, map: roofTexture, roughness: 0.6 });
           let roofApex = topY + 0.18;
           if (b.style === 'civic' || b.style === 'classic' || b.style === 'library') {
-            const tierCount = 3;
+            const tierCount = 2;
             let tw = w + 0.5, td = d + 0.5, ty = topY;
             for (let t = 0; t < tierCount; t++) {
               const th = 0.55;
@@ -8152,7 +8386,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             worldGroup.add(roof);
             const merlonMat = new THREE.MeshStandardMaterial({ color: roofColor.clone().lerp(new THREE.Color(0x000000), 0.25), map: roofTexture, roughness: 0.75 });
             const merlonEntries: { cx: number; cy: number; cz: number; sx: number; sy: number; sz: number }[] = [];
-            const merlonH = 0.5, merlonSpacing = 1.4;
+            const merlonH = 0.45, merlonSpacing = 2.8;
             for (let mx = b.x0 + 0.3; mx <= b.x1 - 0.3; mx += merlonSpacing) {
               merlonEntries.push({ cx: mx, cy: topY + merlonH / 2, cz: b.y0 - 0.05, sx: 0.5, sy: merlonH, sz: 0.22 });
               merlonEntries.push({ cx: mx, cy: topY + merlonH / 2, cz: b.y1 + 0.05, sx: 0.5, sy: merlonH, sz: 0.22 });
@@ -8172,7 +8406,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
               // roof, reading as an industrial workshop/engineering-hall roofline.
               const trussMat = new THREE.MeshStandardMaterial({ color: 0x4a4f5c, roughness: 0.5, metalness: 0.6 });
               const trussEntries: { cx: number; cy: number; cz: number; sx: number; sy: number; sz: number }[] = [];
-              for (let tx = b.x0 + 1; tx <= b.x1 - 1; tx += 2.2) {
+              for (let tx = b.x0 + 1; tx <= b.x1 - 1; tx += 4.4) {
                 trussEntries.push({ cx: tx, cy: topY + 0.5, cz: midZ, sx: 0.14, sy: 0.85, sz: d + 0.3 });
               }
               if (trussEntries.length) worldGroup.add(new THREE.Mesh(mergeBoxes(trussEntries), trussMat));
@@ -8234,10 +8468,18 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             { cx: b.x0 - 0.05, cy: FOUND_H / 2 - 0.03, cz: midZ, sx: 0.16, sy: FOUND_H, sz: d + 0.3 },
             { cx: b.x1 + 0.05, cy: FOUND_H / 2 - 0.03, cz: midZ, sx: 0.16, sy: FOUND_H, sz: d + 0.3 },
           );
+          // Floor-line fascia: a slab-edge band at the first/second-floor line so the exterior
+          // shows the same floor structure the interior ceiling slab represents.
+          columnEntries.push(
+            { cx: midX, cy: WALL_HEIGHT, cz: b.y0 - 0.06, sx: w + 0.2, sy: 0.3, sz: 0.14 },
+            { cx: midX, cy: WALL_HEIGHT, cz: b.y1 + 0.06, sx: w + 0.2, sy: 0.3, sz: 0.14 },
+            { cx: b.x0 - 0.06, cy: WALL_HEIGHT, cz: midZ, sx: 0.14, sy: 0.3, sz: d + 0.2 },
+            { cx: b.x1 + 0.06, cy: WALL_HEIGHT, cz: midZ, sx: 0.14, sy: 0.3, sz: d + 0.2 },
+          );
           // Corner downspouts, running from the gutter line at the top of the massing
           // straight down to the plinth — the roof needs somewhere for runoff to go.
           [[b.x0 - 0.06, b.y0 - 0.06], [b.x1 + 0.06, b.y0 - 0.06], [b.x0 - 0.06, b.y1 + 0.06], [b.x1 + 0.06, b.y1 + 0.06]].forEach(([dx, dz]) => {
-            downspoutEntries.push({ cx: dx, cy: topY / 2, cz: dz, sx: 0.05, sy: topY, sz: 0.05 });
+            void dx; void dz; // downspouts removed: extra vertical lines on every corner
           });
 
           // A real exterior stair up to a genuine, walkable upper-floor corridor that
@@ -8248,7 +8490,15 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           if (extraStories > 0) {
             const site = findStairSite(b, midX, midZ);
             if (site) {
-              const { axis, sign, baseX, baseZ } = site;
+              // `site` gives the building FACE. The old layout put the foot of the flight flush
+              // against the solid building with solid flanks/end wall, so the upper corridor
+              // could not be entered at all. Mirror it: the corridor/door sits at the building
+              // face and the flight descends outward, open at its foot at ground level.
+              // `sign` below is now the CLIMB direction (toward the building).
+              const { axis, sign: outSign, baseX: faceX, baseZ: faceZ } = site;
+              const sign = (outSign > 0 ? -1 : 1) as 1 | -1;
+              const baseX = axis === 'x' ? faceX + outSign * (STAIR_RUN + TERRACE_DEPTH) : faceX;
+              const baseZ = axis === 'z' ? faceZ + outSign * (STAIR_RUN + TERRACE_DEPTH) : faceZ;
               const terraceElevation = WALL_HEIGHT;
               const topX = axis === 'x' ? baseX + sign * STAIR_RUN : baseX;
               const topZ = axis === 'z' ? baseZ + sign * STAIR_RUN : baseZ;
@@ -8305,7 +8555,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                 const END_WALL_H = STORY_HEIGHT;
                 const DOOR_H = 2.05;
                 const doorWallMat = new THREE.MeshStandardMaterial({ color: wallColor, map: brickTexture, roughness: 0.85 });
-                const doorMat = new THREE.MeshStandardMaterial({ color: 0x4b3524, roughness: 0.6 });
+                const doorMat = new THREE.MeshStandardMaterial({ color: 0x7a5535, roughness: 0.55 });
                 const endWallEntries: { cx: number; cy: number; cz: number; sx: number; sy: number; sz: number }[] = [];
                 const doorEntries: { cx: number; cy: number; cz: number; sx: number; sy: number; sz: number }[] = [];
                 const corridorWidth = axis === 'z' ? terraceSx : terraceSz;
@@ -8327,6 +8577,20 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                 }
                 worldGroup.add(new THREE.Mesh(mergeBoxes(endWallEntries), doorWallMat));
                 worldGroup.add(new THREE.Mesh(mergeBoxes(doorEntries), doorMat));
+                // Door frame: architrave jambs + head so the door reads as set into the wall.
+                {
+                  const AW = 0.1, AD = 0.26;
+                  if (axis === 'z') columnEntries.push(
+                    { cx: terraceMidX - DOOR_W / 2 - AW / 2, cy: terraceElevation + DOOR_H / 2, cz: farZ, sx: AW, sy: DOOR_H, sz: AD },
+                    { cx: terraceMidX + DOOR_W / 2 + AW / 2, cy: terraceElevation + DOOR_H / 2, cz: farZ, sx: AW, sy: DOOR_H, sz: AD },
+                    { cx: terraceMidX, cy: terraceElevation + DOOR_H + AW / 2, cz: farZ, sx: DOOR_W + AW * 2, sy: AW, sz: AD },
+                    { cx: terraceMidX, cy: terraceElevation + 0.03, cz: farZ, sx: DOOR_W, sy: 0.06, sz: AD });
+                  else columnEntries.push(
+                    { cx: farX, cy: terraceElevation + DOOR_H / 2, cz: terraceMidZ - DOOR_W / 2 - AW / 2, sx: AD, sy: DOOR_H, sz: AW },
+                    { cx: farX, cy: terraceElevation + DOOR_H / 2, cz: terraceMidZ + DOOR_W / 2 + AW / 2, sx: AD, sy: DOOR_H, sz: AW },
+                    { cx: farX, cy: terraceElevation + DOOR_H + AW / 2, cz: terraceMidZ, sx: AD, sy: AW, sz: DOOR_W + AW * 2 },
+                    { cx: farX, cy: terraceElevation + 0.03, cz: terraceMidZ, sx: AD, sy: 0.06, sz: DOOR_W });
+                }
                 // Lever handle on both faces of the panel — this door is a fixed closed
                 // slab (the terrace corridor always ends here, nothing to swing open), but
                 // it still needs real hardware to read as a door and not a colored insert.
@@ -8375,6 +8639,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                 axis: axis === 'x' ? 'x' : 'y',
                 from: sign > 0 ? 0 : terraceElevation,
                 to: sign > 0 ? terraceElevation : 0,
+                steps: stepCount,
               });
               // Solid flank boundaries, one hugging each long side of the flight (the
               // stair's actual footprint — same bounds as the ramp zone above, just
@@ -8424,6 +8689,49 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                 stairSideBoxes.push(sign > 0
                   ? { x0: terraceX0, x1: terraceX1, y0: terraceY1, y1: terraceY1 + SIDE_WALL_THICK }
                   : { x0: terraceX0, x1: terraceX1, y0: terraceY0 - SIDE_WALL_THICK, y1: terraceY0 });
+              }
+              // --- visual-only architecture around the stair + corridor (collision above is
+              // unchanged and these sit exactly on the same lines) ----------------------------
+              {
+                const T = SIDE_WALL_THICK;
+                // Solid undercroft: the elevated corridor stands on an enclosed base, not air.
+                stairEntries.push({ cx: (terraceX0 + terraceX1) / 2, cy: (terraceElevation - 0.18) / 2, cz: (terraceY0 + terraceY1) / 2, sx: terraceX1 - terraceX0 + T * 2, sy: terraceElevation - 0.18, sz: terraceY1 - terraceY0 + T * 2 });
+                // Stair stringers + stepped handrails on both flanks, with posts.
+                for (let i = 0; i < stepCount; i++) {
+                  const s = ((i + 1) / stepCount) * STAIR_RUN;
+                  const stepH = terraceElevation * ((i + 1) / stepCount);
+                  const px = axis === 'x' ? baseX + sign * s : baseX;
+                  const pz = axis === 'z' ? baseZ + sign * s : baseZ;
+                  const len = STAIR_RUN / stepCount + 0.05;
+                  [-1, 1].forEach((side) => {
+                    const off = side * (STAIR_HALF_WIDTH + T / 2);
+                    const ox = axis === 'z' ? off : 0, oz = axis === 'x' ? off : 0;
+                    stairEntries.push({ cx: px + ox, cy: stepH / 2, cz: pz + oz, sx: axis === 'x' ? len : T, sy: stepH + 0.04, sz: axis === 'z' ? len : T });
+                    railEntries.push({ cx: px + ox, cy: stepH + 0.95, cz: pz + oz, sx: axis === 'x' ? len : 0.06, sy: 0.06, sz: axis === 'z' ? len : 0.06 });
+                    if (i % 2 === 0) railEntries.push({ cx: px + ox, cy: stepH + 0.5, cz: pz + oz, sx: 0.05, sy: 0.9, sz: 0.05 });
+                  });
+                }
+                // Enclosed corridor: low wall, glazed band, header, and a real ceiling/roof so the
+                // sky never shows above the upper-floor walkway.
+                const CORR_H = 3.2;
+                const glassMat = new THREE.MeshStandardMaterial({ color: 0xa9cbd8, emissive: new THREE.Color(0x4f8fa6), emissiveIntensity: 0.1, transparent: true, opacity: 0.5, roughness: 0.08, metalness: 0.25, side: THREE.DoubleSide });
+                const cw = terraceX1 - terraceX0, cl = terraceY1 - terraceY0;
+                const glass: { cx: number; cy: number; cz: number; sx: number; sy: number; sz: number }[] = [];
+                const sideBoxes = axis === 'z'
+                  ? [{ px: terraceX0 - T / 2, pz: (terraceY0 + terraceY1) / 2, sx: T, sz: cl }, { px: terraceX1 + T / 2, pz: (terraceY0 + terraceY1) / 2, sx: T, sz: cl }]
+                  : [{ px: (terraceX0 + terraceX1) / 2, pz: terraceY0 - T / 2, sx: cw, sz: T }, { px: (terraceX0 + terraceX1) / 2, pz: terraceY1 + T / 2, sx: cw, sz: T }];
+                sideBoxes.forEach((sb) => {
+                  columnEntries.push(
+                    { cx: sb.px, cy: terraceElevation + 0.5, cz: sb.pz, sx: sb.sx, sy: 1.0, sz: sb.sz },
+                    { cx: sb.px, cy: terraceElevation + 2.9, cz: sb.pz, sx: sb.sx, sy: CORR_H - 2.6, sz: sb.sz },
+                  );
+                  glass.push({ cx: sb.px, cy: terraceElevation + 1.8, cz: sb.pz, sx: axis === 'z' ? 0.03 : sb.sx, sy: 1.6, sz: axis === 'x' ? 0.03 : sb.sz });
+                });
+                columnEntries.push({ cx: (terraceX0 + terraceX1) / 2, cy: terraceElevation + CORR_H + 0.08, cz: (terraceY0 + terraceY1) / 2, sx: cw + T * 2 + 0.3, sy: 0.16, sz: cl + T * 2 + 0.3 });
+                // Entry lintel where the stair flows into the corridor.
+                if (axis === 'z') columnEntries.push({ cx: terraceMidX, cy: terraceElevation + 2.9, cz: topZ, sx: cw + T * 2, sy: CORR_H - 2.6, sz: 0.16 });
+                else columnEntries.push({ cx: topX, cy: terraceElevation + 2.9, cz: terraceMidZ, sx: 0.16, sy: CORR_H - 2.6, sz: (terraceY1 - terraceY0) + T * 2 });
+                worldGroup.add(new THREE.Mesh(mergeBoxes(glass), glassMat));
               }
               elevationZones.push({
                 kind: 'flat',
@@ -8475,7 +8783,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         if (best && best.score >= 18) {
           const fx = best.x, fz = best.y;
           const basinMat = new THREE.MeshStandardMaterial({ color: SCHOOL_CONCRETE.clone().lerp(new THREE.Color(0x000000), 0.15), roughness: 0.8 });
-          const waterMat = new THREE.MeshStandardMaterial({ color: 0x69c3d6, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.85, emissive: new THREE.Color(0x1c6b7a), emissiveIntensity: 0.15 });
+          const waterMat = new THREE.MeshStandardMaterial({ color: 0x7fb8c9, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.85, emissive: new THREE.Color(0x1c6b7a), emissiveIntensity: 0.15 });
           const basin = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.4, 0.4, 20), basinMat);
           basin.position.set(fx, 0.2, fz);
           worldGroup.add(basin);
@@ -8491,7 +8799,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           const bowlWater = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.48, 0.05, 16), waterMat);
           bowlWater.position.set(fx, 1.63, fz);
           worldGroup.add(bowlWater);
-          const benchMat = new THREE.MeshStandardMaterial({ color: 0x6b4a35, roughness: 0.85 });
+          const benchMat = new THREE.MeshStandardMaterial({ color: 0x7a5535, roughness: 0.8 });
           [[fx - 2.1, fz], [fx + 2.1, fz], [fx, fz - 2.1], [fx, fz + 2.1]].forEach(([bx, bz]) => {
             const btx = Math.floor(bx), btz = Math.floor(bz);
             if (!getWalkableCell(btx, btz) || buildingAt(btx, btz)) return;
@@ -8517,22 +8825,9 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           ...gates.map((g) => [g.x + 0.5, g.y + 0.5] as [number, number]),
         ];
         const tooClose = (x: number, y: number) => keepClearOf.some(([ox, oy]) => Math.hypot(ox - x, oy - y) < 1.1);
-        const bushMat = new THREE.MeshStandardMaterial({ color: 0x4d9a55, roughness: 0.85 });
+        // Random shrub scatter removed: the courtyard stays clean and paved.
         const landscaping = new THREE.Group();
-        for (let y = 0; y < mapHeight; y++) {
-          for (let x = 0; x < mapWidth; x++) {
-            if (map[y][x] !== 0) continue;
-            if (buildingAt(x, y)) continue;
-            if (isOpenNeighborFloor(x, y) < 3) continue; // only wide-open plaza tiles
-            const cx = x + 0.5, cz = y + 0.5;
-            if (tooClose(cx, cz)) continue;
-            const h = hashSeed(`land:${x}:${y}`);
-            if (h % 14 !== 0) continue; // sparse — just a touch of greenery, not a garden
-            const bush = new THREE.Mesh(new THREE.IcosahedronGeometry(0.24, 0), bushMat);
-            bush.position.set(cx, 0.24, cz);
-            landscaping.add(bush);
-          }
-        }
+        void tooClose;
         worldGroup.add(landscaping);
       }
 
@@ -8643,25 +8938,36 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // properties the old billboard code had to fake by hand.
       {
         const signGroup = new THREE.Group();
+        // One shared plaque geometry for every sign; each sign only owns its label texture.
+        const SIGN_W = 1.5, SIGN_H = 0.5;
+        const signGeo = new THREE.PlaneGeometry(SIGN_W, SIGN_H);
+        const maxAniso = Math.min(4, renderer.capabilities.getMaxAnisotropy());
         signs.forEach((sign) => {
           const [nx, ny] = SIGN_NORMALS[sign.side];
-          const tex = makeCanvasTexture((cctx, size) => {
-            cctx.fillStyle = '#12182a';
-            cctx.fillRect(0, 0, size, size);
-            cctx.strokeStyle = '#67cdd1';
-            cctx.lineWidth = 4;
-            cctx.strokeRect(4, 4, size - 8, size - 8);
-            cctx.fillStyle = '#f4f0e7';
-            cctx.font = 'bold 11px sans-serif';
-            cctx.textAlign = 'center';
-            cctx.textBaseline = 'middle';
-            const words = sign.label.split(' ');
-            words.forEach((word, i) => cctx.fillText(word, size / 2, size / 2 + (i - (words.length - 1) / 2) * 13));
-          }, 128);
-          tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
-          const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6, side: THREE.FrontSide });
-          const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.68, 0.68), mat);
-          plaque.position.set(sign.x + nx * 0.012, 1.55 + (sign.elevation ?? 0), sign.y + ny * 0.012);
+          // Crisp 3:1 label texture with auto-fit text so long names never clip.
+          const c = document.createElement('canvas');
+          c.width = 384; c.height = 128;
+          const cctx = c.getContext('2d')!;
+          cctx.fillStyle = '#12182a';
+          cctx.fillRect(0, 0, c.width, c.height);
+          cctx.strokeStyle = '#67cdd1';
+          cctx.lineWidth = 6;
+          cctx.strokeRect(5, 5, c.width - 10, c.height - 10);
+          cctx.fillStyle = '#f4f0e7';
+          cctx.textAlign = 'center';
+          cctx.textBaseline = 'middle';
+          let fontPx = 52;
+          const fontFor = (px: number) => `700 ${px}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+          cctx.font = fontFor(fontPx);
+          while (fontPx > 24 && cctx.measureText(sign.label).width > c.width - 40) { fontPx -= 2; cctx.font = fontFor(fontPx); }
+          cctx.fillText(sign.label, c.width / 2, c.height / 2 + 2);
+          const tex = new THREE.CanvasTexture(c);
+          tex.colorSpace = THREE.SRGBColorSpace;
+          tex.anisotropy = maxAniso;
+          // Unlit + polygon offset: always readable (indoors or out) and never z-fights the wall.
+          const mat = new THREE.MeshBasicMaterial({ map: tex, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+          const plaque = new THREE.Mesh(signGeo, mat);
+          plaque.position.set(sign.x + nx * 0.012, 2.0 + (sign.elevation ?? 0), sign.y + ny * 0.012);
           plaque.rotation.y = Math.atan2(nx, ny);
           signGroup.add(plaque);
         });
@@ -8876,13 +9182,18 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // interact() call a click on the NPC/marker in the 3D scene would have.
       let currentHintTarget: { target: InteractTarget; worldX: number; worldY: number } | null = null;
       const hintProjectVec = new THREE.Vector3();
+      const hintCamDir = new THREE.Vector3();
+      const hintToPoint = new THREE.Vector3();
+      let viewW = 0, viewH = 0;
 
       let resizeRaf = 0;
       const resizeCanvas = () => {
         const w = Math.max(1, world.clientWidth);
         const h = Math.max(1, world.clientHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobile ? 2 : 2));
+        // Phones cap at 1.5x: 2-3x DPR roughly doubles fill cost for little visible gain.
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobile ? 1.5 : 2));
         renderer.setSize(w, h, false);
+        viewW = w; viewH = h;
         camera.aspect = w / h;
         camera.updateProjectionMatrix();
       };
@@ -8902,13 +9213,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         tapStart.style.display = 'none';
       }
 
-      const hideFieldUi = () => {
-        prompt.style.display = 'none';
-        badge.style.display = 'none';
+      const hideFieldUi = (keepBadge = false) => {
+        if (prompt.style.display !== 'none') prompt.style.display = 'none';
+        if (!keepBadge && badge.style.display !== 'none') badge.style.display = 'none';
         // Whatever was under the cursor stops being clickable the moment the world
         // freezes for an interaction, so drop any lingering pointer cursor right away
         // instead of waiting for the next mousemove to notice.
-        canvas.style.cursor = 'default';
+        if (canvas.style.cursor !== 'default') canvas.style.cursor = 'default';
       };
 
       // Hover feedback for the 3D scene: shows a pointer cursor only while the mouse
@@ -9051,16 +9362,15 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const HINT_ICON_HEIGHT: Record<InteractTarget['kind'], number> = { npc: 1.95, guide: 1.9, note: 0.85, gate: 1.4 };
 
       const projectHintPoint = (gx: number, gy: number, height: number): { x: number; y: number } | null => {
-        const camDir = new THREE.Vector3();
-        camera.getWorldDirection(camDir);
-        const toPoint = new THREE.Vector3(gx - camera.position.x, height - camera.position.y, gy - camera.position.z);
-        if (toPoint.dot(camDir) <= 0) return null; // behind the camera — never show the badge for it
+        camera.getWorldDirection(hintCamDir);
+        hintToPoint.set(gx - camera.position.x, height - camera.position.y, gy - camera.position.z);
+        if (hintToPoint.dot(hintCamDir) <= 0) return null; // behind the camera — never show the badge for it
         hintProjectVec.set(gx, height, gy).project(camera);
-        const rect = canvas.getBoundingClientRect();
-        if (!rect.width || !rect.height) return null;
+        // Cached viewport size (set in resizeCanvas) — no per-frame getBoundingClientRect layout flush.
+        if (!viewW || !viewH) return null;
         return {
-          x: (hintProjectVec.x * 0.5 + 0.5) * rect.width,
-          y: (1 - (hintProjectVec.y * 0.5 + 0.5)) * rect.height,
+          x: (hintProjectVec.x * 0.5 + 0.5) * viewW,
+          y: (1 - (hintProjectVec.y * 0.5 + 0.5)) * viewH,
         };
       };
 
@@ -9084,10 +9394,9 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           return;
         }
         currentHintTarget = nearest;
-        badge.style.display = 'flex';
-        badge.style.transform = 'translate(-50%, -50%)';
-        badge.style.left = `${screen.x}px`;
-        badge.style.top = `${screen.y}px`;
+        if (badge.style.display !== 'flex') badge.style.display = 'flex';
+        // transform only (badge is anchored at 0,0 in CSS): moves on the compositor, no layout.
+        badge.style.transform = `translate(${screen.x.toFixed(1)}px, ${screen.y.toFixed(1)}px) translate(-50%, -50%)`;
       };
 
       // Clicking/tapping the floating hint badge fires the exact same interact() call
@@ -9103,7 +9412,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const handleWheel = (e: WheelEvent) => {
         if (!roamingActive) return;
         e.preventDefault();
-        setCameraZoomFromInput(e.deltaY);
+        const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 100 : 1;
+        setCameraZoomFromInput(((e.deltaY * unit) / 100) * (e.ctrlKey ? 4 : 1));
       };
 
       const handleKeyDown = (e: KeyboardEvent) => {
@@ -9130,15 +9440,20 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // Camera rotation reads from the same mouseDX accumulator regardless of whether
         // it came from Pointer Lock or a plain click-and-drag — same sensitivity, same
         // smoothing, just two ways of feeding it (see gameLoop's rotation line).
-        if (pointerLocked || mouseDragActive) { mouseDX += e.movementX; mouseDY += e.movementY; }
-        if (mouseDragActive) mouseMoveTotal += Math.abs(e.movementX) + Math.abs(e.movementY);
+        const clampMove = (v: number) => Math.max(-150, Math.min(150, v));
+        const mvX = clampMove(Number.isFinite(e.movementX) ? e.movementX : e.clientX - lastMouseClientX);
+        const mvY = clampMove(Number.isFinite(e.movementY) ? e.movementY : e.clientY - lastMouseClientY);
+        if (pointerLocked || mouseDragActive) { mouseDX += mvX; mouseDY += mvY; }
+        if (mouseDragActive) mouseMoveTotal += Math.abs(mvX) + Math.abs(mvY);
         lastMouseClientX = e.clientX;
         lastMouseClientY = e.clientY;
         if (mouseInsideCanvas) updateHoverCursor(e.clientX, e.clientY);
       };
       const handleCanvasMouseDown = (e: MouseEvent) => {
-        if (!roamingActive || e.button !== 0) return;
+        if (!roamingActive || (e.button !== 0 && e.button !== 2)) return;
         mouseDragActive = true;
+        mouseDX = 0;
+        mouseDY = 0;
         mouseDownTime = performance.now();
         mouseMoveTotal = 0;
         // Stops the browser's native text-selection / drag-image gesture from hijacking
@@ -9148,9 +9463,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         e.preventDefault();
       };
       const handleMouseUp = (e: MouseEvent) => {
-        if (e.button !== 0) return;
+        if (e.button !== 0 && e.button !== 2) return;
         mouseDragActive = false;
+        mouseDX = 0;
+        mouseDY = 0;
       };
+      const handleContextMenu = (e: MouseEvent) => e.preventDefault();
       const handleCanvasClick = (e: MouseEvent) => {
         if (!roamingActive) return;
         // A plain click (not a drag) still lets the player interact with whatever's
@@ -9176,6 +9494,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         mouseDragActive = false;
         mouseDX = 0;
         mouseDY = 0;
+        touchLookDX = 0;
+        touchLookDY = 0;
       };
       const handlePointerLockChange = () => {
         pointerLocked = document.pointerLockElement === canvas;
@@ -9198,6 +9518,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       canvas.addEventListener('dragstart', handleDragStart);
       canvas.addEventListener('click', handleCanvasClick);
       canvas.addEventListener('wheel', handleWheel, { passive: false });
+      canvas.addEventListener('contextmenu', handleContextMenu);
       canvas.addEventListener('mouseenter', handleCanvasMouseEnter);
       canvas.addEventListener('mouseleave', handleCanvasMouseLeave);
       badge.addEventListener('click', handleHintBadgeActivate);
@@ -9268,7 +9589,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
         const lookLayer = lookLayerRef.current;
         if (lookLayer) {
-          type LookPointer = { x: number; y: number; startX: number; startY: number; startTime: number; moved: number };
+          type LookPointer = { x: number; y: number; startX: number; startY: number; startTime: number; moved: number; canLook: boolean };
           const lookPointers = new Map<number, LookPointer>();
           let pinchLastDistance = 0;
           let wasPinching = false;
@@ -9294,7 +9615,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             if (e.pointerType === 'mouse') return;
             e.preventDefault();
             lookLayer.setPointerCapture?.(e.pointerId);
-            lookPointers.set(e.pointerId, { x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY, startTime: performance.now(), moved: 0 });
+            const lookRect = lookLayer.getBoundingClientRect();
+            // Right-side drag looks; touches starting in the left ~30% (joystick side) can still tap/pinch.
+            const canLook = e.clientX - lookRect.left >= lookRect.width * 0.3;
+            lookPointers.set(e.pointerId, { x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY, startTime: performance.now(), moved: 0, canLook });
             if (lookPointers.size >= 2) { pinchLastDistance = getPinchDistance(); wasPinching = true; touchLookDX = 0; }
           };
 
@@ -9318,7 +9642,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                 // sensitivity than the wheel's raw deltaY units so normal pinch speed
                 // reliably drives continuous, responsive zooming instead of stalling.
                 const distanceDelta = distance - pinchLastDistance;
-                if (Math.abs(distanceDelta) > 0.02) setCameraZoomFromInput(distanceDelta * 0.4);
+                if (Math.abs(distanceDelta) > 0.02) setCameraZoomFromInput(distanceDelta / 28);
               }
               pinchLastDistance = distance;
               wasPinching = true;
@@ -9333,7 +9657,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
               pointer.moved = 999;
               return;
             }
-            touchLookDX += e.clientX - prevX;
+            if (pointer.canLook) { touchLookDX += e.clientX - prevX; touchLookDY += e.clientY - prevY; }
           };
 
           const lookEnd = (e: PointerEvent) => {
@@ -9442,24 +9766,42 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // along that line, so the camera settles just in front of whatever it would
       // otherwise clip through (a building wall, a gate pillar, an NPC) instead of
       // passing through it.
-      const CAMERA_CLEARANCE_STEP = 0.06;
+      // Coarse forward sweep of the camera's collision circle (step is well under the thinnest
+      // collider, a 0.16 stair flank + camera radius), then bisection on the first blocked
+      // interval. Only circle-vs-box / circle-vs-NPC overlap tests, the same ones player
+      // movement uses. No THREE.Raycaster, no ray/box intersection.
+      const CAMERA_CLEARANCE_STEP = 0.2;
+      function cameraSpotBlocked(x: number, y: number) {
+        return circleHitsWall(x, y, CAMERA_COLLIDER_RADIUS) || circleHitsStairSide(x, y, CAMERA_COLLIDER_RADIUS) || collidesWithNpc(x, y);
+      }
       function findClearCameraDistance(angle: number, maxDist: number) {
         if (maxDist <= 0) return 0;
         const dirX = Math.cos(angle), dirY = Math.sin(angle);
-        let clear = 0;
-        for (let dist = CAMERA_CLEARANCE_STEP; dist <= maxDist; dist += CAMERA_CLEARANCE_STEP) {
-          const checkX = playerX + dirX * dist;
-          const checkY = playerY + dirY * dist;
-          if (circleHitsWall(checkX, checkY, CAMERA_COLLIDER_RADIUS) || circleHitsStairSide(checkX, checkY, CAMERA_COLLIDER_RADIUS) || collidesWithNpc(checkX, checkY)) break;
-          clear = dist;
+        let clear = 0, blockedAt = -1;
+        for (let dist = CAMERA_CLEARANCE_STEP; ; dist += CAMERA_CLEARANCE_STEP) {
+          const d = Math.min(dist, maxDist);
+          if (cameraSpotBlocked(playerX + dirX * d, playerY + dirY * d)) { blockedAt = d; break; }
+          clear = d;
+          if (d >= maxDist) break;
         }
-        return clear;
+        if (blockedAt < 0) return maxDist;
+        let lo = clear, hi = blockedAt;
+        for (let i = 0; i < 5; i++) {
+          const mid = (lo + hi) / 2;
+          if (cameraSpotBlocked(playerX + dirX * mid, playerY + dirY * mid)) hi = mid; else lo = mid;
+        }
+        return lo;
       }
 
 
       // Per-frame scene sync: camera framing, NPC/gate/prop animation, district crossing,
       // minimap, gate checks. No pixel drawing happens here anymore — renderer.render()
       // at the end hands everything to the GPU.
+      // Cached per-id animation seeds + sway list: the old loop re-hashed id strings and
+      // re-scanned every worldGroup child on every frame.
+      const seedCache = new Map<string, number>();
+      const seedOf = (id: string) => { let v = seedCache.get(id); if (v === undefined) { v = hashSeed(id); seedCache.set(id, v); } return v; };
+      let swayNodes: THREE.Object3D[] | null = null;
       function updateScene(dt: number, now: number) {
         updateMiniMapRotation(dt);
         const firstPersonFovBlend = Math.max(0, Math.min(1,
@@ -9475,55 +9817,33 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // fades out smoothly (rather than snapping) as the camera pulls back out.
         const fovDeg = thirdPersonFov + (firstPersonFov - thirdPersonFov) * firstPersonFovBlend + smoothFovOffsetDeg * firstPersonFovBlend;
 
-        // Roblox-style camera collision. `findClearCameraDistance` is the actual raycast
-        // — it marches outward from the player toward the desired (behind-the-player)
-        // camera spot in small steps, using the exact same collider volumes as player
-        // movement (circleHitsWall / collidesWithNpc), and returns the furthest point
-        // along that ray that's still clear of any wall, building, gate pillar, or NPC.
+        // Camera boom: sits directly behind the player at the (eased) zoom distance, shortened
+        // by whatever collision volumes (walls, buildings, stair flanks, NPCs) are in the way.
+        // x/z is NOT lagged behind the player, so the distance never pumps while walking or
+        // turning. Obstructions clamp in instantly (never clips); release eases back out.
         const behindAngle = playerAngle + Math.PI;
-        let rawBackDist = currentCameraDistance;
+        const followT = 1 - Math.exp(-CAMERA_FOLLOW_RATE * Math.max(dt, 0));
+        let obstructionTarget = currentCameraDistance + 2;
         if (currentCameraDistance > CAMERA_FIRST_PERSON_DISTANCE + 0.02) {
           const clearDist = findClearCameraDistance(behindAngle, currentCameraDistance);
-          rawBackDist = Math.max(CAMERA_FIRST_PERSON_DISTANCE, Math.min(currentCameraDistance, clearDist));
+          if (clearDist < currentCameraDistance - 1e-3) obstructionTarget = Math.max(CAMERA_FIRST_PERSON_DISTANCE, clearDist);
         }
-        // Ease the *distance* toward that raycast result rather than easing the camera's
-        // x/z position directly — this keeps the camera locked to a single point along
-        // the always-clear ray every frame, so there's no path for it to cut through a
-        // corner mid-transition. Pulling in (something now blocks the desired distance)
-        // is hard-clamped to the raycast result the instant it shrinks — this is the one
-        // guarantee that makes clipping actually impossible, even for a single frame, no
-        // matter how fast the player spins next to a wall. Pushing back out to the
-        // desired zoom distance once clear eases in smoothly instead of popping.
-        if (rawBackDist < smoothCameraBackDist) {
-          const pullT = 1 - Math.exp(-CAMERA_OBSTRUCTION_PULL_IN_RATE * Math.max(dt, 0));
-          smoothCameraBackDist += (rawBackDist - smoothCameraBackDist) * pullT;
-          if (smoothCameraBackDist < rawBackDist) smoothCameraBackDist = rawBackDist;
+        if (obstructionTarget < smoothCameraObstructionLimit) {
+          smoothCameraObstructionLimit = obstructionTarget;
         } else {
           const pushT = 1 - Math.exp(-CAMERA_OBSTRUCTION_PUSH_OUT_RATE * Math.max(dt, 0));
-          smoothCameraBackDist += (rawBackDist - smoothCameraBackDist) * pushT;
-          if (smoothCameraBackDist > rawBackDist) smoothCameraBackDist = rawBackDist;
+          smoothCameraObstructionLimit += (obstructionTarget - smoothCameraObstructionLimit) * pushT;
         }
-        const idealCamX = playerX + Math.cos(behindAngle) * smoothCameraBackDist;
-        const idealCamY = playerY + Math.sin(behindAngle) * smoothCameraBackDist;
-        // Position itself still eases toward that point (so panning as the player turns
-        // stays smooth rather than snapping), but since idealCamX/Y now already sits at
-        // or inside the proven-clear distance, this lerp can only ever move the camera
-        // closer to a point on that same safe ray — it never introduces new clipping.
-        const followT = 1 - Math.exp(-CAMERA_FOLLOW_RATE * Math.max(dt, 0));
-        smoothCamX += (idealCamX - smoothCamX) * followT;
-        smoothCamY += (idealCamY - smoothCamY) * followT;
-        // Final belt-and-suspenders check: if the eased x/z position (not just the
-        // distance) still ends up inside geometry — e.g. a very fast pan around a
-        // corner — pull it directly toward the player along its own current direction
-        // until clear, instead of teleporting across to the unrelated ideal spot. This
-        // keeps any correction small and local rather than a visible jump/glitch.
-        if (circleHitsWall(smoothCamX, smoothCamY, CAMERA_COLLIDER_RADIUS) || circleHitsStairSide(smoothCamX, smoothCamY, CAMERA_COLLIDER_RADIUS)) {
-          const awayAngle = Math.atan2(smoothCamY - playerY, smoothCamX - playerX);
-          const awayDist = Math.hypot(smoothCamX - playerX, smoothCamY - playerY);
-          const safeDist = findClearCameraDistance(awayAngle, awayDist);
-          smoothCamX = playerX + Math.cos(awayAngle) * safeDist;
-          smoothCamY = playerY + Math.sin(awayAngle) * safeDist;
+        smoothCameraBackDist = Math.max(CAMERA_FIRST_PERSON_DISTANCE, Math.min(currentCameraDistance, smoothCameraObstructionLimit));
+        smoothCamX = playerX + Math.cos(behindAngle) * smoothCameraBackDist;
+        smoothCamY = playerY + Math.sin(behindAngle) * smoothCameraBackDist;
+        // Safety net: if the spot is still inside geometry, pull it straight in toward the player.
+        if (smoothCameraBackDist > CAMERA_FIRST_PERSON_DISTANCE + 0.02 && cameraSpotBlocked(smoothCamX, smoothCamY)) {
+          const safeDist = findClearCameraDistance(behindAngle, smoothCameraBackDist);
           smoothCameraBackDist = Math.min(smoothCameraBackDist, safeDist);
+          smoothCameraObstructionLimit = Math.min(smoothCameraObstructionLimit, safeDist);
+          smoothCamX = playerX + Math.cos(behindAngle) * smoothCameraBackDist;
+          smoothCamY = playerY + Math.sin(behindAngle) * smoothCameraBackDist;
         }
         const camX = smoothCamX;
         const camY = smoothCamY;
@@ -9547,23 +9867,22 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // close third-person threshold) so it's felt only in first person and leaves
         // third-person exactly as it already was — the camera there has never read
         // jump height and still doesn't.
-        const playerJumpLift = Math.max(0, playerElevationY - getElevation(playerX, playerY));
-        const fpJumpLift = playerJumpLift * bobFade;
-        // Camera rides the ground/stair/balcony height directly beneath its own (x,y) —
-        // not just the player's — so it never sinks into a stair tread or floats off a
-        // balcony edge while trailing behind the player mid-climb. Smooths toward it at
-        // the same follow rate as everything else in this block, so climbing a real
-        // flight of stairs raises the whole view continuously instead of snapping.
-        const camGroundElevation = getElevation(camX, camY);
+        // Vertical placement. First person: the eye is locked to the player's own visual height
+        // (so a jump, a stair step or a landing moves player and camera together, same frame).
+        // Third person: eased ground height under the camera/player (max of the two so it stays
+        // above stair treads while backing up or down a flight), unaffected by jump arcs. The
+        // two are blended by zoom so the first<->third transition has no height pop.
+        const camGroundNow = getElevation(camX, camY);
+        const camGroundElevation = Math.max(camGroundNow, getElevation(playerX, playerY));
         smoothCamElevation += (camGroundElevation - smoothCamElevation) * followT;
-        // A small camera dip on landing, sharing the same decaying factor as the character's
-        // squash above so the two read as one impact rather than two separate effects. Scaled
-        // down from the character's own squash since the camera sits further from the ground.
         const cameraBounceDip = getLandingBounceFactor() * 0.12;
-        const cameraDisplayHeight = currentCameraHeight + bobHeight + fpJumpLift + smoothCamElevation - cameraBounceDip;
+        const eyeFirst = playerElevationY + CAMERA_FIRST_PERSON_HEIGHT + bobHeight;
+        const eyeThird = smoothCamElevation + CAMERA_THIRD_PERSON_HEIGHT;
+        let cameraDisplayHeight = eyeThird + (eyeFirst - eyeThird) * bobFade - cameraBounceDip;
+        // Never let the camera dip into the floor/tread directly beneath it.
+        cameraDisplayHeight = Math.max(cameraDisplayHeight, camGroundNow + 0.3);
 
-        camera.fov = fovDeg;
-        camera.updateProjectionMatrix();
+        if (Math.abs(camera.fov - fovDeg) > 0.01) { camera.fov = fovDeg; camera.updateProjectionMatrix(); }
         camera.position.set(camX, cameraDisplayHeight, camY);
         const pitchAngle = Math.atan(currentCameraPitch) + userPitchOffset;
         const lookDist = 6;
@@ -9577,7 +9896,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         if (district.id !== currentDistrictId) {
           currentDistrictId = district.id;
           if (districtChipRef.current) districtChipRef.current.textContent = `${district.icon} ${district.name.toUpperCase()}`;
-          const fogColor = districtColor(district.ceil).lerp(new THREE.Color(0x05070d), 0.55);
+          const fogColor = new THREE.Color(0xc4dcea).lerp(districtColor(district.ceil), 0.06);
           (scene.fog as THREE.Fog).color = fogColor;
           scene.background = fogColor;
         }
@@ -9588,7 +9907,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           const mesh = npcMeshes.get(term.id);
           if (!mesh) return;
           mesh.position.set(term.x, 0, term.y);
-          const bob = Math.sin(now / 260 + hashSeed(term.id)) * 0.02;
+          const bob = Math.sin(now / 260 + seedOf(term.id)) * 0.02;
           mesh.position.y = bob;
           const marker = mesh.userData.marker as THREE.Sprite | undefined;
           if (marker) {
@@ -9600,7 +9919,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         guides.forEach((guide) => {
           const mesh = guideMeshes.get(guide.id);
           if (!mesh) return;
-          const bob = Math.sin(now / 300 + hashSeed(guide.id)) * 0.02;
+          const bob = Math.sin(now / 300 + seedOf(guide.id)) * 0.02;
           mesh.position.y = bob;
         });
         noteMeshes.forEach((mesh, id) => {
@@ -9609,9 +9928,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           mesh.rotation.y = now / 900 + seed;
           void id;
         });
-        worldGroup.children.forEach((child) => {
-          if (child.userData?.sway) child.position.y = Math.sin(now / 900 + (child.userData.seed ?? 0)) * 0.02;
-        });
+        if (!swayNodes) swayNodes = worldGroup.children.filter((child) => child.userData?.sway);
+        for (let i = 0; i < swayNodes.length; i++) {
+          const child = swayNodes[i];
+          child.position.y = Math.sin(now / 900 + (child.userData.seed ?? 0)) * 0.02;
+        }
 
         // Gate lock/unlock visuals: fade the shield out the instant a gate's `open`
         // flips true (checkGateUnlock already flips the underlying map tile).
@@ -9675,8 +9996,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
         checkGateUnlock();
 
-        badge!.style.display = 'none';
-        hideFieldUi();
+        hideFieldUi(true);
         // Re-derive the floating hint badge every frame — same reset-then-recompute
         // pattern as the hover cursor just below. hideFieldUi() above always hides it
         // first; this puts it back (repositioned and re-registered as a click target)
@@ -9693,6 +10013,26 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         renderer.render(scene, camera);
       }
 
+      // Everything in worldGroup that never moves (walls, doors, floors, signs, props…) stops
+      // having its local matrix recomputed every frame. Animated roots (NPCs, guides, notes,
+      // markers, the player, swaying props) and their ancestors stay auto-updating.
+      {
+        const animatedRoots = new Set<THREE.Object3D>([playerMesh]);
+        npcMeshes.forEach((m) => { animatedRoots.add(m); const mk = m.userData.marker as THREE.Object3D | undefined; if (mk) animatedRoots.add(mk); });
+        guideMeshes.forEach((m) => animatedRoots.add(m));
+        noteMeshes.forEach((m) => animatedRoots.add(m));
+        worldGroup.children.forEach((c) => { if (c.userData?.sway || c.type === 'Sprite') animatedRoots.add(c); });
+        const keep = new Set<THREE.Object3D>();
+        animatedRoots.forEach((r) => { let p = r.parent; while (p) { keep.add(p); p = p.parent; } });
+        scene.updateMatrixWorld(true);
+        const freeze = (o: THREE.Object3D) => {
+          if (animatedRoots.has(o)) return;
+          if (keep.has(o)) { o.children.forEach(freeze); return; }
+          o.traverse((c) => { c.matrixAutoUpdate = false; });
+        };
+        worldGroup.children.forEach(freeze);
+      }
+
       let lastTime = performance.now();
       function gameLoop(timestamp: number) {
         const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
@@ -9707,8 +10047,17 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             userPitchOffset += mouseDY * sensitivity * cameraSensitivityRef.current;
             userPitchOffset = Math.max(PITCH_OFFSET_MIN, Math.min(PITCH_OFFSET_MAX, userPitchOffset));
             mouseDY = 0;
+          } else {
+            mouseDX = 0;
+            mouseDY = 0;
           }
-          if (touchLookDX !== 0) { playerAngle += touchLookDX * getTouchLookSensitivity(); touchLookDX = 0; }
+          if (touchLookDX !== 0 || touchLookDY !== 0) {
+            const touchSens = getTouchLookSensitivity();
+            playerAngle += touchLookDX * touchSens;
+            userPitchOffset = Math.max(PITCH_OFFSET_MIN, Math.min(PITCH_OFFSET_MAX, userPitchOffset + touchLookDY * touchSens * TOUCH_PITCH_RATIO));
+            touchLookDX = 0;
+            touchLookDY = 0;
+          }
           playerAngle = playerAngle % (Math.PI * 2);
           let moveX = 0, moveY = 0;
           if (keys['w'] || keys['arrowup']) { moveX += Math.cos(playerAngle); moveY += Math.sin(playerAngle); }
@@ -9716,15 +10065,20 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           if (keys['a'] || keys['arrowleft']) { moveX += Math.cos(playerAngle - Math.PI / 2); moveY += Math.sin(playerAngle - Math.PI / 2); }
           if (keys['d'] || keys['arrowright']) { moveX += Math.cos(playerAngle + Math.PI / 2); moveY += Math.sin(playerAngle + Math.PI / 2); }
           if (leftJoy.active) {
-            const forward = leftJoy.dy * -1, strafe = leftJoy.dx;
+            // Dead zone + analog magnitude: no drift at rest, gentle push = slower walk.
+            const JOY_DEADZONE = 0.12;
+            const jm = Math.hypot(leftJoy.dx, leftJoy.dy);
+            const adj = jm > JOY_DEADZONE ? Math.min(1, (jm - JOY_DEADZONE) / (1 - JOY_DEADZONE)) : 0;
+            const forward = jm > 0 ? (-leftJoy.dy / jm) * adj : 0, strafe = jm > 0 ? (leftJoy.dx / jm) * adj : 0;
             moveX += Math.cos(playerAngle) * forward + Math.cos(playerAngle + Math.PI / 2) * strafe;
             moveY += Math.sin(playerAngle) * forward + Math.sin(playerAngle + Math.PI / 2) * strafe;
           }
           const len = Math.sqrt(moveX * moveX + moveY * moveY);
-          const wantsToWalk = len > 0;
+          const wantsToWalk = len > 0.001;
+          const speedScale = Math.min(1, len);
           let actuallyMoved = false;
           if (wantsToWalk) {
-            moveX = (moveX / len) * moveSpeed * dt; moveY = (moveY / len) * moveSpeed * dt;
+            moveX = (moveX / len) * moveSpeed * speedScale * dt; moveY = (moveY / len) * moveSpeed * speedScale * dt;
             const nx = playerX + moveX, ny = playerY + moveY;
             if (canMove(nx, playerY) && !collidesWithNpc(nx, playerY)) { playerX = nx; actuallyMoved = true; }
             if (canMove(playerX, ny) && !collidesWithNpc(playerX, ny)) { playerY = ny; actuallyMoved = true; }
@@ -9737,7 +10091,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           playerWalking = actuallyMoved;
           if (actuallyMoved) {
             const STRIDE_RATE_PER_SPEED = 3.5;
-            walkPhase += dt * moveSpeed * STRIDE_RATE_PER_SPEED;
+            walkPhase += dt * moveSpeed * speedScale * STRIDE_RATE_PER_SPEED;
           }
           // Vertical motion (gravity, jumping, landing) runs every frame regardless of
           // horizontal input — see the block above canMove()'s definition for details.
@@ -9763,6 +10117,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         canvas.removeEventListener('dragstart', handleDragStart);
         canvas.removeEventListener('click', handleCanvasClick);
         canvas.removeEventListener('wheel', handleWheel);
+        canvas.removeEventListener('contextmenu', handleContextMenu);
         canvas.removeEventListener('mouseenter', handleCanvasMouseEnter);
         canvas.removeEventListener('mouseleave', handleCanvasMouseLeave);
         document.removeEventListener('pointerlockchange', handlePointerLockChange);
@@ -9773,15 +10128,28 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         if (discoveryTimer) window.clearTimeout(discoveryTimer);
         joyCleanups.forEach((fn) => fn());
         if (document.pointerLockElement === canvas) document.exitPointerLock();
+        // Dispose every unique geometry, material AND the textures those materials hold
+        // (sign/badge/bubble canvas textures were previously leaked on every campus visit).
+        const geos = new Set<THREE.BufferGeometry>();
+        const mats = new Set<THREE.Material>();
+        const texs = new Set<THREE.Texture>([brickTexture, floorTexture, planksTexture, dustTexture]);
         scene.traverse((obj) => {
-          if (obj instanceof THREE.Mesh || obj instanceof THREE.Sprite) {
-            obj.geometry?.dispose?.();
-            const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-            mats.forEach((m) => m?.dispose?.());
-          }
+          const o = obj as THREE.Mesh;
+          if (o.geometry) geos.add(o.geometry);
+          const m = o.material as THREE.Material | THREE.Material[] | undefined;
+          if (m) (Array.isArray(m) ? m : [m]).forEach((mm) => mats.add(mm));
         });
-        [brickTexture, floorTexture, planksTexture, dustTexture].forEach((t) => t.dispose());
+        mats.forEach((m) => {
+          Object.values(m as unknown as Record<string, unknown>).forEach((v) => { if (v instanceof THREE.Texture) texs.add(v); });
+          m.dispose();
+        });
+        geos.forEach((g) => g.dispose());
+        texs.forEach((t) => t.dispose());
+        scene.clear();
         renderer.dispose();
+        // Release the GPU context right away so repeated campus visits can't hit the
+        // browser's active-WebGL-context limit.
+        renderer.forceContextLoss();
       };
     }, []);
 
@@ -9880,7 +10248,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // (see CampusExplorer) — so the briefing tells you what you're actually about to be
     // tested on, in terms of your own strand, not just a generic area name.
     const focus = getDistrictFocus(challenger.districtId, strand);
-    const questionCount = getEncounterQuestions(challenger, strand).length;
+    const encounterQuestions = getEncounterQuestions(challenger, strand);
+    const questionCount = encounterQuestions.length;
+    // Same per-question limits the battle itself will enforce, so the briefing never
+    // promises a different number than the countdown that actually starts.
+    const timeLimits = encounterQuestions.map((q) => getQuestionTimeLimit(challenger, q));
+    const minTimeLimit = timeLimits.length ? Math.min(...timeLimits) : 0;
+    const maxTimeLimit = timeLimits.length ? Math.max(...timeLimits) : 0;
     // Same avatar system used in Battle (getChallengerAvatar), not a placeholder icon —
     // so the challenger you meet here is the same character you actually fight.
     const challengerAvatar = getChallengerAvatar(challenger);
@@ -9918,6 +10292,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           <div className="panel quest-briefing-meta">
             <div className="quest-tags">
               <span className="tag"><Check size={10} className="inline mr-1" />{questionCount} question{questionCount === 1 ? '' : 's'}</span>
+              {timeLimits.length > 0 && (
+                <span className="tag" style={{ color: 'var(--amber)' }} title="Running out of time counts as a wrong answer">
+                  <Timer size={10} className="inline mr-1" />{minTimeLimit === maxTimeLimit ? `${minTimeLimit}s` : `${minTimeLimit}–${maxTimeLimit}s`} per question
+                </span>
+              )}
               <span className="tag" style={underleveled ? { color: 'var(--coral)' } : undefined}>
                 <Zap size={10} className="inline mr-1" />Lv {challenger.recommendedLevel} recommended{underleveled ? ` · you're ${challenger.recommendedLevel - playerLevel} below` : ''}
               </span>
@@ -10283,6 +10662,23 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // routine navigation (tabs, toggles, menu taps) never competes with battle/reward
   // audio for attention. Filtered noise only, no tonal layer, so it stays neutral instead
   // of nagging on repeated use.
+  // Dry, short tick for the last few seconds of a question's countdown. Quiet and brief so
+  // it adds pressure without drowning the correct/wrong chimes or the punch impacts.
+  function playTimerTickSfx() {
+    throttledSfx('timer-tick', 400, (ctx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.045, ctx.currentTime + 0.004);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.06);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.07);
+    });
+  }
   function playUiClickSfx() {
     throttledSfx('ui-click', 60, (ctx) => {
       playNoiseBurst(ctx, { duration: 0.035, filterType: 'highpass', filterFreq: 3200, gain: 0.09, startAt: ctx.currentTime });
@@ -10355,7 +10751,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   const BATTLE_ATTACK_DURATION_MS = 760; // total time before both fighters are idle again
   const BATTLE_IMPACT_EFFECT_MS = 320; // how long the shake/flash/spark stay on screen
 
-  function Battle({ profile, opponent, soundEnabled, onExit, onComplete }: { profile: Profile; opponent: CampusChallenger | null; soundEnabled: boolean; onExit: () => void; onComplete: (payload: { results: { subject: string; correct: boolean }[]; history: QuestionHistoryEntry[] }) => void }) {
+  function Battle({ profile, opponent, soundEnabled, timerPaused = false, onExit, onComplete }: { profile: Profile; opponent: CampusChallenger | null; soundEnabled: boolean; timerPaused?: boolean; onExit: () => void; onComplete: (payload: { results: { subject: string; correct: boolean }[]; history: QuestionHistoryEntry[] }) => void }) {
     const [question, setQuestion] = useState(0);
     const [selected, setSelected] = useState<number | null>(null);
     // HP is never tracked as its own free-floating number — it's derived below from
@@ -10366,6 +10762,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     const [score, setScore] = useState(0);
     const [resolved, setResolved] = useState(false);
     const [complete, setComplete] = useState(false);
+    // Countdown bookkeeping. `timedOut` marks a question that ended because the clock hit
+    // zero (no answer picked); `speedBonus` is the extra points a fast correct answer
+    // earned, shown in the feedback line.
+    const [timedOut, setTimedOut] = useState(false);
+    const [speedBonus, setSpeedBonus] = useState(0);
     // 'idle' between questions; set the instant an answer is picked and cleared again
     // once the whole lunge/react/return sequence has finished playing.
     const [attackPhase, setAttackPhase] = useState<'idle' | 'player-attack' | 'enemy-attack'>('idle');
@@ -10485,10 +10886,30 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     const opponentData = opponent ?? { id: 'unknown-challenger', name: opponentName, style: 'professor' as ChallengerStyle };
     const opponentAvatar = getChallengerAvatar(opponentData);
     const opponentVariant = getChallengerVariant(opponentData);
-    const answer = (index: number) => {
-      if (resolved || complete) return;
+    // Seconds allowed for the question currently on screen (see getQuestionTimeLimit).
+    const timeLimitSec = current ? getQuestionTimeLimit(opponent, current) : 0;
+    // Live countdown: remaining ms is kept in a ref (not state) so the 100ms tick doesn't
+    // re-render the whole arena ten times a second — only the whole-second readout below
+    // is state, and React skips the render when that integer hasn't changed. The visual
+    // bar is a pure CSS animation for the same reason.
+    const remainingMsRef = useRef(0);
+    const timerQuestionRef = useRef(-1);
+    const [tick, setTick] = useState<{ q: number; s: number }>({ q: 0, s: timeLimitSec });
+    // Until the first tick of a new question lands, show that question's full allowance
+    // instead of the previous question's last value.
+    const secondsLeft = tick.q === question ? tick.s : timeLimitSec;
+    // The final stretch: drives the pulsing readout and the red glow around the arena.
+    const timeCritical = !complete && !resolved && !timerPaused && !!current && secondsLeft <= 5;
+    // Unified answer path: `index` is the chosen option, or null when the clock ran out.
+    // A timeout is scored exactly like a wrong answer (the enemy lands the hit) so running
+    // out of time always costs the same as guessing wrong — never a free skip.
+    const submitAnswer = (index: number | null) => {
+      if (resolved || complete || !current) return;
+      const didTimeOut = index === null;
       setSelected(index); setResolved(true);
-      const isCorrect = index === current.answer;
+      setTimedOut(didTimeOut);
+      const isCorrect = !didTimeOut && index === current.answer;
+      if (didTimeOut) setTick({ q: question, s: 0 });
       historyRef.current.push({
         id: `${opponent?.id ?? 'quest'}-question-${question}-${Date.now()}-${historyRef.current.length}`,
         questId: opponent?.id ?? 'unknown-quest',
@@ -10497,7 +10918,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         questionId: `runtime-${opponent?.id ?? 'quest'}-${question}`, 
         subject: current.subject,
         question: current.question,
-        selectedAnswer: current.options[index],
+        selectedAnswer: didTimeOut ? 'No answer (time ran out)' : current.options[index as number],
         correctAnswer: current.options[current.answer],
         correct: isCorrect,
         explanation: current.explanation ?? '',
@@ -10507,7 +10928,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // No toast here on purpose — the answer buttons, health bars, and attack animation
       // already give immediate feedback per question. A toast per answer would just be
       // the same information twice, several times a battle.
-      if (isCorrect) setScore((value) => value + 100);
+      if (isCorrect) {
+        // Up to +50 for answering fast: scales with the fraction of the clock still left,
+        // rounded to the nearest 5 so the number reads cleanly.
+        const fractionLeft = timeLimitSec > 0 ? Math.max(0, Math.min(1, remainingMsRef.current / (timeLimitSec * 1000))) : 0;
+        const bonus = Math.round(fractionLeft * 10) * 5;
+        setSpeedBonus(bonus);
+        setScore((value) => value + 100 + bonus);
+      }
       // Correct/wrong plays immediately, right on the click — the same instant the
       // buttons themselves flash green/red. The punch-impact cue is deliberately held
       // until the impact tick below instead, so it lands with the lunge rather than the
@@ -10543,6 +10971,45 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       }, BATTLE_IMPACT_DELAY_MS);
       resetTimeoutRef.current = window.setTimeout(() => setAttackPhase('idle'), BATTLE_ATTACK_DURATION_MS);
     };
+    // The interval always calls the newest submitAnswer (fresh `resolved`, hit counts,
+    // etc.) through this ref instead of a stale closure captured when the timer started.
+    const submitAnswerRef = useRef(submitAnswer);
+    submitAnswerRef.current = submitAnswer;
+    const answer = (index: number) => submitAnswer(index);
+    useEffect(() => {
+      // Stop while the question is answered, the encounter is over, or a tutorial overlay
+      // is up; resuming picks up from the exact remaining time, not a fresh clock.
+      if (resolved || complete || timerPaused || !current) return;
+      if (timerQuestionRef.current !== question) {
+        timerQuestionRef.current = question;
+        remainingMsRef.current = timeLimitSec * 1000;
+        setTick({ q: question, s: timeLimitSec });
+      }
+      const startedAt = Date.now();
+      const startRemaining = remainingMsRef.current;
+      const id = window.setInterval(() => {
+        const remaining = startRemaining - (Date.now() - startedAt);
+        remainingMsRef.current = remaining;
+        if (remaining <= 0) {
+          window.clearInterval(id);
+          remainingMsRef.current = 0;
+          submitAnswerRef.current(null);
+          return;
+        }
+        const whole = Math.ceil(remaining / 1000);
+        setTick((prev) => (prev.q === question && prev.s === whole ? prev : { q: question, s: whole }));
+      }, 100);
+      return () => {
+        window.clearInterval(id);
+        // Save exactly where the clock stopped so a pause/resume doesn't lose or gain time.
+        remainingMsRef.current = Math.max(0, startRemaining - (Date.now() - startedAt));
+      };
+    }, [question, resolved, complete, timerPaused]);
+    // Last-five-seconds ticking.
+    useEffect(() => {
+      if (!soundEnabled || resolved || complete || timerPaused) return;
+      if (secondsLeft > 0 && secondsLeft <= 5) playTimerTickSfx();
+    }, [secondsLeft, resolved, complete, timerPaused, soundEnabled]);
     // The only two ways an encounter can end: a fighter's health bar actually reaches
     // zero, or the player has answered every question without either side being KO'd.
     // Both are just "this was the last question" in practice — each answer deals damage
@@ -10561,6 +11028,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       setQuestion((value) => value + 1);
       setSelected(null);
       setResolved(false);
+      setTimedOut(false);
+      setSpeedBonus(0);
     };
     return (
       <div className="battle-viewport" ref={battleViewportRef}>
@@ -10580,7 +11049,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           </div>
           <button className="btn-secondary" onClick={onExit}><X size={14} /> Retreat</button>
         </div>
-        <div className={`panel battle-arena ${impactActive ? 'screen-shake' : ''}`}>
+        <div className={`panel battle-arena ${impactActive ? 'screen-shake' : ''} ${timeCritical ? 'time-critical' : ''}`}>
           {/* Hit flash: brief tinted wash at the instant of impact, tinted to whoever
               just took the hit. Absolutely positioned, pointer-events: none — decoration
               only, never intercepts clicks or shifts anything beneath it. */}
@@ -10596,6 +11065,30 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             <div className="arena-plate center-plate">
               <span className="battle-label">QUIZ BATTLE // {complete ? questions.length : question + 1} / {questions.length}</span>
               <span className="battle-score">SCORE {String(score).padStart(4, '0')}</span>
+              {/* The countdown lives right here on the arena wall, under the score, so it's
+                  always in the player's eyeline during the fight. Big digits, a draining
+                  bar, and — in the last five seconds — a pop on every tick plus a red glow
+                  around the whole arena (see .time-critical). The bar's fill is keyed to the
+                  question so its CSS animation restarts cleanly on each new question. */}
+              {!complete && current && (
+                <div
+                  className={`battle-clock ${timeCritical ? 'urgent' : ''} ${timedOut ? 'expired' : ''}`}
+                  role="timer"
+                  aria-label={timedOut ? 'Time is up' : `${secondsLeft} seconds left`}
+                >
+                  <div className="battle-clock-readout" key={timeCritical ? secondsLeft : 'steady'}>
+                    {!timedOut && <Timer size={16} />}
+                    <span>{timedOut ? "TIME'S UP" : String(secondsLeft).padStart(2, '0')}</span>
+                  </div>
+                  <div className="battle-timer-track" aria-hidden="true">
+                    <div
+                      key={question}
+                      className="battle-timer-fill"
+                      style={{ animationDuration: `${timeLimitSec}s`, animationPlayState: resolved || timerPaused ? 'paused' : 'running' }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
             <div className="arena-plate enemy-plate">
               <div className="plate-name">{opponentName}</div>
@@ -10671,10 +11164,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                 <>
                   <div className="feedback">
                     {selected === current.answer
-                      ? 'DIRECT HIT // The concept is locked in.'
+                      ? `DIRECT HIT // The concept is locked in.${speedBonus > 0 ? ` +${speedBonus} speed bonus.` : ''}`
                       : (
                         <>
-                          MISS // The correct answer was {current.options[current.answer]}.
+                          {timedOut ? "TIME'S UP" : 'MISS'} // The correct answer was {current.options[current.answer]}.
                           {current.explanation && <span className="feedback-explanation"> {current.explanation}</span>}
                         </>
                       )}
@@ -11228,8 +11721,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       battle: {
         title: 'Quiz Battles',
         body: isTouchDevice
-          ? 'Read the question, tap one answer, and continue through the encounter. Your result contributes to your academic mastery.'
-          : 'Read each question carefully and choose the answer you believe is correct. Your result contributes to your academic mastery.',
+          ? 'Read the question, tap one answer before the timer runs out, and continue through the encounter. Harder levels give you less time. Your result contributes to your academic mastery.'
+          : 'Read each question and choose your answer before the timer runs out — harder levels give you less time, and running out counts as a miss. Your result contributes to your academic mastery.',
         hint: isTouchDevice ? 'Tap an answer → continue the encounter' : 'Read → choose an answer → continue',
         icon: <Brain size={16} />,
       },
@@ -12126,7 +12619,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                 <QuestBriefing challenger={foundChallenger} playerLevel={getLevelInfo(game.xp).level} strand={profile.strand} bestScore={(game.challengerScores ?? {})[foundChallenger.id]} onAccept={() => setQuestStage('battle')} onLeave={() => { setFoundChallenger(null); setQuestStage('roaming'); }} />
               )}
               {screen === 'quests' && questStage === 'battle' && (
-                <Battle profile={profile} opponent={foundChallenger} soundEnabled={game.preferences.sound} onExit={() => { setFoundChallenger(null); setQuestStage('roaming'); }} onComplete={completeBattle} />
+                <Battle profile={profile} opponent={foundChallenger} soundEnabled={game.preferences.sound} timerPaused={tutorialStep !== 'inactive'} onExit={() => { setFoundChallenger(null); setQuestStage('roaming'); }} onComplete={completeBattle} />
               )}
               {screen === 'shop' && <Shop coins={game.coins} owned={game.owned} equipped={game.equipped} buyItem={buyItem} equipItem={equipItem} quests={game.quests} />}
               {screen === 'achievements' && <AchievementsView quests={game.quests} studyMinutes={game.studyMinutes} owned={game.owned} />}
