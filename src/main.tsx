@@ -4921,58 +4921,296 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     if (achievement.requiredCategory) return owned.some((id) => shopItems.find((item) => item.id === id)?.category === achievement.requiredCategory);
     return false;
   };
-  type Question = { subject: string; question: string; options: string[]; answer: number; explanation: string };
+  // Every question carries its own strand, subject/topic and a hint. `subject` is the
+  // topic's subject name (it is what subject-mastery tracking and question history key on),
+  // so a quiz about Algebra records Algebra and nothing else. `hint` is stored and validated
+  // with the question (kept aligned with the topic) even though the current battle UI does
+  // not render it.
+  type Question = { subject: string; question: string; options: string[]; answer: number; explanation: string; strand?: string; topic?: string; hint?: string };
+  // One lesson/topic inside a strand: exactly six verified questions that all belong to the
+  // same subject — the first three are the core check, the last three are the harder follow-up.
+  type QuizTopic = { id: string; strand: string; subject: string; topic: string; questions: Question[] };
+  // [question, correct answer, three wrong answers, explanation, hint]
+  type QuizRow = [string, string, [string, string, string], string, string];
+  const defineQuizTopic = (strand: string, id: string, subject: string, topic: string, rows: QuizRow[]): QuizTopic => ({
+    id, strand, subject, topic,
+    questions: rows.map(([question, correct, wrong, explanation, hint]) => ({
+      strand, subject, topic, question, options: [correct, ...wrong], answer: 0, explanation, hint,
+    })),
+  });
 
-  // One question bank per strand (the same four values chosen at signup: STEM / ABM /
-  // HUMSS / GENERAL KNOWLEDGE). Every question a player ever sees comes from their own
-  // strand's bank — nobody outside STEM gets asked about mitochondria. Eight questions
-  // per strand is enough for four NPCs to each get a genuinely distinct, non-identical
-  // set (see buildChallengerQuestionSet below) without repeating content across strands.
-  const QUESTION_BANK: Record<string, Question[]> = {
+  // The verified question bank: 4 strands x 8 topics x 6 questions. Questions live ONLY under
+  // the strand + topic they belong to — nothing is padded in from another subject. Which
+  // topic a given Challenger asks about is decided by CHALLENGER_QUIZ_PLAN further below.
+  const QUIZ_TOPICS: Record<string, QuizTopic[]> = {
     STEM: [
-      { subject: 'Biology', question: 'Which organelle is known as the powerhouse of the cell?', options: ['Nucleus', 'Mitochondria', 'Ribosome', 'Golgi apparatus'], answer: 1, explanation: 'Mitochondria generate the cell\'s ATP energy through cellular respiration, which is why they\'re called its powerhouse.' },
-      { subject: 'Calculus', question: 'What is the derivative of x²?', options: ['x', '2', '2x', 'x²'], answer: 2, explanation: 'Using the power rule, the derivative of x^n is n·x^(n-1), so the derivative of x² is 2x.' },
-      { subject: 'Physics', question: 'Which force keeps planets in orbit around the sun?', options: ['Friction', 'Gravity', 'Magnetism', 'Tension'], answer: 1, explanation: 'Gravity is the attractive pull between masses, and it\'s what continuously bends each planet\'s path into an orbit around the sun.' },
-      { subject: 'Chemistry', question: 'What is the chemical symbol for sodium?', options: ['So', 'Sd', 'Na', 'S'], answer: 2, explanation: 'Sodium\'s symbol, Na, comes from its Latin name \'natrium.\'' },
-      { subject: 'Biology', question: 'What is the basic unit of heredity called?', options: ['Cell', 'Gene', 'Atom', 'Protein'], answer: 1, explanation: 'A gene is a segment of DNA carrying the instructions for a specific trait, making it the basic unit of heredity.' },
-      { subject: 'Physics', question: 'What is the SI unit of force?', options: ['Joule', 'Watt', 'Newton', 'Pascal'], answer: 2, explanation: 'The newton is defined as the force needed to accelerate a 1 kg mass by 1 m/s², named after Isaac Newton.' },
-      { subject: 'Calculus', question: 'What is the integral of 2x dx?', options: ['x² + C', '2x² + C', 'x + C', '2 + C'], answer: 0, explanation: 'Integration reverses differentiation, so the antiderivative of 2x is x², plus a constant of integration.' },
-      { subject: 'Computer Science', question: "What does 'CPU' stand for?", options: ['Central Process Unit', 'Central Processing Unit', 'Computer Personal Unit', 'Core Processing Utility'], answer: 1, explanation: 'The CPU fetches and executes instructions, which is why it\'s called the Central Processing Unit.' },
+      defineQuizTopic('STEM', 'stem-algebra', 'Algebra', 'Solving equations and factoring', [
+        ['Solve for x: 3x + 5 = 20', '5', ['6', '15', '25/3'], 'Subtract 5 from both sides to get 3x = 15, then divide by 3 to get x = 5.', 'Undo the +5 first, then undo the multiplication by 3.'],
+        ['What is the value of 2x² when x = 3?', '18', ['36', '12', '9'], 'Square first: 3² = 9, then multiply by 2 to get 18.', 'Exponents come before multiplication.'],
+        ['Factor completely: x² − 9', '(x + 3)(x − 3)', ['(x − 3)(x − 3)', '(x + 9)(x − 1)', 'x(x − 9)'], 'x² − 9 is a difference of two squares, a² − b² = (a + b)(a − b), with a = x and b = 3.', 'Think of 9 as 3².'],
+        ['What are the solutions of x² − 5x + 6 = 0?', 'x = 2 and x = 3', ['x = 1 and x = 6', 'x = −2 and x = −3', 'x = 2 and x = −3'], 'x² − 5x + 6 factors as (x − 2)(x − 3), so x = 2 or x = 3.', 'Find two numbers that multiply to 6 and add to −5.'],
+        ['What is the slope of the line y = −4x + 7?', '−4', ['7', '4', '−7'], 'In y = mx + b the slope is m, the coefficient of x, which is −4.', 'Compare the equation with y = mx + b.'],
+        ['Solve the system: x + y = 10 and x − y = 2.', 'x = 6, y = 4', ['x = 4, y = 6', 'x = 8, y = 2', 'x = 5, y = 5'], 'Adding the equations gives 2x = 12, so x = 6; then y = 10 − 6 = 4.', 'Add the two equations to eliminate y.'],
+      ]),
+      defineQuizTopic('STEM', 'stem-geometry', 'Geometry', 'Shapes, angles, area and volume', [
+        ['What is the sum of the interior angles of any triangle?', '180°', ['90°', '270°', '360°'], 'The three interior angles of every triangle add up to 180°.', 'It is half of a straight line’s full turn.'],
+        ['What is the area of a rectangle that is 8 units long and 5 units wide?', '40 square units', ['26 square units', '13 square units', '80 square units'], 'Area of a rectangle = length × width = 8 × 5 = 40.', 'Multiply the two side lengths.'],
+        ['Using π ≈ 22/7, what is the circumference of a circle with radius 7?', '44 units', ['154 units', '22 units', '49 units'], 'Circumference = 2πr = 2 × (22/7) × 7 = 44. (154 would be the area, πr².)', 'Circumference uses 2πr, not πr².'],
+        ['A right triangle has legs of 6 and 8. How long is the hypotenuse?', '10', ['14', '12', '7'], 'By the Pythagorean theorem, c² = 6² + 8² = 36 + 64 = 100, so c = 10.', 'a² + b² = c²'],
+        ['What is the sum of the interior angles of a hexagon?', '720°', ['540°', '900°', '1080°'], 'The sum is (n − 2) × 180°; for n = 6 that is 4 × 180° = 720°.', 'Use (n − 2) × 180°.'],
+        ['What is the volume of a cylinder with radius 3 and height 5?', '45π', ['15π', '30π', '90π'], 'Volume = πr²h = π × 9 × 5 = 45π.', 'Volume = (area of the circular base) × height.'],
+      ]),
+      defineQuizTopic('STEM', 'stem-cell-biology', 'Cell Biology', 'Cell structure and function', [
+        ['Which organelle is known as the powerhouse of the cell?', 'Mitochondria', ['Nucleus', 'Ribosome', 'Golgi apparatus'], 'Mitochondria produce most of the cell’s ATP through cellular respiration.', 'It makes the cell’s usable energy (ATP).'],
+        ['Which organelle contains the cell’s DNA in eukaryotic cells?', 'Nucleus', ['Lysosome', 'Ribosome', 'Centriole'], 'The nucleus stores the genetic material and controls the cell’s activities.', 'Think of it as the cell’s control center.'],
+        ['Where does protein synthesis take place in the cell?', 'Ribosome', ['Mitochondrion', 'Lysosome', 'Vacuole'], 'Ribosomes read mRNA and assemble amino acids into proteins.', 'These tiny structures translate mRNA.'],
+        ['Which structure is found in plant cells but NOT in animal cells?', 'Cell wall', ['Nucleus', 'Cell membrane', 'Cytoplasm'], 'Plant cells have a rigid cell wall outside the cell membrane; animal cells do not.', 'It is a rigid outer layer that gives plants their shape.'],
+        ['Which organelle modifies, sorts and packages proteins for transport?', 'Golgi apparatus', ['Mitochondrion', 'Ribosome', 'Centriole'], 'The Golgi apparatus processes and ships proteins and lipids, like a cell’s post office.', 'Think of the cell’s packaging and shipping center.'],
+        ['During which phase of mitosis do sister chromatids separate and move to opposite poles?', 'Anaphase', ['Prophase', 'Metaphase', 'Telophase'], 'In anaphase the sister chromatids are pulled apart toward opposite ends of the cell.', 'The prefix “ana-” means “apart” or “up”.'],
+      ]),
+      defineQuizTopic('STEM', 'stem-chemistry', 'Chemistry', 'Atoms, bonding and the periodic table', [
+        ['What is the chemical symbol for sodium?', 'Na', ['So', 'Sd', 'S'], 'Sodium’s symbol, Na, comes from its Latin name “natrium”.', 'Its symbol comes from Latin, not English.'],
+        ['What is the chemical formula of water?', 'H₂O', ['HO₂', 'H₂O₂', 'H₃O'], 'A water molecule has two hydrogen atoms and one oxygen atom. (H₂O₂ is hydrogen peroxide.)', 'Two hydrogens, one oxygen.'],
+        ['The atomic number of an element equals the number of what in its atom?', 'Protons', ['Neutrons', 'Protons plus neutrons', 'Valence electrons'], 'The atomic number is the proton count, which defines the element.', 'It is the number that defines the element.'],
+        ['What is the pH of a neutral solution at 25°C?', '7', ['0', '1', '14'], 'Pure water is neutral with pH 7; lower values are acidic and higher values are basic.', 'The pH scale runs 0–14 and neutral is in the middle.'],
+        ['Which type of bond forms when electrons are transferred from one atom to another?', 'Ionic bond', ['Covalent bond', 'Metallic bond', 'Hydrogen bond'], 'In an ionic bond, one atom gives up electrons to another, forming oppositely charged ions that attract.', 'Transfer creates ions; sharing creates a covalent bond.'],
+        ['Approximately how many particles are in one mole of a substance (Avogadro’s number)?', '6.022 × 10²³', ['3.0 × 10⁸', '9.81', '1.6 × 10⁻¹⁹'], 'One mole contains about 6.022 × 10²³ particles.', 'It is an enormous positive power of ten.'],
+      ]),
+      defineQuizTopic('STEM', 'stem-physics', 'Physics', 'Motion and forces', [
+        ['What is the SI unit of force?', 'Newton', ['Joule', 'Watt', 'Pascal'], 'The newton is the force that accelerates a 1 kg mass by 1 m/s².', 'It is named after a famous physicist.'],
+        ['“An object at rest stays at rest unless acted on by a net force.” Which law is this?', 'Newton’s first law', ['Newton’s second law', 'Newton’s third law', 'Law of universal gravitation'], 'This is the law of inertia, Newton’s first law of motion.', 'It is also called the law of inertia.'],
+        ['A car travels 150 km in 2.5 hours. What is its average speed?', '60 km/h', ['75 km/h', '375 km/h', '52.5 km/h'], 'Average speed = distance ÷ time = 150 ÷ 2.5 = 60 km/h.', 'Speed = distance ÷ time.'],
+        ['A net force of 10 N acts on a 2 kg object. What is its acceleration?', '5 m/s²', ['20 m/s²', '0.2 m/s²', '12 m/s²'], 'From F = ma, a = F ÷ m = 10 ÷ 2 = 5 m/s².', 'Rearrange F = ma to solve for a.'],
+        ['What is the momentum of a 3 kg object moving at 4 m/s?', '12 kg·m/s', ['7 kg·m/s', '0.75 kg·m/s', '48 kg·m/s'], 'Momentum p = mv = 3 × 4 = 12 kg·m/s.', 'p = mass × velocity.'],
+        ['Ignoring air resistance, what is the acceleration due to gravity near Earth’s surface?', 'About 9.8 m/s²', ['About 1.6 m/s²', 'About 98 m/s²', 'About 4.9 m/s²'], 'Freely falling objects near Earth’s surface accelerate at about 9.8 m/s² downward.', 'It is close to 10 m/s².'],
+      ]),
+      defineQuizTopic('STEM', 'stem-calculus', 'Calculus', 'Limits, derivatives and integrals', [
+        ['What is the derivative of x²?', '2x', ['x', '2', 'x²'], 'By the power rule, d/dx of xⁿ is n·xⁿ⁻¹, so the derivative of x² is 2x.', 'Bring the exponent down and subtract 1 from it.'],
+        ['What is the derivative of the constant 7?', '0', ['7', '1', 'x'], 'A constant does not change, so its rate of change (derivative) is 0.', 'How fast does a constant change?'],
+        ['What is the limit of 3x + 1 as x approaches 2?', '7', ['6', '5', '2'], 'The function is continuous, so substitute x = 2: 3(2) + 1 = 7.', 'For a polynomial, you can substitute directly.'],
+        ['What is the integral of 2x dx?', 'x² + C', ['2x² + C', 'x + C', '2 + C'], 'Integration reverses differentiation: the antiderivative of 2x is x², plus a constant C.', 'What function has derivative 2x?'],
+        ['What is the derivative of sin x?', 'cos x', ['−cos x', '−sin x', 'tan x'], 'The derivative of sin x is cos x.', 'It is the other basic trig function (without a minus sign).'],
+        ['What is the derivative of 3x⁴ − 2x?', '12x³ − 2', ['12x³', '3x³ − 2', '12x⁴ − 2'], 'Apply the power rule to each term: 3·4x³ = 12x³ and the derivative of −2x is −2.', 'Differentiate each term separately.'],
+      ]),
+      defineQuizTopic('STEM', 'stem-genetics', 'Genetics', 'Heredity, DNA and inheritance', [
+        ['What is the basic unit of heredity called?', 'Gene', ['Cell', 'Atom', 'Protein'], 'A gene is a segment of DNA carrying the instructions for a specific trait.', 'It is a segment of DNA.'],
+        ['What does DNA stand for?', 'Deoxyribonucleic acid', ['Dinucleic acid', 'Dioxyribose nucleic acid', 'Dynamic nucleic acid'], 'DNA is deoxyribonucleic acid, the molecule that stores genetic information.', 'The word starts with “deoxy-”.'],
+        ['What are alleles?', 'Different forms of the same gene', ['Pairs of chromosomes', 'Types of proteins', 'Copies of RNA'], 'Alleles are alternative versions of a gene, such as the alleles for purple or white flowers.', 'Think “variants” of one gene.'],
+        ['How many chromosomes are in a typical human body (somatic) cell?', '46', ['23', '44', '48'], 'Human body cells have 46 chromosomes (23 pairs); gametes have 23.', 'It is 23 pairs.'],
+        ['In DNA, which base pairs with adenine?', 'Thymine', ['Guanine', 'Cytosine', 'Uracil'], 'Adenine pairs with thymine (A–T) and guanine pairs with cytosine (G–C). Uracil appears in RNA, not DNA.', 'DNA never contains uracil.'],
+        ['A cross between two heterozygous parents (Aa × Aa) is expected to give what phenotype ratio?', '3 dominant : 1 recessive', ['1 : 1', '1 : 2 : 1 dominant : recessive', '9 : 3 : 3 : 1'], 'Offspring are AA, Aa, Aa and aa, so three show the dominant trait and one the recessive trait (3 : 1).', 'Draw a Punnett square.'],
+      ]),
+      defineQuizTopic('STEM', 'stem-computer-science', 'Computer Science', 'Computing fundamentals and algorithms', [
+        ['What does “CPU” stand for?', 'Central Processing Unit', ['Central Process Unit', 'Computer Personal Unit', 'Core Processing Utility'], 'The CPU fetches and executes instructions, so it is the Central Processing Unit.', 'It is the computer’s “brain”.'],
+        ['What is the base of the binary number system?', '2', ['8', '10', '16'], 'Binary uses only two digits, 0 and 1, so its base is 2.', 'How many digits does binary use?'],
+        ['Which of these is a high-level programming language?', 'Python', ['HTTP', 'USB', 'JPEG'], 'Python is a high-level programming language; the others are a protocol, a hardware standard and an image format.', 'Only one of them is used to write programs.'],
+        ['What is the binary number 1010 in decimal?', '10', ['12', '5', '8'], '1010₂ = 8 + 0 + 2 + 0 = 10.', 'Place values from the right are 1, 2, 4, 8.'],
+        ['Which data structure follows the Last-In, First-Out (LIFO) rule?', 'Stack', ['Queue', 'Tree', 'Graph'], 'In a stack the last item pushed is the first one popped.', 'Think of a stack of plates.'],
+        ['What is the time complexity of binary search on a sorted array of n items?', 'O(log n)', ['O(n)', 'O(n²)', 'O(1)'], 'Binary search halves the search range each step, giving O(log n).', 'The search space is cut in half every step.'],
+      ]),
     ],
     ABM: [
-      { subject: 'Accounting', question: "In the accounting equation, Assets = Liabilities + ___?", options: ['Revenue', 'Equity', 'Expenses', 'Cash'], answer: 1, explanation: 'The accounting equation balances what a business owns (assets) against what it owes (liabilities) and the owners\' stake (equity).' },
-      { subject: 'Economics', question: 'What term describes the total value of goods and services produced in a country in a year?', options: ['Inflation rate', 'GDP', 'Interest rate', 'Trade balance'], answer: 1, explanation: 'GDP, or Gross Domestic Product, measures the total value of everything a country produces in a year.' },
-      { subject: 'Business', question: "What does 'ROI' stand for?", options: ['Rate of Interest', 'Return on Investment', 'Revenue over Income', 'Ratio of Investment'], answer: 1, explanation: 'ROI measures how much profit an investment generates relative to what it cost.' },
-      { subject: 'Accounting', question: "Which financial statement shows a company's profit over a period?", options: ['Balance sheet', 'Income statement', 'Cash flow statement', 'Trial balance'], answer: 1, explanation: 'The income statement reports revenues and expenses over a period of time, showing whether the company turned a profit.' },
-      { subject: 'Economics', question: 'All else equal, what happens to demand when the price of a good rises?', options: ['Demand rises', 'Demand falls', 'Demand stays the same', 'Supply falls'], answer: 1, explanation: 'This is the law of demand: as price rises, quantity demanded typically falls, all else being equal.' },
-      { subject: 'Management', question: 'In a SWOT analysis, what does the T stand for?', options: ['Trends', 'Targets', 'Threats', 'Tactics'], answer: 2, explanation: 'SWOT stands for Strengths, Weaknesses, Opportunities, and Threats — Threats being external risks that could hurt the business.' },
-      { subject: 'Business', question: 'A business owned and run by a single person is called a ___?', options: ['Corporation', 'Partnership', 'Cooperative', 'Sole proprietorship'], answer: 3, explanation: 'A sole proprietorship is a business owned and run by one person, with no legal separation between owner and business.' },
-      { subject: 'Economics', question: 'What is the study of how individual households and firms make decisions called?', options: ['Macroeconomics', 'Microeconomics', 'Econometrics', 'Behavioral economics'], answer: 1, explanation: 'Microeconomics focuses on the decisions of individual households and firms, unlike macroeconomics, which looks at the whole economy.' },
+      defineQuizTopic('ABM', 'abm-accounting', 'Accounting', 'Accounting equation, statements and double entry', [
+        ['In the accounting equation, Assets = Liabilities + ___?', 'Equity', ['Revenue', 'Expenses', 'Cash'], 'The accounting equation balances what a business owns (assets) against what it owes (liabilities) plus the owners’ stake (equity).', 'It is the owners’ claim on the assets.'],
+        ['Which financial statement shows a company’s profit or loss over a period?', 'Income statement', ['Balance sheet', 'Cash flow statement', 'Trial balance'], 'The income statement reports revenues and expenses over a period, showing net income or loss.', 'It covers a period of time, not a single date.'],
+        ['In double-entry bookkeeping, total debits must always equal total ___?', 'Credits', ['Assets', 'Expenses', 'Revenues'], 'Every transaction is recorded with equal debits and credits, so the books stay balanced.', 'Debits and ___ are always equal.'],
+        ['What is the normal balance of an asset account?', 'Debit', ['Credit', 'Zero', 'Variable'], 'Assets increase with debits, so their normal balance is a debit.', 'Assets increase on the left side of the entry.'],
+        ['Which of the following is a current asset?', 'Accounts receivable', ['Accounts payable', 'Building', 'Bonds payable'], 'Accounts receivable is money owed to the business that will be collected within a year; the others are a liability, a non-current asset and a liability.', 'A current asset will become cash within a year.'],
+        ['A business buys equipment worth ₱50,000 on credit. What is the effect on the accounting equation?', 'Assets and liabilities both increase by ₱50,000', ['Assets and equity both increase by ₱50,000', 'Only liabilities increase by ₱50,000', 'Assets decrease by ₱50,000'], 'Equipment (an asset) rises and the amount owed to the supplier (a liability) rises by the same amount, so the equation stays balanced.', 'Buying on credit means you now owe someone money.'],
+      ]),
+      defineQuizTopic('ABM', 'abm-microeconomics', 'Microeconomics', 'Demand, supply and markets', [
+        ['All else equal, what happens to quantity demanded when the price of a good rises?', 'It falls', ['It rises', 'It stays the same', 'Supply falls'], 'This is the law of demand: as price rises, quantity demanded falls.', 'Think about how you react to higher prices.'],
+        ['What is opportunity cost?', 'The value of the next best alternative given up', ['The money paid for a good', 'The profit earned from a sale', 'The cost of producing one more unit'], 'Opportunity cost is what you give up when you choose one option over the next best one.', 'It is about what you give up, not what you pay.'],
+        ['At market equilibrium, what is true?', 'Quantity demanded equals quantity supplied', ['Prices are always at their lowest', 'Supply is greater than demand', 'Demand is greater than supply'], 'Equilibrium is the price at which the amount buyers want equals the amount sellers offer.', 'The market “clears”.'],
+        ['A price ceiling set below the equilibrium price will most likely cause what?', 'A shortage', ['A surplus', 'No change in the market', 'Higher prices'], 'A binding price ceiling keeps the price low, so quantity demanded exceeds quantity supplied: a shortage.', 'More people want the good than sellers offer.'],
+        ['Which best describes a monopoly?', 'A single seller dominates the market with no close substitutes', ['Many sellers offering identical products', 'A few sellers who compete closely', 'A market run by buyers'], 'A monopoly has one seller and no close substitutes, so it has substantial pricing power.', '“Mono” means one.'],
+        ['Demand is price elastic when…', 'a small price change causes a large change in quantity demanded', ['quantity demanded never changes when price changes', 'price changes have no effect on revenue', 'consumers buy more when income falls'], 'Elastic demand means quantity demanded is very responsive to price changes.', 'Elastic means “stretchy” or very responsive.'],
+      ]),
+      defineQuizTopic('ABM', 'abm-management', 'Principles of Management', 'Planning, organizing and leading', [
+        ['In a SWOT analysis, what does the T stand for?', 'Threats', ['Trends', 'Targets', 'Tactics'], 'SWOT stands for Strengths, Weaknesses, Opportunities and Threats.', 'It is an external risk.'],
+        ['Which of these is one of the four classic functions of management?', 'Organizing', ['Advertising', 'Accounting', 'Manufacturing'], 'The four functions are planning, organizing, leading and controlling.', 'The classic four are planning, ___, leading and controlling.'],
+        ['What does a mission statement describe?', 'An organization’s fundamental purpose', ['Its monthly sales targets', 'Its list of employees', 'Its financial results'], 'A mission statement explains why an organization exists and what it does.', 'It answers “why do we exist?”.'],
+        ['What does “span of control” refer to?', 'The number of subordinates a manager directly supervises', ['The total budget a manager controls', 'The size of the company’s building', 'The number of departments in a firm'], 'Span of control is how many people report directly to one manager.', 'Count the direct reports.'],
+        ['In Maslow’s hierarchy of needs, which need sits at the top?', 'Self-actualization', ['Esteem', 'Safety', 'Belonging'], 'Self-actualization, reaching one’s full potential, is at the top of Maslow’s pyramid.', 'It comes after esteem.'],
+        ['According to McGregor’s Theory Y, employees are generally…', 'self-motivated and willing to take responsibility', ['lazy and in need of constant control', 'motivated only by pay', 'unable to make decisions'], 'Theory Y assumes people enjoy work and seek responsibility; Theory X assumes the opposite.', 'Theory Y is the optimistic view of workers.'],
+      ]),
+      defineQuizTopic('ABM', 'abm-marketing', 'Marketing', 'Marketing mix and customers', [
+        ['Which of these is NOT one of the 4 Ps of the marketing mix?', 'Profit', ['Price', 'Place', 'Promotion'], 'The 4 Ps are Product, Price, Place and Promotion. Profit is a result, not one of the Ps.', 'Profit is an outcome of marketing.'],
+        ['What is a target market?', 'The group of customers a business aims its products at', ['The place where products are made', 'The competitors of a business', 'The group of suppliers a business uses'], 'A target market is the specific group of customers a company wants to reach.', 'Who is the business trying to reach?'],
+        ['What is market segmentation?', 'Dividing a market into smaller groups with similar needs', ['Selling to everyone with one message', 'Lowering prices to beat competitors', 'Combining several brands into one'], 'Segmentation splits a broad market into groups that share needs or traits so they can be served better.', 'A segment is a smaller part of a whole.'],
+        ['Which of these is a demographic segmentation variable?', 'Age', ['Climate', 'Lifestyle', 'Loyalty status'], 'Demographic variables describe the population itself, such as age, income and gender. Climate is geographic, lifestyle is psychographic and loyalty is behavioral.', 'Demographics are measurable facts about people.'],
+        ['What is a unique selling proposition (USP)?', 'The feature that sets a product apart from competitors', ['The lowest price in the market', 'The total number of products sold', 'A discount for first-time buyers'], 'A USP is the distinctive benefit that makes a product different from competing ones.', 'It is what makes you unique.'],
+        ['In the product life cycle, which stage usually has the fastest sales growth?', 'Growth', ['Introduction', 'Maturity', 'Decline'], 'Sales rise rapidly in the growth stage, after launch and before the market saturates.', 'The name of the stage gives it away.'],
+      ]),
+      defineQuizTopic('ABM', 'abm-macroeconomics', 'Macroeconomics', 'National income, inflation and policy', [
+        ['What does GDP measure?', 'The total value of goods and services produced in a country in a year', ['The number of people employed', 'The prices of imported goods', 'A government’s total debt'], 'Gross Domestic Product measures the market value of everything a country produces in a year.', 'GDP = Gross Domestic ___.'],
+        ['What is inflation?', 'A general rise in the price level over time', ['A fall in the price of one product', 'An increase in the number of jobs', 'A rise in a country’s exports'], 'Inflation is a sustained increase in the general level of prices, which reduces purchasing power.', 'Prices in general, not one product.'],
+        ['How is the unemployment rate defined?', 'The share of the labor force that is jobless and looking for work', ['The share of the population that is not working', 'The share of workers who changed jobs', 'The share of people who are retired'], 'It counts jobless people actively seeking work as a percentage of the labor force.', 'The person must be actively looking for work.'],
+        ['Fiscal policy involves changes in what?', 'Government spending and taxation', ['Interest rates set by the central bank', 'Exchange rates only', 'Private company profits'], 'Fiscal policy is the government’s use of spending and taxes to influence the economy; changing interest rates is monetary policy.', 'Think “budget” and “taxes”.'],
+        ['Which institution is the central bank of the Philippines?', 'Bangko Sentral ng Pilipinas', ['Land Bank of the Philippines', 'Development Bank of the Philippines', 'Philippine Stock Exchange'], 'The Bangko Sentral ng Pilipinas (BSP) is the country’s central bank and conducts monetary policy.', 'Its name means “central bank”.'],
+        ['Two or more consecutive quarters of falling GDP is a common rule of thumb for what?', 'A recession', ['An economic expansion', 'Hyperinflation', 'A trade surplus'], 'A prolonged decline in economic output, often defined as two straight quarters of falling GDP, is a recession.', 'The economy is shrinking.'],
+      ]),
+      defineQuizTopic('ABM', 'abm-financial-management', 'Financial Management', 'Returns, interest and risk', [
+        ['What does “ROI” stand for?', 'Return on Investment', ['Rate of Interest', 'Revenue over Income', 'Ratio of Investment'], 'ROI measures the profit an investment generates relative to its cost.', 'It is about the return you get.'],
+        ['What does the time value of money say?', 'A peso today is worth more than a peso in the future', ['A peso in the future is worth more than a peso today', 'Money never changes in value', 'Money is worth more when it is saved in cash'], 'Money available now can be invested to earn returns, so it is worth more than the same amount later.', 'Money today can be put to work.'],
+        ['What does liquidity mean?', 'How easily an asset can be converted to cash', ['How much profit a company makes', 'How much debt a firm has', 'How long a loan lasts'], 'Liquidity is the ease and speed of turning an asset into cash without losing value.', 'Think of how quickly you can turn something into cash.'],
+        ['What is the simple interest on ₱10,000 at 5% per year for 2 years?', '₱1,000', ['₱500', '₱1,025', '₱10,500'], 'Simple interest = principal × rate × time = 10,000 × 0.05 × 2 = ₱1,000.', 'I = P × r × t'],
+        ['If ₱1,000 earns 10% interest compounded yearly, what is it worth after 2 years?', '₱1,210', ['₱1,200', '₱1,100', '₱1,020'], '₱1,000 × 1.10 = ₱1,100 after year 1, then × 1.10 = ₱1,210 after year 2.', 'Interest in year 2 is earned on year 1’s interest too.'],
+        ['What is the main purpose of diversification?', 'To reduce risk by spreading investments across different assets', ['To guarantee high profits', 'To invest all money in one asset', 'To avoid paying taxes'], 'Diversification lowers the impact of any one investment performing badly.', 'Don’t put all your eggs in one basket.'],
+      ]),
+      defineQuizTopic('ABM', 'abm-entrepreneurship', 'Entrepreneurship', 'Starting and running a business', [
+        ['A business owned and run by one person is called a…', 'Sole proprietorship', ['Corporation', 'Partnership', 'Cooperative'], 'A sole proprietorship is owned and run by one person, with no legal separation between owner and business.', '“Sole” means single.'],
+        ['What is an entrepreneur?', 'A person who starts and runs a business and takes on its financial risk', ['An employee who manages a team', 'A person who invests only in stocks', 'A government official who regulates trade'], 'Entrepreneurs spot opportunities, organize resources and accept the risk of starting a business.', 'They take the risk of starting something new.'],
+        ['What is the main purpose of a business plan?', 'To outline goals, strategies and finances for a business', ['To record a company’s daily sales', 'To list a company’s employees', 'To advertise a product to customers'], 'A business plan sets out what the business will do, how it will do it, and the expected finances.', 'It is a roadmap for the business.'],
+        ['A business owned by two or more people who share profits and losses is a…', 'Partnership', ['Sole proprietorship', 'Monopoly', 'Government agency'], 'A partnership is owned by two or more partners who share the profits, losses and responsibilities.', 'Two or more owners.'],
+        ['A legal entity separate from its owners, which gives them limited liability, is a…', 'Corporation', ['Sole proprietorship', 'General partnership', 'Franchise'], 'A corporation is its own legal person, so owners are generally not personally liable for its debts.', 'The business is treated as a separate “person”.'],
+        ['What is the break-even point?', 'Where total revenue equals total costs', ['Where profit is at its maximum', 'Where a business closes down', 'Where costs are zero'], 'At the break-even point the business makes neither a profit nor a loss.', 'No profit and no loss.'],
+      ]),
+      defineQuizTopic('ABM', 'abm-business-math', 'Business Mathematics', 'Percentages, discounts, profit and tax', [
+        ['What is 20% of ₱500?', '₱100', ['₱20', '₱50', '₱250'], '20% of 500 = 0.20 × 500 = ₱100.', 'Multiply by 0.20.'],
+        ['An item priced at ₱800 has a 25% discount. What is the sale price?', '₱600', ['₱200', '₱775', '₱700'], 'The discount is 25% × 800 = ₱200, so the sale price is 800 − 200 = ₱600.', 'Find the discount first, then subtract it.'],
+        ['An item costs ₱120 and is sold for ₱150. What is the profit?', '₱30', ['₱270', '₱120', '₱15'], 'Profit = selling price − cost = 150 − 120 = ₱30.', 'Profit = selling price − cost.'],
+        ['An item costing ₱200 is sold for ₱250. What is the markup percentage based on cost?', '25%', ['20%', '50%', '5%'], 'The markup is ₱50, and 50 ÷ 200 = 25% of cost.', 'Divide the markup by the cost.'],
+        ['What is the average of 80, 90, 100, 70 and 60?', '80', ['90', '70', '75'], 'The sum is 400; dividing by 5 values gives 80.', 'Add them up and divide by how many there are.'],
+        ['The VAT in the Philippines is 12%. How much VAT is added to a ₱1,000 purchase?', '₱120', ['₱12', '₱1,120', '₱200'], '12% of ₱1,000 = ₱120. (₱1,120 would be the total price.)', 'Multiply by 0.12.'],
+      ]),
     ],
     HUMSS: [
-      { subject: 'Literature', question: "Who wrote the novel 'Noli Me Tangere'?", options: ['Andrés Bonifacio', 'José Rizal', 'Apolinario Mabini', 'Marcelo del Pilar'], answer: 1, explanation: 'José Rizal wrote Noli Me Tangere in 1887 to expose social injustices under Spanish colonial rule.' },
-      { subject: 'History', question: 'In what year did the Philippine Revolution against Spain begin?', options: ['1896', '1898', '1901', '1872'], answer: 0, explanation: 'The revolution against Spain broke out in August 1896, led by the Katipunan.' },
-      { subject: 'Social Science', question: 'Which social science primarily studies human societies and social relationships?', options: ['Psychology', 'Sociology', 'Anthropology', 'Political science'], answer: 1, explanation: 'Sociology examines human social relationships, institutions, and society as a whole.' },
-      { subject: 'Literature', question: "Which figure of speech compares two unlike things using 'like' or 'as'?", options: ['Metaphor', 'Simile', 'Hyperbole', 'Personification'], answer: 1, explanation: 'A simile explicitly compares two different things using \'like\' or \'as,\' unlike a metaphor, which states one thing is another.' },
-      { subject: 'History', question: "Who is known as the 'Father of the Philippine Revolution'?", options: ['José Rizal', 'Emilio Aguinaldo', 'Andrés Bonifacio', 'Antonio Luna'], answer: 2, explanation: 'Andrés Bonifacio founded the Katipunan and is honored as the Father of the Philippine Revolution.' },
-      { subject: 'Language', question: 'What part of speech primarily describes an action or state of being?', options: ['Noun', 'Adjective', 'Verb', 'Adverb'], answer: 2, explanation: 'Verbs express actions, occurrences, or states of being, forming the core of a sentence\'s predicate.' },
-      { subject: 'Social Science', question: 'The study of past human activity through excavation of artifacts is called?', options: ['Archaeology', 'Geology', 'Paleontology', 'Ethnography'], answer: 0, explanation: 'Archaeology studies past human life by excavating and analyzing physical artifacts and remains.' },
-      { subject: 'Literature', question: "What term describes a story's central message or insight?", options: ['Plot', 'Setting', 'Theme', 'Tone'], answer: 2, explanation: 'A theme is the underlying message or insight a piece of literature conveys about life or the human condition.' },
+      defineQuizTopic('HUMSS', 'humss-philippine-history', 'Philippine History', 'Spanish colonial era to modern Philippines', [
+        ['Who is known as the “Father of the Philippine Revolution”?', 'Andrés Bonifacio', ['José Rizal', 'Emilio Aguinaldo', 'Antonio Luna'], 'Andrés Bonifacio founded the Katipunan and is honored as the Father of the Philippine Revolution.', 'He founded the Katipunan.'],
+        ['In what year did the Philippine Revolution against Spain begin?', '1896', ['1898', '1901', '1872'], 'The revolution broke out in August 1896, led by the Katipunan.', 'It began in the same decade as the Cry of Pugad Lawin.'],
+        ['Where was Philippine independence proclaimed on June 12, 1898?', 'Kawit, Cavite', ['Intramuros, Manila', 'Malolos, Bulacan', 'Biak-na-Bato'], 'Emilio Aguinaldo proclaimed independence from his home in Kawit, Cavite.', 'It is in Cavite.'],
+        ['Which 1898 treaty ended the Spanish–American War and passed the Philippines from Spain to the United States?', 'Treaty of Paris', ['Treaty of Tordesillas', 'Treaty of Versailles', 'Treaty of Manila'], 'Under the 1898 Treaty of Paris, Spain ceded the Philippines to the United States.', 'It is named after a European capital.'],
+        ['Who was the first president of the First Philippine Republic?', 'Emilio Aguinaldo', ['Andrés Bonifacio', 'Manuel L. Quezon', 'Sergio Osmeña'], 'Emilio Aguinaldo became the first president of the First Philippine Republic (Malolos Republic).', 'He proclaimed independence in 1898.'],
+        ['In what year did the EDSA People Power Revolution take place?', '1986', ['1972', '1983', '1992'], 'The peaceful People Power Revolution of February 1986 ended the Marcos regime.', 'It happened in the mid-1980s.'],
+      ]),
+      defineQuizTopic('HUMSS', 'humss-literature', 'Literature', 'Literary devices and Rizal’s novels', [
+        ['Which figure of speech compares two unlike things using “like” or “as”?', 'Simile', ['Metaphor', 'Hyperbole', 'Personification'], 'A simile makes the comparison explicit with “like” or “as”.', 'Look for the words “like” or “as”.'],
+        ['What term describes a story’s central message or insight?', 'Theme', ['Plot', 'Setting', 'Tone'], 'The theme is the underlying message a work conveys about life or the human condition.', 'It is the big idea behind the story.'],
+        ['What do we call the main character of a story?', 'Protagonist', ['Antagonist', 'Narrator', 'Foil'], 'The protagonist is the central character whose journey drives the story.', 'The antagonist opposes this character.'],
+        ['“Time is a thief” is an example of which figure of speech?', 'Metaphor', ['Simile', 'Alliteration', 'Onomatopoeia'], 'A metaphor states that one thing is another without using “like” or “as”.', 'There is no “like” or “as” here.'],
+        ['“The wind whispered through the trees” is an example of…', 'Personification', ['Hyperbole', 'Simile', 'Irony'], 'Personification gives human qualities, such as whispering, to something non-human.', 'Wind cannot literally whisper.'],
+        ['Which novel by José Rizal is the sequel to Noli Me Tangere?', 'El Filibusterismo', ['Florante at Laura', 'Ibong Adarna', 'Mi Último Adiós'], 'El Filibusterismo (1891) continues the story of Noli Me Tangere (1887).', 'Its title begins with “El”.'],
+      ]),
+      defineQuizTopic('HUMSS', 'humss-english-grammar', 'English Grammar', 'Parts of speech and correct usage', [
+        ['What part of speech primarily describes an action or state of being?', 'Verb', ['Noun', 'Adjective', 'Adverb'], 'Verbs express actions, occurrences or states of being.', 'Words like “run” and “is” belong here.'],
+        ['In “The dog barked loudly,” which word is a noun?', 'dog', ['barked', 'loudly', 'The'], 'A noun names a person, place, thing or animal, and “dog” is the animal.', 'Which word names a thing or animal?'],
+        ['What is the past tense of the verb “go”?', 'went', ['goed', 'gone', 'going'], '“Went” is the simple past of the irregular verb “go”. (“Gone” is the past participle.)', 'It is an irregular verb.'],
+        ['Which sentence is grammatically correct?', 'She doesn’t like coffee.', ['She don’t like coffee.', 'She not like coffee.', 'She doesn’t likes coffee.'], 'With a third-person singular subject, use “doesn’t” followed by the base verb “like”.', 'After “doesn’t”, the main verb stays in its base form.'],
+        ['In “She sings beautifully,” the word “beautifully” is a(n)…', 'adverb', ['adjective', 'noun', 'preposition'], '“Beautifully” modifies the verb “sings”, so it is an adverb.', 'It tells how she sings.'],
+        ['Choose the correct word: “___ going to the park tonight.”', 'They’re', ['Their', 'There', 'Them'], '“They’re” is the contraction of “they are”; “their” shows possession and “there” shows place.', 'Say the sentence with “they are”.'],
+      ]),
+      defineQuizTopic('HUMSS', 'humss-sociology', 'Sociology', 'Society, culture and social groups', [
+        ['What is the scientific study of human society, social groups and social behavior called?', 'Sociology', ['Psychology', 'Archaeology', 'Economics'], 'Sociology examines human social relationships, groups, institutions and society as a whole.', 'The word starts with “socio-”, meaning society.'],
+        ['What are social norms?', 'Shared rules and expectations for behavior in a society', ['Laws made only by the government', 'Personal habits of one individual', 'Written contracts between companies'], 'Norms are the unwritten and written rules about how people are expected to behave.', 'They guide what is “normal” behavior.'],
+        ['What is culture?', 'The shared beliefs, values, customs and behaviors of a group', ['The land area of a country', 'A group’s total income', 'A government’s laws only'], 'Culture is the whole way of life shared by a group of people.', 'It includes language, customs and values.'],
+        ['What is socialization?', 'The process of learning the norms and values of one’s society', ['Moving to another country', 'Earning a living', 'Creating new laws'], 'Through socialization, people learn how to behave and what to value in their society.', 'It starts in the family.'],
+        ['Which is an example of a primary group?', 'A family', ['A large corporation', 'A political party', 'A government agency'], 'Primary groups, such as families and close friends, involve close, personal and lasting relationships.', 'It is small and personal.'],
+        ['Who is credited with coining the term “sociology”?', 'Auguste Comte', ['Émile Durkheim', 'Max Weber', 'Karl Marx'], 'Auguste Comte coined “sociology” in the 19th century and is often called its founder.', 'He is French and wrote in the 1830s.'],
+      ]),
+      defineQuizTopic('HUMSS', 'humss-political-science', 'Political Science', 'Philippine government and politics', [
+        ['Which branch of the Philippine government makes laws?', 'The legislative branch (Congress)', ['The executive branch', 'The judicial branch', 'The local government units'], 'Congress, the legislative branch, makes the country’s laws.', 'Legislators write laws.'],
+        ['Who heads the executive branch of the Philippine government?', 'The President', ['The Chief Justice', 'The Senate President', 'The Speaker of the House'], 'The President is the head of state and head of government and leads the executive branch.', 'The executive carries out the laws.'],
+        ['What is the highest court in the Philippines?', 'The Supreme Court', ['The Court of Appeals', 'The Sandiganbayan', 'The Regional Trial Court'], 'The Supreme Court is the country’s highest court and the head of the judicial branch.', 'It is led by the Chief Justice.'],
+        ['The Philippine Congress is bicameral. Which two houses does it consist of?', 'The Senate and the House of Representatives', ['The Senate and the Supreme Court', 'The House of Representatives and the Cabinet', 'The Cabinet and the Senate'], 'A bicameral legislature has two chambers: the Senate and the House of Representatives.', '“Bi” means two.'],
+        ['Under the 1987 Constitution, how long is the term of the President?', 'Six years, with no re-election', ['Four years, with one re-election', 'Six years, with one re-election', 'Three years, with no re-election'], 'The President serves a single six-year term and cannot be re-elected.', 'The term is long but non-renewable.'],
+        ['How many senators are there in the Philippine Senate?', '24', ['12', '20', '30'], 'The Senate has 24 members; half are elected every three years.', 'It is twice twelve.'],
+      ]),
+      defineQuizTopic('HUMSS', 'humss-psychology', 'Psychology', 'Behavior, mind and development', [
+        ['What is psychology?', 'The scientific study of behavior and mental processes', ['The study of ancient artifacts', 'The study of social institutions', 'The study of the economy'], 'Psychology studies how people think, feel and behave.', 'It studies the mind and behavior.'],
+        ['Who established the first psychology laboratory in 1879?', 'Wilhelm Wundt', ['Sigmund Freud', 'B.F. Skinner', 'Ivan Pavlov'], 'Wilhelm Wundt opened the first experimental psychology lab in Leipzig, Germany, in 1879.', 'He is considered the father of experimental psychology.'],
+        ['Which scientist is best known for experiments on classical conditioning with dogs?', 'Ivan Pavlov', ['B.F. Skinner', 'Sigmund Freud', 'Jean Piaget'], 'Pavlov showed dogs could learn to salivate at a bell paired with food.', 'Think of the bell and the dogs.'],
+        ['Who proposed a stage theory of cognitive development in children?', 'Jean Piaget', ['Ivan Pavlov', 'Sigmund Freud', 'Wilhelm Wundt'], 'Jean Piaget described four stages of children’s cognitive development, from sensorimotor to formal operational.', 'He is a Swiss psychologist who studied children.'],
+        ['About how many items can short-term memory hold at once, according to Miller’s “magic number”?', 'About 7 (plus or minus 2)', ['About 2', 'About 20', 'About 50'], 'George Miller proposed that short-term memory holds roughly 7 ± 2 items.', 'It is a single-digit number.'],
+        ['In Freud’s theory, which part of the personality works on the reality principle?', 'The ego', ['The id', 'The superego', 'The unconscious'], 'The ego mediates between the id’s impulses and the demands of reality and the superego.', 'It balances desires and reality.'],
+      ]),
+      defineQuizTopic('HUMSS', 'humss-world-history', 'World History', 'Ancient civilizations to the modern era', [
+        ['Which ancient civilization built the pyramids of Giza?', 'The ancient Egyptians', ['The Romans', 'The Greeks', 'The Mayans'], 'The pyramids of Giza were built by the ancient Egyptians as royal tombs.', 'They were built along the Nile.'],
+        ['In what year did World War I begin?', '1914', ['1918', '1939', '1905'], 'World War I began in 1914 and ended in 1918.', 'It started a few years after 1910.'],
+        ['The Renaissance began in which country?', 'Italy', ['England', 'Spain', 'Germany'], 'The Renaissance began in the Italian city-states, notably Florence, in the 14th century.', 'Think of Florence and Leonardo.'],
+        ['In what year did the French Revolution begin?', '1789', ['1776', '1815', '1848'], 'The French Revolution began in 1789 with the storming of the Bastille.', 'It began in the late 1780s.'],
+        ['In what year did World War II end?', '1945', ['1939', '1918', '1950'], 'World War II ended in 1945 after the surrender of Germany and Japan.', 'It ended in the mid-1940s.'],
+        ['In what year did the Berlin Wall fall?', '1989', ['1961', '1975', '1991'], 'The Berlin Wall fell on November 9, 1989, a key moment at the end of the Cold War.', 'It happened at the end of the 1980s.'],
+      ]),
+      defineQuizTopic('HUMSS', 'humss-philosophy', 'Philosophy', 'Major thinkers and branches of philosophy', [
+        ['The word “philosophy” comes from Greek words meaning what?', 'Love of wisdom', ['Study of nature', 'Search for power', 'Art of speaking'], '“Philo” means love and “sophia” means wisdom.', 'Philo = love.'],
+        ['Who was Aristotle’s teacher?', 'Plato', ['Socrates', 'Pythagoras', 'Heraclitus'], 'Aristotle studied under Plato at his Academy in Athens.', 'Plato was himself a student of Socrates.'],
+        ['Who said, “I think, therefore I am”?', 'René Descartes', ['Immanuel Kant', 'John Locke', 'Friedrich Nietzsche'], 'Descartes’ “Cogito, ergo sum” was his foundational certainty.', 'He was a French philosopher and mathematician.'],
+        ['Which branch of philosophy studies morality, or right and wrong?', 'Ethics', ['Logic', 'Aesthetics', 'Metaphysics'], 'Ethics is the study of morality and how people ought to act.', 'It deals with right and wrong.'],
+        ['Which branch of philosophy studies the nature and limits of knowledge?', 'Epistemology', ['Metaphysics', 'Logic', 'Aesthetics'], 'Epistemology asks what knowledge is and how we can know things.', 'Its name comes from the Greek for “knowledge”.'],
+        ['Which ethical theory judges actions by whether they produce the greatest good for the greatest number?', 'Utilitarianism', ['Deontology', 'Existentialism', 'Relativism'], 'Utilitarianism, associated with Bentham and Mill, judges actions by their overall benefit.', 'Think “utility”, or usefulness.'],
+      ]),
     ],
     'GENERAL KNOWLEDGE': [
-      { subject: 'Science', question: 'What is the largest planet in our solar system?', options: ['Saturn', 'Jupiter', 'Neptune', 'Earth'], answer: 1, explanation: 'Jupiter is the largest planet in our solar system by both mass and volume.' },
-      { subject: 'Arts', question: 'Who painted the Mona Lisa?', options: ['Michelangelo', 'Raphael', 'Leonardo da Vinci', 'Donatello'], answer: 2, explanation: 'Leonardo da Vinci painted the Mona Lisa in the early 1500s; it now hangs in the Louvre.' },
-      { subject: 'Geography', question: 'What is the capital of the Philippines?', options: ['Cebu City', 'Davao City', 'Manila', 'Quezon City'], answer: 2, explanation: 'Manila is the capital city of the Philippines, located on the island of Luzon.' },
-      { subject: 'Geography', question: 'How many continents are there on Earth?', options: ['5', '6', '7', '8'], answer: 2, explanation: 'Earth is divided into seven continents: Asia, Africa, North America, South America, Antarctica, Europe, and Australia.' },
-      { subject: 'Science', question: 'What gas do plants primarily absorb from the atmosphere for photosynthesis?', options: ['Oxygen', 'Nitrogen', 'Carbon dioxide', 'Hydrogen'], answer: 2, explanation: 'Plants absorb carbon dioxide and use sunlight to convert it into glucose and oxygen during photosynthesis.' },
-      { subject: 'Geography', question: 'Which ocean is the largest by surface area?', options: ['Atlantic Ocean', 'Indian Ocean', 'Arctic Ocean', 'Pacific Ocean'], answer: 3, explanation: 'The Pacific Ocean covers about a third of Earth\'s surface, making it the largest and deepest ocean.' },
-      { subject: 'Science', question: 'What is the freezing point of water in Celsius?', options: ['0°C', '32°C', '100°C', '-1°C'], answer: 0, explanation: 'Water freezes at 0°C (32°F) at standard atmospheric pressure.' },
-      { subject: 'History', question: 'Who is credited with inventing the telephone?', options: ['Thomas Edison', 'Alexander Graham Bell', 'Nikola Tesla', 'Guglielmo Marconi'], answer: 1, explanation: 'Alexander Graham Bell patented the telephone in 1876, though the invention\'s true origins are still debated.' },
+      defineQuizTopic('GENERAL KNOWLEDGE', 'gk-world-geography', 'World Geography', 'Continents, oceans, countries and landmarks', [
+        ['How many continents are there on Earth?', '7', ['5', '6', '8'], 'Earth is usually divided into seven continents: Asia, Africa, North America, South America, Antarctica, Europe and Australia.', 'It is a single-digit number greater than 6.'],
+        ['Which ocean is the largest by surface area?', 'Pacific Ocean', ['Atlantic Ocean', 'Indian Ocean', 'Arctic Ocean'], 'The Pacific covers about a third of Earth’s surface.', 'Its name means “peaceful”.'],
+        ['What is the capital of Japan?', 'Tokyo', ['Kyoto', 'Osaka', 'Seoul'], 'Tokyo is the capital and largest city of Japan.', 'It was formerly called Edo.'],
+        ['Which is the largest country in the world by land area?', 'Russia', ['Canada', 'China', 'United States'], 'Russia spans more than 17 million square kilometers, the largest of any country.', 'It stretches across eleven time zones.'],
+        ['What is the capital of Australia?', 'Canberra', ['Sydney', 'Melbourne', 'Perth'], 'Canberra is Australia’s capital; Sydney and Melbourne are larger but not the capital.', 'It is not the largest city.'],
+        ['Which is the highest mountain above sea level?', 'Mount Everest', ['K2', 'Mount Kilimanjaro', 'Mount Fuji'], 'Mount Everest, on the Nepal–Tibet border, stands about 8,849 meters above sea level.', 'It is in the Himalayas.'],
+      ]),
+      defineQuizTopic('GENERAL KNOWLEDGE', 'gk-solar-system', 'Solar System', 'Planets, the Sun and the Moon', [
+        ['What is the largest planet in our solar system?', 'Jupiter', ['Saturn', 'Neptune', 'Earth'], 'Jupiter is the largest planet by both mass and volume.', 'It is a gas giant with a Great Red Spot.'],
+        ['Which planet is closest to the Sun?', 'Mercury', ['Venus', 'Mars', 'Earth'], 'Mercury is the innermost planet of the solar system.', 'It is also the smallest planet.'],
+        ['What is Earth’s natural satellite?', 'The Moon', ['The Sun', 'Mars', 'Venus'], 'The Moon is Earth’s only natural satellite.', 'It orbits Earth roughly every month.'],
+        ['Which planet is known as the Red Planet?', 'Mars', ['Venus', 'Jupiter', 'Mercury'], 'Iron oxide on its surface gives Mars its reddish color.', 'It is the fourth planet from the Sun.'],
+        ['How many planets are in our solar system?', '8', ['7', '9', '10'], 'There are eight planets, from Mercury to Neptune.', 'Pluto is now classified as a dwarf planet.'],
+        ['About how long does sunlight take to reach Earth?', 'About 8 minutes', ['About 8 seconds', 'About 8 hours', 'About 1 day'], 'Light travels about 150 million km to Earth, which takes roughly 8 minutes and 20 seconds.', 'It is longer than a minute but much shorter than an hour.'],
+      ]),
+      defineQuizTopic('GENERAL KNOWLEDGE', 'gk-human-body', 'Human Body', 'Organs and body systems', [
+        ['Which organ pumps blood around the human body?', 'Heart', ['Lungs', 'Liver', 'Kidneys'], 'The heart pumps blood through the circulatory system.', 'It beats about 100,000 times a day.'],
+        ['Which organs are responsible for gas exchange when we breathe?', 'Lungs', ['Heart', 'Stomach', 'Kidneys'], 'The lungs take in oxygen and release carbon dioxide.', 'They are in the chest.'],
+        ['What is the largest organ of the human body?', 'Skin', ['Liver', 'Brain', 'Heart'], 'The skin is the body’s largest organ by surface area and weight.', 'It covers the whole body.'],
+        ['How many bones are in a typical adult human body?', '206', ['106', '306', '150'], 'Adults typically have 206 bones.', 'It is a little over 200.'],
+        ['Which blood cells carry oxygen around the body?', 'Red blood cells', ['White blood cells', 'Platelets', 'Plasma cells'], 'Red blood cells contain hemoglobin, which binds oxygen.', 'They contain hemoglobin.'],
+        ['Which organ produces insulin?', 'Pancreas', ['Liver', 'Kidney', 'Stomach'], 'The pancreas makes insulin, which regulates blood sugar.', 'It sits behind the stomach.'],
+      ]),
+      defineQuizTopic('GENERAL KNOWLEDGE', 'gk-philippine-facts', 'Philippine Facts', 'Basic facts about the Philippines', [
+        ['What is the capital city of the Philippines?', 'Manila', ['Cebu City', 'Davao City', 'Quezon City'], 'Manila is the capital of the Philippines, on the island of Luzon.', 'It is on Luzon.'],
+        ['Who is the national hero of the Philippines?', 'José Rizal', ['Andrés Bonifacio', 'Emilio Aguinaldo', 'Ferdinand Magellan'], 'José Rizal is recognized as the national hero of the Philippines.', 'He wrote Noli Me Tangere.'],
+        ['What are the three major island groups of the Philippines?', 'Luzon, Visayas and Mindanao', ['Luzon, Palawan and Mindoro', 'Visayas, Palawan and Cebu', 'Mindanao, Samar and Leyte'], 'The Philippines is traditionally divided into Luzon, Visayas and Mindanao.', 'They are the three stars on the flag.'],
+        ['What is the national language of the Philippines?', 'Filipino', ['Tagalog only', 'Cebuano', 'English'], 'Filipino is the national language of the Philippines and, with English, an official language.', 'It is based mainly on Tagalog.'],
+        ['What is the highest mountain in the Philippines?', 'Mount Apo', ['Mount Mayon', 'Mount Pulag', 'Mount Taal'], 'Mount Apo in Mindanao, at about 2,954 meters, is the highest peak in the country.', 'It is in Mindanao.'],
+        ['On what date is Philippine Independence Day celebrated?', 'June 12', ['July 4', 'August 21', 'December 30'], 'Independence Day marks the June 12, 1898 proclamation of independence from Spain.', 'It is in the sixth month.'],
+      ]),
+      defineQuizTopic('GENERAL KNOWLEDGE', 'gk-inventions', 'Inventions and Technology', 'Famous inventors and everyday technology', [
+        ['Who is credited with inventing the telephone?', 'Alexander Graham Bell', ['Thomas Edison', 'Nikola Tesla', 'Guglielmo Marconi'], 'Alexander Graham Bell patented the telephone in 1876.', 'He was born in Scotland.'],
+        ['Who is credited with developing the first commercially practical incandescent light bulb?', 'Thomas Edison', ['Alexander Graham Bell', 'Nikola Tesla', 'Isaac Newton'], 'Thomas Edison developed a long-lasting, practical incandescent bulb in 1879.', 'He is nicknamed the “Wizard of Menlo Park”.'],
+        ['Who invented the movable-type printing press in Europe around 1440?', 'Johannes Gutenberg', ['Leonardo da Vinci', 'Galileo Galilei', 'Benjamin Franklin'], 'Gutenberg’s printing press made books far cheaper and more widely available.', 'He printed the famous Gutenberg Bible.'],
+        ['Who made the first sustained, powered airplane flight in 1903?', 'The Wright brothers', ['Charles Lindbergh', 'Amelia Earhart', 'The Montgolfier brothers'], 'Orville and Wilbur Wright flew the first powered aircraft at Kitty Hawk in 1903.', 'They were brothers from Ohio.'],
+        ['Who invented the World Wide Web?', 'Tim Berners-Lee', ['Bill Gates', 'Steve Jobs', 'Mark Zuckerberg'], 'Tim Berners-Lee invented the Web at CERN in 1989–1991.', 'He worked at CERN.'],
+        ['What does “GPS” stand for?', 'Global Positioning System', ['General Position Signal', 'Global Path Scanner', 'Ground Positioning Service'], 'GPS is a satellite-based system that provides location and time information.', 'It tells you your position on the globe.'],
+      ]),
+      defineQuizTopic('GENERAL KNOWLEDGE', 'gk-arts-culture', 'Arts and Culture', 'Famous artists, music and traditions', [
+        ['Who painted the Mona Lisa?', 'Leonardo da Vinci', ['Michelangelo', 'Raphael', 'Donatello'], 'Leonardo da Vinci painted the Mona Lisa in the early 1500s; it hangs in the Louvre.', 'He was also an inventor.'],
+        ['Who painted “The Starry Night”?', 'Vincent van Gogh', ['Claude Monet', 'Pablo Picasso', 'Salvador Dalí'], 'Vincent van Gogh painted The Starry Night in 1889.', 'He was a Dutch post-impressionist.'],
+        ['In traditional art, which set contains the three primary colors of pigment?', 'Red, yellow and blue', ['Red, green and blue', 'Orange, green and purple', 'Black, white and gray'], 'The traditional primary pigment colors are red, yellow and blue; the others are mixed or are not primary.', 'Other colors can be mixed from these three.'],
+        ['Which architect designed the still-unfinished Sagrada Família in Barcelona?', 'Antoni Gaudí', ['Le Corbusier', 'Frank Lloyd Wright', 'Zaha Hadid'], 'Antoni Gaudí designed the Sagrada Família, a landmark of Catalan modernism.', 'He was from Catalonia.'],
+        ['Who composed the Fifth Symphony, famous for its “da-da-da-DUM” opening?', 'Ludwig van Beethoven', ['Wolfgang Amadeus Mozart', 'Johann Sebastian Bach', 'Frédéric Chopin'], 'Beethoven composed his Fifth Symphony between 1804 and 1808.', 'He continued composing after losing his hearing.'],
+        ['Which traditional Philippine dance features dancers stepping between bamboo poles?', 'Tinikling', ['Pandanggo sa Ilaw', 'Cariñosa', 'Maglalatik'], 'The Tinikling imitates the tikling bird dodging bamboo traps.', 'It is named after a bird.'],
+      ]),
+      defineQuizTopic('GENERAL KNOWLEDGE', 'gk-animals-nature', 'Animals and Nature', 'Animals, plants and the natural world', [
+        ['What is the largest animal on Earth?', 'The blue whale', ['The African elephant', 'The giraffe', 'The great white shark'], 'The blue whale is the largest animal known to have ever lived.', 'It lives in the ocean.'],
+        ['Which is the fastest land animal?', 'The cheetah', ['The lion', 'The horse', 'The leopard'], 'Cheetahs can sprint at up to roughly 100 km/h.', 'It is a spotted big cat.'],
+        ['How many legs does a spider have?', '8', ['6', '10', '4'], 'Spiders are arachnids and have eight legs; insects have six.', 'More than an insect has.'],
+        ['What gas do plants primarily absorb from the air for photosynthesis?', 'Carbon dioxide', ['Oxygen', 'Nitrogen', 'Hydrogen'], 'Plants take in carbon dioxide and use sunlight to make glucose and oxygen.', 'Animals breathe it out.'],
+        ['Which animal is a marsupial that carries its young in a pouch?', 'The kangaroo', ['The camel', 'The bat', 'The wolf'], 'Kangaroos are marsupials; the young develop in the mother’s pouch.', 'It lives in Australia.'],
+        ['What do we call animals that eat only plants?', 'Herbivores', ['Carnivores', 'Omnivores', 'Decomposers'], 'Herbivores, such as cows and deer, eat plants only.', '“Herb” hints at plants.'],
+      ]),
+      defineQuizTopic('GENERAL KNOWLEDGE', 'gk-everyday-math', 'Everyday Mathematics', 'Arithmetic and number sense', [
+        ['What is 12 × 12?', '144', ['124', '122', '154'], '12 × 12 = 144.', '12 × 10 = 120, plus 12 × 2 = 24.'],
+        ['What is half of 250?', '125', ['150', '120', '225'], '250 ÷ 2 = 125.', 'Divide by 2.'],
+        ['How many minutes are in 2.5 hours?', '150', ['120', '130', '250'], '2.5 × 60 = 150 minutes.', 'Multiply by 60.'],
+        ['Which of the following is a prime number?', '17', ['15', '21', '27'], '17 has no divisors other than 1 and itself; 15, 21 and 27 are all divisible by 3.', 'Check divisibility by 3.'],
+        ['What is 15% of 200?', '30', ['15', '20', '35'], '15% of 200 = 0.15 × 200 = 30.', '10% of 200 is 20; add half of that.'],
+        ['What is the next number in the sequence 2, 4, 8, 16, …?', '32', ['24', '30', '20'], 'Each number is double the one before it, so 16 × 2 = 32.', 'Look at how each term relates to the previous one.'],
+      ]),
     ],
   };
 
-  // The four strands a player can pick at signup, and the ONLY keys QUESTION_BANK /
-  // QUEST_TIER_QUESTIONS / DISTRICT_STRAND_FOCUS are indexed by.
+  // The four strands a player can pick at signup, and the ONLY keys QUIZ_TOPICS /
+  // DISTRICT_STRAND_FOCUS are indexed by.
   const STRAND_KEYS = ['STEM', 'ABM', 'HUMSS', 'GENERAL KNOWLEDGE'] as const;
   type StrandKey = (typeof STRAND_KEYS)[number];
   const warnedUnknownStrands = new Set<string>();
@@ -5837,7 +6075,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // QuestBriefing) — so "what you'll be tested on" reads in terms of your own strand
     // instead of a generic area name, and the questions actually asked (see
     // getEncounterQuestions) are the ones this text describes.
-    const discoveryTopic = nextChallenger ? getDistrictFocus(nextChallenger.districtId, profile.strand) : null;
+    const discoveryTopic = nextChallenger ? getChallengerFocus(nextChallenger, profile.strand).label : null;
     const nextChallengerQuestions = nextChallenger ? getEncounterQuestions(nextChallenger, profile.strand) : [];
     const estimatedMinutes = Math.max(3, nextChallengerQuestions.length * 2);
 
@@ -6025,15 +6263,15 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
    */
   // districtId ties a challenger back to CAMPUS_DISTRICTS (and, through it, to the
   // player's own strand via getDistrictFocus). It also decides which slice of that
-  // strand's QUESTION_BANK this challenger draws from — see buildChallengerQuestionSet
+  // strand topic this challenger asks about is set by CHALLENGER_QUIZ_PLAN — see buildChallengerQuestionSet
   // below — so a district's academic identity ("fundamentals", "advanced", "reps",
   // "comprehensive") is actually backed by which questions get asked there, not just
   // flavor text.
   type ChallengerStyle = 'professor' | 'researcher' | 'coach' | 'dean';
   type CampusReturnPosition = { x: number; y: number; angle: number };
   // questionIndex is only used by tier-quest districts (advanced/expert/mastery — see
-  // QUEST_TIER_QUESTIONS/buildChallengerQuestionSet below), where each NPC poses exactly
-  // one dedicated, never-repeated question rather than a shared-bank slice.
+  // CHALLENGER_QUIZ_PLAN) — retained for per-question timing (harder challengers get
+  // slightly less time per question).
   type CampusChallenger = { id: string; name: string; area: string; statement: string; questTitle: string; lore: string; recommendedLevel: number; rewardXp: number; rewardCoins: number; districtId: CampusDistrict['id']; style: ChallengerStyle; questionIndex?: number };
 
   // Districts: the map is divided into four non-overlapping regions (checked by simple
@@ -6271,14 +6509,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       id: 'npc_4', x: 13.5, y: 34.5, dir: FACE_S, districtId: 'citadel',
       name: 'Dean Alvarez', area: '🏰 Mastery Citadel: Comprehensive Examination Hall',
       statement: "You've cleared every district. Now for the exam that actually counts.",
-      questTitle: 'Comprehensive Examination', lore: "The exam that decides whether the term's work actually stuck. Every district's material is fair game.",
+      questTitle: 'Comprehensive Examination', lore: "The exam that decides whether the term's work actually stuck. Every lesson in this hall is fair game, one topic at a time.",
       recommendedLevel: 8, rewardXp: 400, rewardCoins: 200, style: 'dean',
     },
 
     // --- Quest-tier NPCs (Advanced/Expert/Mastery) --------------------------------------
-    // Four brand-new NPCs per tier, each in its own newly-connected district, each posing
-    // exactly one dedicated harder question (see questionIndex + QUEST_TIER_QUESTIONS)
-    // that never overlaps anything in the original QUESTION_BANK. Rewards climb with every
+    // Four brand-new NPCs per tier, each in its own newly-connected district, each asking a
+    // harder set on a single topic (see CHALLENGER_QUIZ_PLAN). Rewards climb with every
     // tier. See QUEST_TIERS below for how these four-per-tier groups gate one another.
     {
       id: 'npc_5', x: 8.5, y: 45.5, dir: FACE_S, districtId: 'advanced',
@@ -6444,157 +6681,117 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     return 'dean-enemy';
   };
 
-  // Dedicated question bank for the three new quest tiers (Advanced/Expert/Mastery), one
-  // strand at a time, four brand-new questions per tier — one per NPC (see questionIndex
-  // on each npc_5-npc_16 entry above). None of these duplicate anything in QUESTION_BANK,
-  // and every tier is noticeably harder than the one before it, with rewards to match.
-  const QUEST_TIER_QUESTIONS: Record<string, Record<'advanced' | 'expert' | 'mastery', Question[]>> = {
-    STEM: {
-      advanced: [
-        { subject: 'Chemistry', question: 'What type of bond involves the sharing of electron pairs between atoms?', options: ['Ionic bond', 'Covalent bond', 'Metallic bond', 'Hydrogen bond'], answer: 1, explanation: 'A covalent bond forms when two atoms share one or more pairs of electrons.' },
-        { subject: 'Statistics', question: 'In a normal distribution, approximately what percentage of data falls within one standard deviation of the mean?', options: ['50%', '68%', '95%', '99.7%'], answer: 1, explanation: 'About 68% of data in a normal distribution falls within one standard deviation of the mean (the 68-95-99.7 rule).' },
-        { subject: 'Physics', question: 'Which law states that the entropy of an isolated system never decreases?', options: ['First law of thermodynamics', 'Second law of thermodynamics', 'Third law of thermodynamics', 'Zeroth law of thermodynamics'], answer: 1, explanation: 'The second law of thermodynamics states that the total entropy of an isolated system can never decrease over time.' },
-        { subject: 'Biology', question: 'A cross between two heterozygous parents (Aa x Aa) is expected to produce what phenotype ratio in offspring?', options: ['1:1', '1:2:1', '3:1', '9:3:3:1'], answer: 2, explanation: 'A monohybrid Aa x Aa cross produces a 3:1 phenotype ratio, since AA, Aa, and aA all show the dominant trait while only aa shows the recessive one.' },
-      ],
-      expert: [
-        { subject: 'Physics', question: 'What principle explains why electrons cannot occupy the same quantum state simultaneously?', options: ['Heisenberg uncertainty principle', 'Pauli exclusion principle', 'Bohr correspondence principle', "Planck's law"], answer: 1, explanation: 'The Pauli exclusion principle states that no two electrons in an atom can share the same set of quantum numbers.' },
-        { subject: 'Calculus', question: 'What technique solves a first-order linear differential equation of the form dy/dx + P(x)y = Q(x)?', options: ['Separation of variables only', 'Integrating factor', 'Direct integration only', 'Laplace transform only'], answer: 1, explanation: 'A first-order linear differential equation is solved using an integrating factor, e^(∫P(x)dx), to make the left side an exact derivative.' },
-        { subject: 'Physics', question: 'Which set of equations describes how electric and magnetic fields are generated and altered?', options: ["Newton's laws", "Maxwell's equations", 'Schrödinger equation', 'Navier–Stokes equations'], answer: 1, explanation: "Maxwell's equations are the four fundamental equations describing classical electromagnetism." },
-        { subject: 'Biology', question: 'What process exchanges genetic material between homologous chromosomes during meiosis?', options: ['Mitosis', 'Crossing over', 'Binary fission', 'Translation'], answer: 1, explanation: 'Crossing over occurs during prophase I of meiosis, exchanging genetic material between homologous chromosomes and increasing genetic diversity.' },
-      ],
-      mastery: [
-        { subject: 'Physics', question: 'What phenomenon describes light bending around massive objects due to spacetime curvature?', options: ['Refraction', 'Gravitational lensing', 'Diffraction', 'Doppler shift'], answer: 1, explanation: 'Gravitational lensing occurs when a massive object curves spacetime enough to bend the path of light passing near it, as predicted by general relativity.' },
-        { subject: 'Mathematics', question: 'What term describes a square matrix whose determinant is zero?', options: ['Invertible', 'Singular', 'Orthogonal', 'Diagonal'], answer: 1, explanation: 'A matrix with a determinant of zero is called singular, meaning it has no inverse.' },
-        { subject: 'Chemistry', question: 'Which pairing of macromolecules underlies a cell\'s information storage and its catalytic machinery?', options: ['Nucleic acids alone', 'Proteins and nucleic acids together', 'Carbohydrates alone', 'Lipids alone'], answer: 1, explanation: 'Nucleic acids (DNA/RNA) encode instructions while proteins, built from those instructions, carry out catalysis — together they underlie cellular information and function.' },
-        { subject: 'Computer Science', question: "What principle underlies a qubit's ability to represent both 0 and 1 simultaneously?", options: ['Binary logic', 'Superposition', 'Boolean algebra', 'Recursion'], answer: 1, explanation: 'Superposition is the quantum mechanical principle that lets a qubit exist in a combination of the 0 and 1 states at once.' },
-      ],
-    },
-    ABM: {
-      advanced: [
-        { subject: 'Accounting', question: 'Which accounting principle requires expenses to be recorded in the same period as the revenues they helped generate?', options: ['Revenue recognition principle', 'Matching principle', 'Cost principle', 'Full disclosure principle'], answer: 1, explanation: 'The matching principle requires that expenses be recognized in the same period as the revenues they help produce.' },
-        { subject: 'Economics', question: 'What term describes a market structure with only a few large firms dominating an industry?', options: ['Monopoly', 'Oligopoly', 'Perfect competition', 'Monopolistic competition'], answer: 1, explanation: 'An oligopoly is a market structure dominated by a small number of large firms.' },
-        { subject: 'Finance', question: 'What does the debt-to-equity ratio measure?', options: ["A company's liquidity", "A company's leverage relative to owner equity", "A company's profitability", "A company's market share"], answer: 1, explanation: "The debt-to-equity ratio compares total liabilities to shareholders' equity, measuring financial leverage." },
-        { subject: 'Management', question: "In Porter's Five Forces framework, what does \"threat of substitutes\" refer to?", options: ['New competitors entering the market', 'Alternative products meeting the same need', 'Suppliers raising prices', 'Buyers negotiating lower prices'], answer: 1, explanation: 'Threat of substitutes refers to alternative products or services that can fulfill the same customer need.' },
-      ],
-      expert: [
-        { subject: 'Accounting', question: 'Under accrual accounting, when is revenue recognized?', options: ['When cash is received', 'When it is earned, regardless of cash receipt', 'At the end of the fiscal year only', 'When the invoice is printed'], answer: 1, explanation: 'Accrual accounting recognizes revenue when it is earned, not necessarily when cash changes hands.' },
-        { subject: 'Economics', question: 'What does the term "opportunity cost" refer to?', options: ['The total cost of production', 'The value of the next best alternative forgone', 'The fixed costs of a business', 'The price paid for a good'], answer: 1, explanation: 'Opportunity cost is the value of the best alternative you give up when making a choice.' },
-        { subject: 'Finance', question: 'What does Net Present Value (NPV) analysis help determine?', options: ["A company's tax liability", "Whether an investment's discounted future cash flows exceed its cost", 'The book value of assets', 'The interest rate on a loan'], answer: 1, explanation: "NPV compares the present value of an investment's expected cash inflows to its initial cost to judge whether it creates value." },
-        { subject: 'Management', question: 'What organizational structure groups employees by specialized function, such as marketing or finance?', options: ['Matrix structure', 'Functional structure', 'Divisional structure', 'Flat structure'], answer: 1, explanation: 'A functional structure organizes employees into departments based on specialized skills or functions.' },
-      ],
-      mastery: [
-        { subject: 'Economics', question: 'What term describes a sustained increase in the general price level of goods and services?', options: ['Deflation', 'Inflation', 'Stagnation', 'Recession'], answer: 1, explanation: 'Inflation is a sustained rise in the general price level over time, reducing purchasing power.' },
-        { subject: 'Finance', question: 'What does WACC (Weighted Average Cost of Capital) represent?', options: ["A company's total revenue", "The blended cost of a firm's debt and equity financing", 'The tax rate on corporate profits', "A company's total assets"], answer: 1, explanation: "WACC is the average rate a company is expected to pay to finance its assets, weighted by the proportion of debt and equity." },
-        { subject: 'Accounting', question: "What does a rising current ratio generally indicate about a company?", options: ['Declining profitability', 'Improving short-term liquidity', 'Increasing debt load', 'Falling revenue'], answer: 1, explanation: 'The current ratio (current assets ÷ current liabilities) reflects short-term liquidity; a rising ratio suggests improving ability to cover short-term obligations.' },
-        { subject: 'Business', question: 'What strategic approach involves a company acquiring or merging with a supplier?', options: ['Horizontal integration', 'Backward vertical integration', 'Forward vertical integration', 'Diversification'], answer: 1, explanation: 'Backward vertical integration occurs when a company acquires or merges with a business further up its supply chain, such as a supplier.' },
-      ],
-    },
-    HUMSS: {
-      advanced: [
-        { subject: 'History', question: "Which pact ended the Philippine Revolution's first phase, sending Aguinaldo into exile?", options: ['Treaty of Paris', 'Pact of Biak-na-Bato', 'Malolos Constitution', 'Cavite Mutiny agreement'], answer: 1, explanation: 'The Pact of Biak-na-Bato (1897) ended the first phase of the revolution, with Aguinaldo agreeing to exile in exchange for reforms and payment.' },
-        { subject: 'Literature', question: "What narrative technique presents a story through a character's continuous, unedited flow of thoughts?", options: ['Foreshadowing', 'Stream of consciousness', 'Flashback', 'Dramatic irony'], answer: 1, explanation: "Stream of consciousness renders a character's continuous flow of thoughts and feelings, often with little narrative filtering." },
-        { subject: 'Social Science', question: "What term describes a society's shared beliefs and practices passed down through generations?", options: ['Institution', 'Culture', 'Ideology', 'Demography'], answer: 1, explanation: 'Culture encompasses the shared beliefs, customs, and practices passed down within a society.' },
-        { subject: 'Language', question: 'What is the term for a word that sounds the same as another but differs in meaning and spelling?', options: ['Synonym', 'Homophone', 'Antonym', 'Homograph'], answer: 1, explanation: 'A homophone sounds like another word but differs in meaning and often spelling, like "flour" and "flower."' },
-      ],
-      expert: [
-        { subject: 'History', question: '1898 Manila Bay battle effectively ended what power in the Philippines?', options: ['Spanish naval power', 'American naval power', 'British naval power', 'Japanese naval power'], answer: 0, explanation: 'The Battle of Manila Bay (May 1, 1898) saw the U.S. Navy destroy the Spanish fleet, ending Spanish naval control of the islands.' },
-        { subject: 'Literature', question: 'What critical approach analyzes a text primarily through the lens of class struggle and economic systems?', options: ['Feminist criticism', 'Marxist criticism', 'Formalist criticism', 'Reader-response criticism'], answer: 1, explanation: 'Marxist literary criticism examines texts through the lens of class relations, economic power, and material conditions.' },
-        { subject: 'Social Science', question: 'What term describes the process by which individuals internalize the norms and values of their society?', options: ['Assimilation', 'Socialization', 'Stratification', 'Urbanization'], answer: 1, explanation: 'Socialization is the lifelong process through which individuals learn and internalize the norms, values, and behaviors of their society.' },
-        { subject: 'Language', question: 'What rhetorical device uses deliberate understatement, often the near-opposite of hyperbole?', options: ['Litotes', 'Anaphora', 'Chiasmus', 'Synecdoche'], answer: 0, explanation: 'Litotes is a rhetorical device using understatement, often via double negatives, to emphasize a point.' },
-      ],
-      mastery: [
-        { subject: 'History', question: 'What document, drafted in 1898, established the first Philippine Republic and its constitution?', options: ['Katipunan Charter', 'Malolos Constitution', 'Treaty of Paris', 'Biak-na-Bato Constitution'], answer: 1, explanation: 'The Malolos Constitution, ratified in January 1899, established the First Philippine Republic under Emilio Aguinaldo.' },
-        { subject: 'Social Science', question: "What term describes a society's ranked division into social classes based on wealth, power, or status?", options: ['Social mobility', 'Social stratification', 'Social deviance', 'Social capital'], answer: 1, explanation: 'Social stratification refers to the hierarchical arrangement of individuals into social classes based on factors like wealth and power.' },
-        { subject: 'Literature', question: "What term describes a recurring symbol or idea that develops a text's central meaning?", options: ['Motif', 'Genre', 'Setting', 'Diction'], answer: 0, explanation: "A motif is a recurring element — an image, idea, or symbol — that reinforces a text's central theme." },
-        { subject: 'Language', question: 'What term describes a shift in a word\'s meaning over time, as with "awful" once meaning "awe-inspiring"?', options: ['Semantic change', 'Phonetic shift', 'Grammaticalization', 'Code-switching'], answer: 0, explanation: 'Semantic change describes how a word\'s meaning evolves over time, as with "awful," which once meant "inspiring awe."' },
-      ],
-    },
-    'GENERAL KNOWLEDGE': {
-      advanced: [
-        { subject: 'Science', question: 'What process do cells use to divide into two genetically identical daughter cells?', options: ['Meiosis', 'Mitosis', 'Fertilization', 'Osmosis'], answer: 1, explanation: 'Mitosis is the process of cell division that produces two genetically identical daughter cells.' },
-        { subject: 'Geography', question: 'Which mountain range contains Mount Everest?', options: ['Andes', 'Rockies', 'Himalayas', 'Alps'], answer: 2, explanation: "Mount Everest, the world's tallest peak, is located in the Himalayas." },
-        { subject: 'History', question: 'In what year did World War II end?', options: ['1943', '1944', '1945', '1946'], answer: 2, explanation: "World War II ended in 1945, with Japan's surrender in September following Germany's surrender in May." },
-        { subject: 'Arts', question: 'Which composer wrote his Ninth Symphony while almost completely deaf?', options: ['Mozart', 'Bach', 'Beethoven', 'Chopin'], answer: 2, explanation: 'Ludwig van Beethoven composed his Ninth Symphony despite being almost completely deaf by the time he wrote it.' },
-      ],
-      expert: [
-        { subject: 'Science', question: 'What particle, confirmed at CERN in 2012, is associated with giving other particles mass?', options: ['Photon', 'Higgs boson', 'Neutrino', 'Quark'], answer: 1, explanation: 'The Higgs boson, confirmed at CERN in 2012, is associated with the field that gives fundamental particles their mass.' },
-        { subject: 'Geography', question: 'Which African river is traditionally considered the longest in the world?', options: ['Congo River', 'Niger River', 'Nile River', 'Zambezi River'], answer: 2, explanation: 'The Nile River, flowing through northeastern Africa, is traditionally considered the longest river in the world.' },
-        { subject: 'History', question: 'Which empire did Genghis Khan found and lead?', options: ['Ottoman Empire', 'Mongol Empire', 'Roman Empire', 'Byzantine Empire'], answer: 1, explanation: 'Genghis Khan founded and led the Mongol Empire, which became the largest contiguous land empire in history.' },
-        { subject: 'Arts', question: 'Which art movement, associated with Salvador Dalí, explored dream imagery and the unconscious mind?', options: ['Cubism', 'Surrealism', 'Impressionism', 'Baroque'], answer: 1, explanation: 'Surrealism, championed by artists like Salvador Dalí, explored dream imagery and the unconscious mind.' },
-      ],
-      mastery: [
-        { subject: 'Science', question: 'What is the boundary around a black hole beyond which nothing, not even light, can escape?', options: ['Photon sphere', 'Event horizon', 'Accretion disk', 'Singularity'], answer: 1, explanation: 'The event horizon is the boundary around a black hole beyond which nothing, not even light, can escape its gravity.' },
-        { subject: 'Geography', question: 'Which country has the most time zones, due largely to its overseas territories?', options: ['Russia', 'United States', 'France', 'China'], answer: 2, explanation: 'France has the most time zones of any country (12), due to its overseas territories scattered around the globe.' },
-        { subject: 'History', question: 'Which ancient civilization built the Machu Picchu complex in Peru?', options: ['Aztec', 'Maya', 'Inca', 'Olmec'], answer: 2, explanation: 'Machu Picchu was built by the Inca civilization in the 15th century high in the Andes mountains.' },
-        { subject: 'Arts', question: 'Which architect designed the still-unfinished Sagrada Família basilica in Barcelona?', options: ['Le Corbusier', 'Antoni Gaudí', 'Frank Lloyd Wright', 'Zaha Hadid'], answer: 1, explanation: 'Antoni Gaudí designed the still-unfinished Sagrada Família basilica, a landmark of Catalan modernism in Barcelona.' },
-      ],
-    },
+  // Quiz plan: every Challenger is bound to exactly ONE topic (QuizTopic) of the player's own
+  // strand, so a challenge about Algebra asks Algebra and nothing else. `slot` is the topic's
+  // position in that strand's QUIZ_TOPICS list (the same eight slots exist in every strand, so
+  // the plan works for STEM, ABM, HUMSS and General Knowledge alike) and `part` picks which half
+  // of the topic's six questions is used: part 0 = the three core questions, part 1 = the three
+  // harder follow-ups, 'all' = the whole topic (the Citadel's comprehensive exam, still one topic).
+  // A topic therefore never repeats a question between the Challengers that share it.
+  type QuizPart = 0 | 1 | 'all';
+  type ChallengerQuizPlan = { slot: number; part: QuizPart; difficulty: string };
+  const CHALLENGER_QUIZ_PLAN: Record<string, ChallengerQuizPlan> = {
+    // Foundation plaza (topics 1–4, core questions)
+    npc_2: { slot: 0, part: 0, difficulty: 'Foundation' },
+    npc_3: { slot: 1, part: 0, difficulty: 'Practice' },
+    npc_1: { slot: 2, part: 0, difficulty: 'Challenge' },
+    npc_4: { slot: 3, part: 'all', difficulty: 'Comprehensive' },
+    // Advanced Wing (same topics 1–4, harder questions)
+    npc_5: { slot: 0, part: 1, difficulty: 'Advanced' },
+    npc_6: { slot: 1, part: 1, difficulty: 'Advanced' },
+    npc_7: { slot: 2, part: 1, difficulty: 'Advanced' },
+    npc_8: { slot: 3, part: 1, difficulty: 'Advanced' },
+    // Expert Enclave (topics 5–8, core questions)
+    npc_9: { slot: 4, part: 0, difficulty: 'Expert' },
+    npc_10: { slot: 5, part: 0, difficulty: 'Expert' },
+    npc_11: { slot: 6, part: 0, difficulty: 'Expert' },
+    npc_12: { slot: 7, part: 0, difficulty: 'Expert' },
+    // Mastery Vault (topics 5–8, harder questions)
+    npc_13: { slot: 4, part: 1, difficulty: 'Mastery' },
+    npc_14: { slot: 5, part: 1, difficulty: 'Mastery' },
+    npc_15: { slot: 6, part: 1, difficulty: 'Mastery' },
+    npc_16: { slot: 7, part: 1, difficulty: 'Mastery' },
+  };
+  const QUESTIONS_PER_PART = 3;
+
+  type ChallengerQuizSpec = { strand: StrandKey; topic: QuizTopic | null; part: QuizPart; difficulty: string };
+  // Resolves which strand/topic a Challenger tests for this player. `topic` is null only if the
+  // challenger has no plan or the strand has no topic in that slot (reported by the audit).
+  const getChallengerQuizSpec = (challenger: Pick<CampusChallenger, 'id'>, strand: string): ChallengerQuizSpec => {
+    const strandKey = resolveStrandKey(strand);
+    const plan = CHALLENGER_QUIZ_PLAN[challenger.id];
+    if (!plan) return { strand: strandKey, topic: null, part: 0, difficulty: '' };
+    return { strand: strandKey, topic: QUIZ_TOPICS[strandKey]?.[plan.slot] ?? null, part: plan.part, difficulty: plan.difficulty };
+  };
+  // What a Challenger will actually test, in the player's own strand — shown on the dashboard
+  // and in the quest briefing so the text always matches the questions that get asked.
+  const getChallengerFocus = (challenger: Pick<CampusChallenger, 'id' | 'districtId'>, strand: string) => {
+    const spec = getChallengerQuizSpec(challenger, strand);
+    if (!spec.topic) return { strand: spec.strand, subject: '', topic: '', difficulty: spec.difficulty, label: getDistrictFocus(challenger.districtId, strand) };
+    return { strand: spec.strand, subject: spec.topic.subject, topic: spec.topic.topic, difficulty: spec.difficulty, label: `${spec.topic.subject} · ${spec.topic.topic}` };
   };
 
-  // Builds the exact shuffled question set one challenger presents, from the player's own
-  // strand bank. Districts partition their strand's 8-question bank so every NPC gets a
-  // genuinely different set: Foundation takes the first pair (quick basics check), Peaks
-  // the next three (the hardest reasoning questions), Wilds the last three (repeated
-  // practice) — a clean, non-overlapping split — while Citadel pulls the whole bank,
-  // matching its "comprehensive exam" role. Question order and each question's own choices
-  // are both shuffled (Fisher–Yates), with the correct answer's index remapped to match.
-  // Advanced/Expert/Mastery districts (the new quest tiers) skip this shared-bank slicing
-  // entirely — each of their NPCs draws its own single dedicated question straight from
-  // QUEST_TIER_QUESTIONS via questionIndex, so tier questions never overlap district ones.
   // Shuffles one question's choices while keeping `answer` pointing at the same choice:
   // each option is tagged with whether it's the correct one BEFORE the shuffle, and the
   // new index is read back from the tag AFTER it — so the pair can never drift apart
-  // (and it stays right even if two options were ever to share the same text).
+  // (and it stays right even if two options were ever to share the same text). The strand,
+  // topic and hint travel with the question.
   const shuffleQuestionChoices = (q: Question): Question => {
     const shuffled = shuffleArray(q.options.map((text, index) => ({ text, correct: index === q.answer })));
-    return { subject: q.subject, question: q.question, options: shuffled.map((o) => o.text), answer: shuffled.findIndex((o) => o.correct), explanation: q.explanation };
+    return { ...q, options: shuffled.map((o) => o.text), answer: shuffled.findIndex((o) => o.correct) };
   };
-  const buildChallengerQuestionSet = (challenger: Pick<CampusChallenger, 'districtId' | 'questionIndex'>, strand: string): Question[] => {
-    const strandKey = resolveStrandKey(strand);
-    const strandBank = (QUESTION_BANK[strandKey] ?? []).filter(isValidQuestion);
-    if (challenger.districtId === 'advanced' || challenger.districtId === 'expert' || challenger.districtId === 'mastery') {
-      const tierBank: Question[] = QUEST_TIER_QUESTIONS[strandKey]?.[challenger.districtId] ?? [];
-      const wanted = Number.isInteger(challenger.questionIndex) && (challenger.questionIndex as number) >= 0 ? (challenger.questionIndex as number) : 0;
-      // Exact dedicated question when it exists and is valid; otherwise the next valid one
-      // in the SAME strand's tier bank (never another strand's, never an out-of-range read).
-      for (let step = 0; step < tierBank.length; step++) {
-        const candidate = tierBank[(wanted + step) % tierBank.length];
-        if (isValidQuestion(candidate)) return [shuffleQuestionChoices(candidate)];
-      }
-      // Tier bank unusable (should never happen — see auditQuestionBanks): stay inside the
-      // player's own strand rather than borrowing from another one.
-      return strandBank.length ? [shuffleQuestionChoices(strandBank[wanted % strandBank.length])] : [];
-    }
-    const slice = challenger.districtId === 'foundation' ? strandBank.slice(0, 2)
-      : challenger.districtId === 'peaks' ? strandBank.slice(2, 5)
-      : challenger.districtId === 'wilds' ? strandBank.slice(5, 8)
-      : strandBank; // citadel: comprehensive — the entire strand bank
-    const source = slice.length ? slice : strandBank;
-    // Never ask the same question twice inside one encounter.
+  // A question may only be asked in a topic if it is playable AND really belongs to that
+  // strand + subject + topic — anything mislabeled is dropped rather than shown out of place.
+  const belongsToTopic = (q: Question, topic: QuizTopic) =>
+    isValidQuestion(q) && q.strand === topic.strand && q.subject === topic.subject && q.topic === topic.topic;
+  // Builds the exact shuffled question set one challenger presents. It reads ONLY from that
+  // challenger's single assigned topic (see CHALLENGER_QUIZ_PLAN): if some of the topic's
+  // questions are unusable, the set is topped up from the SAME topic's remaining verified
+  // questions — never from another topic or strand. If the topic has nothing valid at all the
+  // set is empty and the briefing/battle screens say so instead of asking unrelated questions.
+  const buildChallengerQuestionSet = (challenger: Pick<CampusChallenger, 'id'>, strand: string): Question[] => {
+    const spec = getChallengerQuizSpec(challenger, strand);
+    if (!spec.topic) return [];
     const seen = new Set<string>();
-    const unique = source.filter((q) => { const key = questionTextKey(q); if (seen.has(key)) return false; seen.add(key); return true; });
-    return shuffleArray(unique).map(shuffleQuestionChoices);
+    const valid = spec.topic.questions.filter((q) => {
+      if (!belongsToTopic(q, spec.topic as QuizTopic)) return false;
+      const key = questionTextKey(q);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    const wanted = spec.part === 'all' ? valid.length : QUESTIONS_PER_PART;
+    const slice = spec.part === 'all' ? valid : spec.topic.questions.slice(spec.part * QUESTIONS_PER_PART, (spec.part + 1) * QUESTIONS_PER_PART).filter((q) => valid.includes(q));
+    const topUp = valid.filter((q) => !slice.includes(q));
+    const chosen = [...slice, ...topUp].slice(0, wanted);
+    return shuffleArray(chosen).map(shuffleQuestionChoices);
   };
   // One-time self-check of the question data, run when the module loads. Logs (never
-  // throws) so a bad edit to a bank shows up immediately in the console instead of as a
-  // broken question mid-battle: malformed questions, wrong tier sizes, and the same
-  // question appearing twice within a strand (across its main bank and every tier).
+  // throws) so a bad edit shows up immediately in the console instead of as a broken or
+  // off-topic question mid-battle: every strand must have 8 topics of 6 valid, correctly
+  // labeled, non-duplicated questions with hints; every challenger must resolve to a topic.
   const auditQuestionBanks = () => {
     for (const strandKey of STRAND_KEYS) {
+      const topics = QUIZ_TOPICS[strandKey] ?? [];
+      if (topics.length < 8) console.error(`[question bank] ${strandKey} has ${topics.length} topics; the challenger plan needs 8`);
       const seen = new Map<string, string>();
-      const check = (q: Question, label: string) => {
-        if (!isValidQuestion(q)) { console.error(`[question bank] ${label} is malformed`, q); return; }
-        const key = questionTextKey(q);
-        if (seen.has(key)) console.error(`[question bank] ${label} duplicates ${seen.get(key)}`);
-        else seen.set(key, label);
-      };
-      const bank = QUESTION_BANK[strandKey] ?? [];
-      if (bank.length < 8) console.error(`[question bank] ${strandKey} has ${bank.length} questions; the district split needs 8`);
-      bank.forEach((q, i) => check(q, `${strandKey}.bank[${i}]`));
-      for (const tier of ['advanced', 'expert', 'mastery'] as const) {
-        const tierBank = QUEST_TIER_QUESTIONS[strandKey]?.[tier] ?? [];
-        if (tierBank.length < 4) console.error(`[question bank] ${strandKey}.${tier} has ${tierBank.length} questions; needs 4 (one per NPC)`);
-        tierBank.forEach((q, i) => check(q, `${strandKey}.${tier}[${i}]`));
+      topics.forEach((topic) => {
+        if (topic.strand !== strandKey) console.error(`[question bank] topic ${topic.id} is filed under ${strandKey} but labeled ${topic.strand}`);
+        if (topic.questions.length < 6) console.error(`[question bank] ${topic.id} has ${topic.questions.length} questions; needs 6`);
+        topic.questions.forEach((q, i) => {
+          const label = `${topic.id}[${i}]`;
+          if (!belongsToTopic(q, topic)) { console.error(`[question bank] ${label} is malformed or labeled for a different strand/topic`, q); return; }
+          if (!q.hint || !q.hint.trim() || !q.explanation || !q.explanation.trim()) console.error(`[question bank] ${label} is missing a hint or explanation`);
+          const key = questionTextKey(q);
+          if (seen.has(key)) console.error(`[question bank] ${label} duplicates ${seen.get(key)}`);
+          else seen.set(key, label);
+        });
+      });
+      for (const challenger of CAMPUS_CHALLENGERS) {
+        const set = buildChallengerQuestionSet(challenger, strandKey);
+        const spec = getChallengerQuizSpec(challenger, strandKey);
+        if (!spec.topic || set.length === 0) console.error(`[question bank] ${challenger.id} has no questions for ${strandKey}`);
+        else if (set.some((q) => q.subject !== spec.topic?.subject || q.strand !== strandKey)) console.error(`[question bank] ${challenger.id} mixes topics for ${strandKey}`);
       }
     }
   };
@@ -6607,7 +6804,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // rolling a new one. A different challenger is a different key, so it gets its own fresh
   // shuffle the first time it's approached — that's the only way a "new set" happens.
   const questionSetCache: Record<string, Question[]> = {};
-  const getEncounterQuestions = (challenger: CampusChallenger | null, strand: string): Question[] => {
+  const getEncounterQuestions = (challenger: Pick<CampusChallenger, 'id'> | null, strand: string): Question[] => {
     if (!challenger) return [];
     const key = `${challenger.id}:${resolveStrandKey(strand)}`;
     if (!questionSetCache[key]) questionSetCache[key] = buildChallengerQuestionSet(challenger, strand);
@@ -10482,7 +10679,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // Same district-to-strand mapping the campus itself uses when you enter a district
     // (see CampusExplorer) — so the briefing tells you what you're actually about to be
     // tested on, in terms of your own strand, not just a generic area name.
-    const focus = getDistrictFocus(challenger.districtId, strand);
+    const focusInfo = getChallengerFocus(challenger, strand);
+    const focus = focusInfo.label;
     const encounterQuestions = getEncounterQuestions(challenger, strand);
     const questionCount = encounterQuestions.length;
     // Same per-question limits the battle itself will enforce, so the briefing never
@@ -10526,6 +10724,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
               callout straight into itself instead of a separate paragraph below. */}
           <div className="panel quest-briefing-meta">
             <div className="quest-tags">
+              {focusInfo.subject && <span className="tag"><BookOpen size={10} className="inline mr-1" />{focusInfo.strand === 'GENERAL KNOWLEDGE' ? 'General Knowledge' : focusInfo.strand} · {focusInfo.difficulty}</span>}
               <span className="tag"><Check size={10} className="inline mr-1" />{questionCount} question{questionCount === 1 ? '' : 's'}</span>
               {timeLimits.length > 0 && (
                 <span className="tag" style={{ color: 'var(--amber)' }} title="Running out of time counts as a wrong answer">
@@ -10550,7 +10749,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
           {/* Skip, then Accept quest. */}
           <div className="quest-briefing-actions">
-            <button className="btn-primary" onClick={onAccept}><Swords size={15} /> Accept quest</button>
+            {questionCount === 0 && <p className="muted text-sm" role="alert">No verified {focusInfo.subject || 'topic'} questions are available for your strand yet, so this quest can’t start. Please check back after the next update.</p>}
+            <button className="btn-primary" onClick={onAccept} disabled={questionCount === 0}><Swords size={15} /> Accept quest</button>
             <button className="btn-secondary" onClick={onLeave}>Skip</button>
           </div>
         </div>
@@ -11371,6 +11571,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             <h2 className="question-text">You stayed with the hard part.</h2>
             <p className="muted text-sm">The result is logged to your player file. Take the momentum with you.</p>
             <button className="btn-primary mt-5" onClick={onExit}>Return to mission control <ChevronRight size={14} /></button>
+          </div>
+        ) : !current ? (
+          <div className="panel question-panel battle-complete" key="no-questions" role="alert">
+            <div className="question-index">NO QUESTIONS AVAILABLE</div>
+            <h2 className="question-text">This challenge has no verified questions for your strand yet.</h2>
+            <p className="muted text-sm">Rather than ask something off-topic, the quiz is paused. Nothing was lost — your progress is untouched.</p>
+            <button className="btn-primary mt-5" onClick={onExit}>Back <ChevronRight size={14} /></button>
           </div>
         ) : (
           <div className="panel question-panel" key={question}>
