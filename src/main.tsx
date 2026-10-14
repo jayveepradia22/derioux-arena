@@ -3947,6 +3947,19 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     accent-color: var(--amber);
     cursor: pointer;
     touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* The global input:focus-visible rule draws a 2px amber outline with a 3px offset,
+     which on a full-width range input renders as a big yellow box around the whole
+     slider. Replace it here with a soft glow that follows the slider's own shape
+     (track + thumb) so keyboard focus is still clearly visible without a rectangle. */
+  .campus-sensitivity-slider:focus,
+  .campus-sensitivity-slider:focus-visible {
+    outline: none;
+    outline-offset: 0;
+  }
+  .campus-sensitivity-slider:focus-visible {
+    filter: drop-shadow(0 0 3px rgba(248, 184, 78, .75));
   }
   .campus-sensitivity-scale {
     display: flex;
@@ -4846,7 +4859,14 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   };
   type ShopItem = { id: string; name: string; copy: string; price: number; icon: typeof Crosshair; category: 'Gear' | 'Consumables' | 'Cosmetics'; requiredQuestId?: string };
   type PlayerPreferences = { sound: boolean; encounterFeedback: boolean };
+  type SavedCampusPosition = { x: number; y: number; angle: number; pitch: number; cameraDistance: number; savedAt: number };
   type GameState = { coins: number; xp: number; quests: Quest[]; owned: string[]; equipped: string | null; studyMinutes: number; activityDates: string[]; subjectMastery: Record<string, { correct: number; total: number }>; defeatedChallengerIds: string[]; challengerScores: Record<string, ChallengerScore>; preferences: PlayerPreferences; questionHistory: QuestionHistoryEntry[]; tutorialCompleted: boolean; tutorialStarted: boolean;
+    // Where the player last stood in the campus (world position + camera orientation),
+    // saved periodically and on exit so a return/refresh/re-login resumes there instead
+    // of the default spawn. Optional: new players and legacy accounts simply don't have
+    // one. Never written as `undefined` (Firestore rejects that) — see
+    // normalizeStoredAccount, which drops it entirely when it isn't a valid saved shape.
+    lastPosition?: SavedCampusPosition;
     // Everything the player has ever actually found in the campus — a quest-giver
     // tapped/talked to (whether or not that run was later passed), a lost note picked
     // up, a guide's hint triggered. Persisted so the "X/24 DISCOVERED" HUD chip reflects
@@ -4950,6 +4970,40 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       { subject: 'History', question: 'Who is credited with inventing the telephone?', options: ['Thomas Edison', 'Alexander Graham Bell', 'Nikola Tesla', 'Guglielmo Marconi'], answer: 1, explanation: 'Alexander Graham Bell patented the telephone in 1876, though the invention\'s true origins are still debated.' },
     ],
   };
+
+  // The four strands a player can pick at signup, and the ONLY keys QUESTION_BANK /
+  // QUEST_TIER_QUESTIONS / DISTRICT_STRAND_FOCUS are indexed by.
+  const STRAND_KEYS = ['STEM', 'ABM', 'HUMSS', 'GENERAL KNOWLEDGE'] as const;
+  type StrandKey = (typeof STRAND_KEYS)[number];
+  const warnedUnknownStrands = new Set<string>();
+  // Maps whatever is stored on the profile to one of the four canonical keys. Matching
+  // is case/spacing-insensitive ("stem", " General  Knowledge ", "GENERAL" all resolve
+  // correctly) so a legitimately-selected strand never silently falls through to the
+  // General Knowledge bank just because of formatting. Only a value that is truly not
+  // one of the four strands falls back to General Knowledge (the one deliberately
+  // all-subjects bank), and that is logged instead of happening silently.
+  const resolveStrandKey = (raw: string | null | undefined): StrandKey => {
+    const normalized = String(raw ?? '').trim().replace(/[\s_-]+/g, ' ').toUpperCase();
+    const direct = STRAND_KEYS.find((key) => key === normalized);
+    if (direct) return direct;
+    if (normalized === 'GENERAL' || normalized === 'GK' || normalized === 'GEN KNOWLEDGE' || normalized === 'GENERAL KNOWLEDGE STRAND') return 'GENERAL KNOWLEDGE';
+    if (!warnedUnknownStrands.has(normalized)) {
+      warnedUnknownStrands.add(normalized);
+      console.warn(`Unknown strand "${String(raw)}" — using the General Knowledge question bank.`);
+    }
+    return 'GENERAL KNOWLEDGE';
+  };
+  // A question is playable only if it has real text, 2+ distinct non-empty choices and an
+  // in-range integer answer index. Anything else is skipped rather than shown broken or
+  // allowed to produce an answer index of -1 / undefined after shuffling.
+  const isValidQuestion = (q: Question | null | undefined): q is Question =>
+    !!q
+    && typeof q.question === 'string' && q.question.trim().length > 0
+    && typeof q.subject === 'string' && Array.isArray(q.options) && q.options.length >= 2
+    && q.options.every((option) => typeof option === 'string' && option.trim().length > 0)
+    && new Set(q.options.map((option) => option.trim().toLowerCase())).size === q.options.length
+    && Number.isInteger(q.answer) && q.answer >= 0 && q.answer < q.options.length;
+  const questionTextKey = (q: Question) => q.question.trim().toLowerCase().replace(/\s+/g, ' ');
 
   // Fisher–Yates — used to shuffle both question order and each question's own choices.
   const shuffleArray = <T,>(items: T[]): T[] => {
@@ -5073,10 +5127,25 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // Mastery panel, campus quest-giver checkmarks, the Preferences toggles) deal with
   // `undefined`. Centralized here so every read path (cache or server) normalizes the
   // same way.
-  const normalizeStoredAccount = (data: StoredAccount): StoredAccount => ({
+  // A saved spawn is only trusted if its numbers are real finite numbers; anything else
+  // (corrupt/partial/legacy data) is treated as "no saved position" so the player gets
+  // the default spawn instead of NaN coordinates. Whether the spot is actually walkable
+  // is checked later, inside the campus scene, where the real map/NPCs exist.
+  const sanitizeSavedPosition = (raw: unknown): SavedCampusPosition | undefined => {
+    if (!raw || typeof raw !== 'object') return undefined;
+    const p = raw as Record<string, unknown>;
+    const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+    if (!finite(p.x) || !finite(p.y) || !finite(p.angle)) return undefined;
+    return { x: p.x, y: p.y, angle: p.angle, pitch: finite(p.pitch) ? p.pitch : 0, cameraDistance: finite(p.cameraDistance) ? p.cameraDistance : 4.6, savedAt: finite(p.savedAt) ? p.savedAt : 0 };
+  };
+  const normalizeStoredAccount = (data: StoredAccount): StoredAccount => {
+    const { lastPosition: rawLastPosition, ...gameRest } = data.game;
+    const lastPosition = sanitizeSavedPosition(rawLastPosition);
+    return {
     ...data,
     game: {
-      ...data.game,
+      ...gameRest,
+      ...(lastPosition ? { lastPosition } : {}),
       subjectMastery: data.game.subjectMastery ?? {},
       defeatedChallengerIds: data.game.defeatedChallengerIds ?? [],
       challengerScores: data.game.challengerScores ?? {},
@@ -5097,7 +5166,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // having entered the arena/campus and never interrupt them with onboarding.
       tutorialStarted: data.game.tutorialStarted ?? true,
     },
-  });
+    };
+  };
   // Cache-only read: resolves near-instantly from the on-device IndexedDB cache that
   // firebase.ts's persistentLocalCache maintains, with no network round trip. Used to
   // paint the player's existing progress the moment they open the app or log back in,
@@ -6034,7 +6104,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     },
   };
   const getDistrictFocus = (districtId: string, strand: string) =>
-    DISTRICT_STRAND_FOCUS[districtId]?.[strand] ?? CAMPUS_DISTRICTS.find((d) => d.id === districtId)?.theme ?? '';
+    DISTRICT_STRAND_FOCUS[districtId]?.[resolveStrandKey(strand)] ?? CAMPUS_DISTRICTS.find((d) => d.id === districtId)?.theme ?? '';
 
 
   // Renovated 27x73 campus, second pass — a full architectural re-layout on top of the
@@ -6471,23 +6541,64 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // Advanced/Expert/Mastery districts (the new quest tiers) skip this shared-bank slicing
   // entirely — each of their NPCs draws its own single dedicated question straight from
   // QUEST_TIER_QUESTIONS via questionIndex, so tier questions never overlap district ones.
-  const buildChallengerQuestionSet = (challenger: Pick<CampusChallenger, 'districtId' | 'questionIndex'>, strand: string): Question[] => {
-    if (challenger.districtId === 'advanced' || challenger.districtId === 'expert' || challenger.districtId === 'mastery') {
-      const tierBank = (QUEST_TIER_QUESTIONS[strand] ?? QUEST_TIER_QUESTIONS['GENERAL KNOWLEDGE'])[challenger.districtId];
-      const q = tierBank[challenger.questionIndex ?? 0];
-      const shuffledOptions = shuffleArray(q.options.map((option, index) => ({ option, isCorrect: index === q.answer })));
-      return [{ subject: q.subject, question: q.question, options: shuffledOptions.map((o) => o.option), answer: shuffledOptions.findIndex((o) => o.isCorrect), explanation: q.explanation }];
-    }
-    const bank = QUESTION_BANK[strand] ?? QUESTION_BANK['GENERAL KNOWLEDGE'];
-    const slice = challenger.districtId === 'foundation' ? bank.slice(0, 2)
-      : challenger.districtId === 'peaks' ? bank.slice(2, 5)
-      : challenger.districtId === 'wilds' ? bank.slice(5, 8)
-      : bank; // citadel: comprehensive — the entire strand bank
-    return shuffleArray(slice).map((q) => {
-      const shuffledOptions = shuffleArray(q.options.map((option, index) => ({ option, isCorrect: index === q.answer })));
-      return { subject: q.subject, question: q.question, options: shuffledOptions.map((o) => o.option), answer: shuffledOptions.findIndex((o) => o.isCorrect), explanation: q.explanation };
-    });
+  // Shuffles one question's choices while keeping `answer` pointing at the same choice:
+  // each option is tagged with whether it's the correct one BEFORE the shuffle, and the
+  // new index is read back from the tag AFTER it — so the pair can never drift apart
+  // (and it stays right even if two options were ever to share the same text).
+  const shuffleQuestionChoices = (q: Question): Question => {
+    const shuffled = shuffleArray(q.options.map((text, index) => ({ text, correct: index === q.answer })));
+    return { subject: q.subject, question: q.question, options: shuffled.map((o) => o.text), answer: shuffled.findIndex((o) => o.correct), explanation: q.explanation };
   };
+  const buildChallengerQuestionSet = (challenger: Pick<CampusChallenger, 'districtId' | 'questionIndex'>, strand: string): Question[] => {
+    const strandKey = resolveStrandKey(strand);
+    const strandBank = (QUESTION_BANK[strandKey] ?? []).filter(isValidQuestion);
+    if (challenger.districtId === 'advanced' || challenger.districtId === 'expert' || challenger.districtId === 'mastery') {
+      const tierBank: Question[] = QUEST_TIER_QUESTIONS[strandKey]?.[challenger.districtId] ?? [];
+      const wanted = Number.isInteger(challenger.questionIndex) && (challenger.questionIndex as number) >= 0 ? (challenger.questionIndex as number) : 0;
+      // Exact dedicated question when it exists and is valid; otherwise the next valid one
+      // in the SAME strand's tier bank (never another strand's, never an out-of-range read).
+      for (let step = 0; step < tierBank.length; step++) {
+        const candidate = tierBank[(wanted + step) % tierBank.length];
+        if (isValidQuestion(candidate)) return [shuffleQuestionChoices(candidate)];
+      }
+      // Tier bank unusable (should never happen — see auditQuestionBanks): stay inside the
+      // player's own strand rather than borrowing from another one.
+      return strandBank.length ? [shuffleQuestionChoices(strandBank[wanted % strandBank.length])] : [];
+    }
+    const slice = challenger.districtId === 'foundation' ? strandBank.slice(0, 2)
+      : challenger.districtId === 'peaks' ? strandBank.slice(2, 5)
+      : challenger.districtId === 'wilds' ? strandBank.slice(5, 8)
+      : strandBank; // citadel: comprehensive — the entire strand bank
+    const source = slice.length ? slice : strandBank;
+    // Never ask the same question twice inside one encounter.
+    const seen = new Set<string>();
+    const unique = source.filter((q) => { const key = questionTextKey(q); if (seen.has(key)) return false; seen.add(key); return true; });
+    return shuffleArray(unique).map(shuffleQuestionChoices);
+  };
+  // One-time self-check of the question data, run when the module loads. Logs (never
+  // throws) so a bad edit to a bank shows up immediately in the console instead of as a
+  // broken question mid-battle: malformed questions, wrong tier sizes, and the same
+  // question appearing twice within a strand (across its main bank and every tier).
+  const auditQuestionBanks = () => {
+    for (const strandKey of STRAND_KEYS) {
+      const seen = new Map<string, string>();
+      const check = (q: Question, label: string) => {
+        if (!isValidQuestion(q)) { console.error(`[question bank] ${label} is malformed`, q); return; }
+        const key = questionTextKey(q);
+        if (seen.has(key)) console.error(`[question bank] ${label} duplicates ${seen.get(key)}`);
+        else seen.set(key, label);
+      };
+      const bank = QUESTION_BANK[strandKey] ?? [];
+      if (bank.length < 8) console.error(`[question bank] ${strandKey} has ${bank.length} questions; the district split needs 8`);
+      bank.forEach((q, i) => check(q, `${strandKey}.bank[${i}]`));
+      for (const tier of ['advanced', 'expert', 'mastery'] as const) {
+        const tierBank = QUEST_TIER_QUESTIONS[strandKey]?.[tier] ?? [];
+        if (tierBank.length < 4) console.error(`[question bank] ${strandKey}.${tier} has ${tierBank.length} questions; needs 4 (one per NPC)`);
+        tierBank.forEach((q, i) => check(q, `${strandKey}.${tier}[${i}]`));
+      }
+    }
+  };
+  auditQuestionBanks();
 
   // Per-encounter question set cache, keyed by challenger + strand. Generated once, on
   // whichever screen needs it first (briefing shows the count, battle asks the questions),
@@ -6498,7 +6609,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   const questionSetCache: Record<string, Question[]> = {};
   const getEncounterQuestions = (challenger: CampusChallenger | null, strand: string): Question[] => {
     if (!challenger) return [];
-    const key = `${challenger.id}:${strand}`;
+    const key = `${challenger.id}:${resolveStrandKey(strand)}`;
     if (!questionSetCache[key]) questionSetCache[key] = buildChallengerQuestionSet(challenger, strand);
     return questionSetCache[key];
   };
@@ -6687,7 +6798,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // foreshorten it by viewing angle. See the `signs.forEach` render pass below.
   const SIGN_NORMALS: Record<CampusSign['side'], [number, number]> = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] };
 
-  function CampusExplorer({ level, strand, avatar, defeatedIds, discoveredChallengerIds, discoveredNoteIds, discoveredGuideIds, initialPosition, onChallengerFound, onExit, notify, soundEnabled, onReward, onDiscover, onReplayTutorial }: { level: number; strand: string; avatar: AvatarConfig; defeatedIds: string[]; discoveredChallengerIds: string[]; discoveredNoteIds: string[]; discoveredGuideIds: string[]; initialPosition?: CampusReturnPosition | null; onChallengerFound: (challenger: CampusChallenger, position: CampusReturnPosition) => void; onExit: () => void; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void; soundEnabled: boolean; onReward: (coins: number, xp: number) => void; onDiscover: (kind: 'challenger' | 'note' | 'guide', id: string) => void; onReplayTutorial: () => void }) {
+  function CampusExplorer({ level, strand, avatar, defeatedIds, discoveredChallengerIds, discoveredNoteIds, discoveredGuideIds, initialPosition, savedPosition, onSavePosition, onChallengerFound, onExit, notify, soundEnabled, onReward, onDiscover, onReplayTutorial }: { level: number; strand: string; avatar: AvatarConfig; defeatedIds: string[]; discoveredChallengerIds: string[]; discoveredNoteIds: string[]; discoveredGuideIds: string[]; initialPosition?: CampusReturnPosition | null; savedPosition?: SavedCampusPosition | null; onSavePosition?: (pos: SavedCampusPosition) => void; onChallengerFound: (challenger: CampusChallenger, position: CampusReturnPosition) => void; onExit: () => void; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void; soundEnabled: boolean; onReward: (coins: number, xp: number) => void; onDiscover: (kind: 'challenger' | 'note' | 'guide', id: string) => void; onReplayTutorial: () => void }) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const worldRef = useRef<HTMLDivElement | null>(null);
     const promptRef = useRef<HTMLDivElement | null>(null);
@@ -6707,6 +6818,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     defeatedIdsRef.current = defeatedIds;
     const onFoundRef = useRef(onChallengerFound);
     onFoundRef.current = onChallengerFound;
+    const onSavePositionRef = useRef(onSavePosition);
+    onSavePositionRef.current = onSavePosition;
     const notifyRef = useRef(notify);
     notifyRef.current = notify;
     const soundEnabledRef = useRef(soundEnabled);
@@ -6721,6 +6834,26 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     const avatarRef = useRef(avatar);
     avatarRef.current = avatar;
     const [settingsOpen, setSettingsOpen] = useState(false);
+    // Wraps the gear button AND the panel, so a click on the gear (which toggles) or
+    // anywhere inside the panel counts as "inside"; everything else closes the panel.
+    const settingsWrapRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+      if (!settingsOpen) return;
+      const handleOutsidePointer = (e: PointerEvent) => {
+        const wrap = settingsWrapRef.current;
+        if (wrap && e.target instanceof Node && wrap.contains(e.target)) return;
+        setSettingsOpen(false);
+      };
+      const handleEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') setSettingsOpen(false); };
+      // Capture phase: the canvas/look-layer handlers may stop propagation or call
+      // preventDefault, which would otherwise swallow taps before they reach document.
+      document.addEventListener('pointerdown', handleOutsidePointer, true);
+      document.addEventListener('keydown', handleEscape);
+      return () => {
+        document.removeEventListener('pointerdown', handleOutsidePointer, true);
+        document.removeEventListener('keydown', handleEscape);
+      };
+    }, [settingsOpen]);
     const [cameraSensitivity, setCameraSensitivity] = useState<number>(() => readCameraSensitivity());
     const cameraSensitivityRef = useRef(cameraSensitivity);
     useEffect(() => { cameraSensitivityRef.current = cameraSensitivity; }, [cameraSensitivity]);
@@ -7159,9 +7292,16 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       discoveryBtn.addEventListener('click', handleDiscoveryTap);
       discoveryBtn.addEventListener('touchstart', handleDiscoveryTap, { passive: false });
 
-      let playerX = initialPosition?.x ?? 13.5;
-      let playerY = initialPosition?.y ?? 9.5;
-      let playerAngle = initialPosition?.angle ?? 0;
+      // Spawn priority: (1) the live return point after a quest briefing/battle, (2) the
+      // position saved to Firestore when the player last left, (3) the default spawn.
+      // The saved point is only a *candidate* here — it's validated against walls, stair
+      // flanks and NPCs (and snapped to the nearest free spot) further down, before the
+      // first frame renders or any input is processed.
+      const restoredFromSave = !initialPosition && !!savedPosition;
+      const spawnSource: CampusReturnPosition | null = initialPosition ?? (savedPosition ? { x: savedPosition.x, y: savedPosition.y, angle: savedPosition.angle } : null);
+      let playerX = spawnSource?.x ?? 13.5;
+      let playerY = spawnSource?.y ?? 9.5;
+      let playerAngle = spawnSource?.angle ?? 0;
       // Smoothed heading used only for the minimap's rotation — eased toward the real,
       // instantaneous playerAngle every frame (see updateMiniMapRotation below) so the
       // map turns fluidly instead of snapping. The player marker itself never reads
@@ -7416,15 +7556,17 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         return landingBounceStrength * (1 - t);
       }
 
-      let targetCameraDistance = CAMERA_DEFAULT_DISTANCE;
-      let smoothCameraDistance = CAMERA_DEFAULT_DISTANCE;
-      let currentCameraDistance = CAMERA_DEFAULT_DISTANCE;
+      // Restored zoom level (only when resuming from a save); otherwise the usual default.
+      const initialCameraDistance = restoredFromSave && savedPosition ? clampCameraDistance(savedPosition.cameraDistance) : CAMERA_DEFAULT_DISTANCE;
+      let targetCameraDistance = initialCameraDistance;
+      let smoothCameraDistance = initialCameraDistance;
+      let currentCameraDistance = initialCameraDistance;
       let currentCameraHeight = CAMERA_THIRD_PERSON_HEIGHT;
       let currentCameraPitch = CAMERA_PITCH_THIRD;
       let targetFovOffsetDeg = 0;
       let smoothFovOffsetDeg = 0;
-      let smoothCamX = playerX - Math.cos(playerAngle) * CAMERA_DEFAULT_DISTANCE;
-      let smoothCamY = playerY - Math.sin(playerAngle) * CAMERA_DEFAULT_DISTANCE;
+      let smoothCamX = playerX - Math.cos(playerAngle) * initialCameraDistance;
+      let smoothCamY = playerY - Math.sin(playerAngle) * initialCameraDistance;
       let smoothCamElevation = getElevation(playerX, playerY); // eased ground height used by the third-person camera
       // Last frame's obstruction-clamped back distance — compared against this frame's
       // freshly-raycast value every frame to decide whether the camera is being pulled
@@ -7458,6 +7600,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       let userPitchOffset = 0;
       const PITCH_OFFSET_MIN = -1.0;
       const PITCH_OFFSET_MAX = 0.7;
+      if (restoredFromSave && savedPosition) userPitchOffset = Math.max(PITCH_OFFSET_MIN, Math.min(PITCH_OFFSET_MAX, savedPosition.pitch));
       let touchLookDX = 0;
       let touchLookDY = 0;
       const TOUCH_PITCH_RATIO = 0.55;
@@ -7480,7 +7623,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       let lastMouseClientY = 0;
       let mouseInsideCanvas = false;
       const isMobile = 'ontouchstart' in window;
-      const moveSpeed = isMobile ? 2.0 : 3.0;
+      // Walk speed in world units/second (was 2.0 mobile / 3.0 desktop). The stride
+      // animation below is derived from this value (STRIDE_RATE_PER_SPEED), so the
+      // legs keep matching ground covered at the new speed — no foot sliding.
+      const moveSpeed = isMobile ? 3.0 : 4.2;
       const sensitivity = 0.0016;
       const TOUCH_LOOK_RADIANS_PER_SCREEN_WIDTH = Math.PI * 1.15;
       function getTouchLookSensitivity() {
@@ -9636,13 +9782,15 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             if (lookPointers.size >= 2) {
               const distance = getPinchDistance();
               if (pinchLastDistance > 0 && distance > 0) {
-                // Positive when fingers spread apart (pinch out) -> zoom out; negative
-                // when fingers move together (pinch in) -> zoom in. Virtually no dead
+                // Positive when fingers spread apart (pinch out) -> zoom in (camera
+                // closer); negative when fingers move together (pinch in) -> zoom out
+                // (camera farther). setCameraZoomFromInput treats + as zoom out, so the
+                // delta is negated here (touch only; wheel/keys are unchanged). Virtually no dead
                 // zone (just enough to ignore sub-pixel sensor noise) and a much higher
                 // sensitivity than the wheel's raw deltaY units so normal pinch speed
                 // reliably drives continuous, responsive zooming instead of stalling.
                 const distanceDelta = distance - pinchLastDistance;
-                if (Math.abs(distanceDelta) > 0.02) setCameraZoomFromInput(distanceDelta / 28);
+                if (Math.abs(distanceDelta) > 0.02) setCameraZoomFromInput(-distanceDelta / 28);
               }
               pinchLastDistance = distance;
               wasPinching = true;
@@ -9757,6 +9905,74 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         }
         return false;
       }
+
+      // --- Safe spawn + persistent position -----------------------------------------
+      // Runs once, here, after every collision source exists (tile walls, stair flanks,
+      // NPCs) but before the game loop starts — so a restored position is never used
+      // unchecked and the player can't move a single step from an invalid spot.
+      // Walks outward in rings from the requested point and returns the nearest spot the
+      // player's collision circle fits; falls back to the default spawn if nothing near.
+      function findSafePosition(x: number, y: number): { x: number; y: number } {
+        const isBlocked = (px: number, py: number) => !Number.isFinite(px) || !Number.isFinite(py) || !canMove(px, py) || collidesWithNpc(px, py);
+        if (!isBlocked(x, y)) return { x, y };
+        for (let r = 0.25; r <= 8; r += 0.25) {
+          const samples = Math.max(8, Math.round(r * 16));
+          for (let i = 0; i < samples; i++) {
+            const a = (i / samples) * Math.PI * 2;
+            const cx = x + Math.cos(a) * r, cy = y + Math.sin(a) * r;
+            if (!isBlocked(cx, cy)) return { x: cx, y: cy };
+          }
+        }
+        return { x: 13.5, y: 9.5 };
+      }
+      if (!Number.isFinite(playerX) || !Number.isFinite(playerY) || !Number.isFinite(playerAngle)) {
+        playerX = 13.5; playerY = 9.5; playerAngle = 0;
+      }
+      {
+        const safe = findSafePosition(playerX, playerY);
+        if (safe.x !== playerX || safe.y !== playerY) {
+          playerX = safe.x; playerY = safe.y;
+          // Everything seeded from the player's position earlier in setup has to follow
+          // the corrected spot, otherwise the camera would swoop in from the bad one.
+          playerElevationY = getElevation(playerX, playerY);
+          playerGroundY = playerElevationY;
+          airbornePeakElevation = playerElevationY;
+          lastPhysicsX = playerX;
+          lastPhysicsY = playerY;
+          smoothCamX = playerX - Math.cos(playerAngle) * initialCameraDistance;
+          smoothCamY = playerY - Math.sin(playerAngle) * initialCameraDistance;
+          smoothCamElevation = getElevation(playerX, playerY);
+        }
+      }
+
+      // Saves the player's spot + camera orientation through the app (-> Firestore).
+      // Skips when nothing meaningful changed since the last save, which also means a
+      // mount/unmount without any movement (React StrictMode, a quick re-entry) never
+      // writes anything.
+      let lastSavedPos = { x: playerX, y: playerY, angle: playerAngle, pitch: userPitchOffset, dist: targetCameraDistance };
+      function flushPlayerPosition() {
+        if (!Number.isFinite(playerX) || !Number.isFinite(playerY) || !Number.isFinite(playerAngle)) return;
+        const save = onSavePositionRef.current;
+        if (!save) return;
+        const angleDiff = Math.abs(Math.atan2(Math.sin(playerAngle - lastSavedPos.angle), Math.cos(playerAngle - lastSavedPos.angle)));
+        const changed = Math.hypot(playerX - lastSavedPos.x, playerY - lastSavedPos.y) > 0.05
+          || angleDiff > 0.02
+          || Math.abs(userPitchOffset - lastSavedPos.pitch) > 0.02
+          || Math.abs(targetCameraDistance - lastSavedPos.dist) > 0.05;
+        if (!changed) return;
+        lastSavedPos = { x: playerX, y: playerY, angle: playerAngle, pitch: userPitchOffset, dist: targetCameraDistance };
+        const r3 = (v: number) => Math.round(v * 1000) / 1000;
+        save({ x: r3(playerX), y: r3(playerY), angle: r3(playerAngle), pitch: r3(userPitchOffset), cameraDistance: r3(targetCameraDistance), savedAt: Date.now() });
+      }
+      const POSITION_SAVE_INTERVAL_MS = 10000;
+      const positionSaveTimer = window.setInterval(flushPlayerPosition, POSITION_SAVE_INTERVAL_MS);
+      // Refresh / tab close / app switched away on mobile: save whatever we have now.
+      // (Best effort — the write is queued in Firestore's local persistence if the page
+      // dies before it reaches the server, and is sent on the next load.)
+      const handleVisibilityForSave = () => { if (document.visibilityState === 'hidden') flushPlayerPosition(); };
+      window.addEventListener('pagehide', flushPlayerPosition);
+      window.addEventListener('beforeunload', flushPlayerPosition);
+      document.addEventListener('visibilitychange', handleVisibilityForSave);
 
       // Camera clearance: march outward from the player toward the camera's ideal spot
       // in small fixed steps, testing each step against the same circle-vs-tile collision
@@ -10079,9 +10295,21 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           let actuallyMoved = false;
           if (wantsToWalk) {
             moveX = (moveX / len) * moveSpeed * speedScale * dt; moveY = (moveY / len) * moveSpeed * speedScale * dt;
-            const nx = playerX + moveX, ny = playerY + moveY;
-            if (canMove(nx, playerY) && !collidesWithNpc(nx, playerY)) { playerX = nx; actuallyMoved = true; }
-            if (canMove(playerX, ny) && !collidesWithNpc(playerX, ny)) { playerY = ny; actuallyMoved = true; }
+            // Faster walking means a longer step per frame, so split it into small
+            // sub-steps (<= MAX_MOVE_SUBSTEP each) and run the same per-axis collision
+            // tests on every one. At normal frame rates this is a single step, identical
+            // to before; after a lag spike it keeps the player from skipping past thin
+            // walls, stair flanks or NPCs, and wall-sliding stays smooth.
+            const MAX_MOVE_SUBSTEP = 0.1;
+            const substeps = Math.max(1, Math.ceil(Math.hypot(moveX, moveY) / MAX_MOVE_SUBSTEP));
+            const stepX = moveX / substeps, stepY = moveY / substeps;
+            for (let i = 0; i < substeps; i++) {
+              const nx = playerX + stepX, ny = playerY + stepY;
+              let stepMoved = false;
+              if (canMove(nx, playerY) && !collidesWithNpc(nx, playerY)) { playerX = nx; stepMoved = true; }
+              if (canMove(playerX, ny) && !collidesWithNpc(playerX, ny)) { playerY = ny; stepMoved = true; }
+              if (stepMoved) actuallyMoved = true; else break;
+            }
           }
           // The walk cycle only plays while the player is actually covering ground, not just
           // holding a direction key — walking straight into a wall now stops the legs instead
@@ -10104,6 +10332,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       raf = requestAnimationFrame(gameLoop);
 
       return () => {
+        // Final save on every way out of the scene: Exit button, leaving for a quest
+        // briefing/battle, switching screens, or the whole app unmounting.
+        window.clearInterval(positionSaveTimer);
+        window.removeEventListener('pagehide', flushPlayerPosition);
+        window.removeEventListener('beforeunload', flushPlayerPosition);
+        document.removeEventListener('visibilitychange', handleVisibilityForSave);
+        flushPlayerPosition();
         cancelAnimationFrame(raf);
         if (resizeRaf) cancelAnimationFrame(resizeRaf);
         window.removeEventListener('resize', scheduleResize);
@@ -10168,7 +10403,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                 <div className="campus-minimap" aria-label="Campus mini-map">
                   <canvas ref={minimapRef} />
                 </div>
-                <div style={{ position: 'relative' }}>
+                <div ref={settingsWrapRef} style={{ position: 'relative' }}>
                   <button
                     type="button"
                     className="campus-settings-btn"
@@ -11683,7 +11918,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       zoom: {
         title: 'Zoom · Third-person ↔ First-person',
         body: isTouchDevice
-          ? 'Use two fingers to pinch. Pinch out for a wider third-person view; pinch in to move closer until you reach first-person.'
+          ? 'Use two fingers to pinch. Pinch in for a wider third-person view; pinch out to move closer until you reach first-person.'
           : 'Use the mouse wheel or the existing +/- controls. Zoom out for third-person and zoom in for first-person.',
         hint: isTouchDevice ? 'Touch: two-finger pinch' : 'Mouse: wheel / existing +/- controls',
         icon: <Crosshair size={16} />,
@@ -11835,6 +12070,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // True once the player has actually made progress (a quest claim, a purchase, a
     // finished focus session, ...) on that temporary file — see updateAccountData.
     const localProgressStartedRef = useRef(false);
+    // True once this uid's real player document has been delivered at least once. The
+    // campus position is only written to Firestore after that, so a position save can
+    // never create/pollute a doc (or race the real save) while the load is still pending
+    // or the app is running on the temporary fallback profile.
+    const playerDocResolvedRef = useRef(false);
     // The most recent in-flight Firestore write kicked off by updateAccountData (or
     // null once it's settled). logout() awaits this before calling signOut() — every
     // updateAccountData write is fire-and-forget so the UI never blocks on the
@@ -11850,10 +12090,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         setAccountData(null);
         usedTemporaryProfileRef.current = false;
         localProgressStartedRef.current = false;
+        playerDocResolvedRef.current = false;
         pendingSaveRef.current = null;
         return;
       }
       let cancelled = false;
+      playerDocResolvedRef.current = false;
       // True once this uid's subscription has delivered (and acted on) its first snapshot —
       // i.e. the same "authoritative resolution" moment the old Phase 2 getDoc represented.
       // Every fire after that is a genuine real-time update (our own write echoing back, or
@@ -11868,6 +12110,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           if (cancelled) return;
           if (!initialResolved) {
             initialResolved = true;
+            playerDocResolvedRef.current = true;
             // This can resolve *after* the player has already started interacting with data
             // the loading-fallback timeout put on screen. If so, `existing` is now the stale
             // copy — accepting it here would silently erase that progress the instant this
@@ -12153,6 +12396,21 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         pendingSaveRef.current = writePromise;
         return updated;
       });
+    };
+
+    // Persists the player's campus position + camera orientation. Deliberately NOT routed
+    // through updateAccountData: that marks "local progress started" (which makes a
+    // late-arriving real save lose to the temporary profile) and rewrites the whole
+    // document, whereas this only merges the one `game.lastPosition` field, so it can
+    // never overwrite quests/coins/XP. It also updates local state immediately so
+    // re-entering the campus in the same session already sees the newest spot.
+    const saveCampusPosition = (pos: SavedCampusPosition) => {
+      if (!authUser || !playerDocResolvedRef.current) return;
+      setAccountData((prev) => (prev ? { ...prev, game: { ...prev.game, lastPosition: pos } } : prev));
+      const writePromise = setDoc(doc(db, 'players', authUser.uid), { game: { lastPosition: pos } }, { merge: true }).catch((err) => {
+        console.error('Failed to save campus position', err);
+      });
+      pendingSaveRef.current = writePromise;
     };
 
     /* --- Back-button / history protection ---
@@ -12593,6 +12851,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
               {screen === 'quests' && questStage === 'roaming' && (
                 <CampusExplorer
                   initialPosition={questReturnPosition}
+                  savedPosition={game.lastPosition ?? null}
+                  onSavePosition={saveCampusPosition}
                   level={getLevelInfo(game.xp).level}
                   strand={profile.strand}
                   avatar={profile.avatar}
