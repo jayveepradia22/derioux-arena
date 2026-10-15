@@ -1,4 +1,4 @@
-import { Component, useEffect, useLayoutEffect, useRef, useState, type ErrorInfo, type FormEvent, type ReactNode } from 'react';
+import { Component, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ErrorInfo, type FormEvent, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import * as THREE from 'three';
 import {
@@ -1949,6 +1949,22 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     backdrop-filter: blur(14px);
     animation: rise .4s cubic-bezier(.22, 1, .36, 1) both;
   }
+  /* Friendly NPC conversation (separate from the amber quest briefing): cyan-themed, no
+     quest tags, timers or rewards beyond the one-time first-visit bonus. */
+  .npc-dialogue-panel { border-color: rgba(103, 205, 209, .55); }
+  .npc-dialogue-eyebrow { color: var(--cyan); }
+  .npc-dialogue-head { display: flex; align-items: center; gap: 12px; margin: 6px 0 12px; }
+  .npc-dialogue-line { margin: 0 0 12px; line-height: 1.55; font-size: 14px; color: rgba(244, 240, 231, .92); }
+  .npc-dialogue-reward { margin: 0 0 12px; font-size: 12px; color: var(--cyan); }
+  .npc-dialogue-choices { display: grid; gap: 8px; margin-top: 10px; }
+  .npc-dialogue-choices .btn-secondary, .npc-dialogue-choices .btn-primary { justify-content: flex-start; text-align: left; }
+  .npc-lesson-list { display: grid; gap: 8px; margin-bottom: 6px; max-height: 42dvh; overflow-y: auto; padding-right: 2px; }
+  .npc-lesson-card { padding: 10px 12px; border: 1px solid rgba(103, 205, 209, .25); border-radius: 10px; background: rgba(255, 255, 255, .03); }
+  .npc-lesson-q { font-size: 13px; line-height: 1.45; }
+  .npc-lesson-hint { margin-top: 6px; font-size: 12px; color: var(--amber); }
+  .npc-lesson-answer { margin-top: 6px; font-size: 12px; line-height: 1.5; color: rgba(244, 240, 231, .88); }
+  .npc-lesson-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .npc-lesson-actions .btn-secondary { padding: 5px 10px; font-size: 11px; }
   .holo-briefing-close {
     position: absolute;
     top: 14px;
@@ -3499,6 +3515,57 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   .dean-enemy-avatar .pixel-head { box-shadow: inset 0 -5px 0 rgba(20, 22, 38, .12); }
   .dean-bowtie { position:absolute; z-index:5; top:7px; left:50%; width:20px; height:12px; transform:translateX(-50%); background:#f2b84b; clip-path:polygon(0 0,45% 25%,50% 0,55% 25%,100% 0,70% 100%,50% 70%,30% 100%); }
 
+  /* Authored character looks (Challengers + friendly NPCs). Extra hair, face, headwear and
+     outfit details layered over the base pixel avatar — see AvatarFigure / CharacterLook.
+     Nothing here applies to the player's own avatar, which never carries a look. */
+  .pixel-hair.buzz { top: -4px; height: 10px; }
+  .pixel-hair.spiky { top: -13px; height: 22px; border: 0; clip-path: polygon(0 100%, 0 45%, 12% 0, 26% 48%, 40% 0, 54% 48%, 68% 0, 82% 48%, 94% 0, 100% 45%, 100% 100%); }
+  .pixel-hair.afro { top: -14px; left: -11px; width: 64px; height: 33px; border-radius: 50% 50% 18% 18%; }
+  .pixel-hair.sidepart { height: 19px; border-radius: 6px 16px 0 0; }
+  .pixel-hair.sidepart::before { content: ''; position: absolute; left: -3px; top: 12px; width: 20px; height: 9px; background: inherit; border: 3px solid rgba(20, 22, 38, .9); border-top: 0; border-right: 0; }
+  .pixel-hair.bun::after { content: ''; position: absolute; left: 50%; top: -17px; width: 20px; height: 18px; margin-left: -10px; background: inherit; border: 3px solid rgba(20, 22, 38, .9); border-radius: 50%; }
+  .pixel-hair.ponytail::after { content: ''; position: absolute; right: -15px; top: 6px; width: 13px; height: 32px; background: inherit; border: 3px solid rgba(20, 22, 38, .9); border-radius: 4px 4px 8px 8px; }
+  .pixel-brow { position: absolute; z-index: 4; top: 15px; width: 10px; height: 2px; }
+  .pixel-brow.thick { top: 14px; height: 3px; }
+  .pixel-brow.left { left: 8px; }
+  .pixel-brow.right { right: 8px; }
+  .pixel-mouth { position: absolute; z-index: 4; left: 50%; top: 30px; transform: translateX(-50%); width: 10px; height: 2px; background: #4a2424; }
+  .pixel-mouth.neutral { width: 8px; }
+  .pixel-mouth.stern { width: 13px; height: 3px; }
+  .pixel-mouth.smile { top: 27px; width: 12px; height: 5px; background: none; border-bottom: 3px solid #4a2424; border-radius: 0 0 8px 8px; }
+  .pixel-mouth.grin { top: 27px; width: 16px; height: 6px; background: #f7f2e8; border: 2px solid #4a2424; border-radius: 0 0 8px 8px; }
+  .look-facial { position: absolute; z-index: 3; pointer-events: none; }
+  .look-facial.beard { left: -3px; right: -3px; bottom: -3px; height: 11px; border: 3px solid rgba(20, 22, 38, .9); border-top: 0; border-radius: 0 0 6px 6px; }
+  .look-facial.mustache { left: 11px; right: 11px; top: 27px; height: 4px; }
+  .look-facial.goatee { left: 50%; margin-left: -7px; bottom: -3px; width: 14px; height: 10px; border: 3px solid rgba(20, 22, 38, .9); border-top: 0; }
+  .look-glasses { position: absolute; z-index: 5; top: 17px; left: 5px; right: 5px; height: 12px; display: flex; justify-content: space-between; align-items: center; pointer-events: none; }
+  .look-glasses::before { content: ''; position: absolute; left: 50%; top: 4px; width: 9px; height: 3px; transform: translateX(-50%); background: #171a2c; }
+  .look-glasses i { display: block; width: 16px; height: 11px; border: 3px solid #171a2c; background: rgba(103, 205, 209, .18); }
+  .look-glasses.round i { border-radius: 50%; }
+  .look-glasses.goggles i { border: 4px solid var(--look-accent); background: rgba(103, 205, 209, .35); border-radius: 3px; height: 12px; }
+  .look-glasses.goggles::before { background: var(--look-accent); }
+  .look-headwear { position: absolute; z-index: 6; pointer-events: none; }
+  .look-headwear.cap { top: -10px; left: -5px; width: 52px; height: 14px; background: var(--look-accent); border: 3px solid rgba(20, 22, 38, .9); border-radius: 8px 8px 2px 2px; }
+  .look-headwear.cap::after { content: ''; position: absolute; left: 4px; bottom: -9px; width: 28px; height: 6px; background: var(--look-accent); border: 3px solid rgba(20, 22, 38, .9); }
+  .look-headwear.beanie { top: -13px; left: -5px; width: 52px; height: 21px; background: var(--look-accent); border: 3px solid rgba(20, 22, 38, .9); border-radius: 15px 15px 2px 2px; }
+  .look-headwear.beanie::after { content: ''; position: absolute; left: -3px; right: -3px; bottom: -3px; height: 8px; background: rgba(255, 255, 255, .3); border-top: 3px solid rgba(20, 22, 38, .9); border-bottom: 3px solid rgba(20, 22, 38, .9); }
+  .look-headwear.headband { top: 3px; left: -4px; width: 50px; height: 7px; background: var(--look-accent); border: 3px solid rgba(20, 22, 38, .9); }
+  .look-headwear.mortarboard { top: -14px; left: -12px; width: 66px; height: 9px; background: #1a1b26; border: 3px solid rgba(20, 22, 38, .9); transform: skewX(-8deg); }
+  .look-headwear.mortarboard::before { content: ''; position: absolute; left: 14px; top: 6px; width: 30px; height: 10px; background: #1a1b26; border: 3px solid rgba(20, 22, 38, .9); z-index: -1; }
+  .look-headwear.mortarboard::after { content: ''; position: absolute; right: 1px; top: 3px; width: 4px; height: 19px; background: var(--look-accent); }
+  .look-neck { position: absolute; z-index: 4; pointer-events: none; }
+  .look-neck.tie { top: 2px; left: 50%; width: 9px; height: 34px; transform: translateX(-50%); background: var(--look-accent); border: 2px solid rgba(20, 22, 38, .9); clip-path: polygon(20% 0, 80% 0, 100% 68%, 50% 100%, 0 68%); }
+  .look-neck.bowtie { top: 2px; left: 50%; width: 20px; height: 12px; transform: translateX(-50%); background: var(--look-accent); clip-path: polygon(0 0, 45% 25%, 50% 0, 55% 25%, 100% 0, 70% 100%, 50% 70%, 30% 100%); }
+  .look-neck.scarf { top: -2px; left: -3px; right: -3px; height: 11px; background: var(--look-accent); border: 3px solid rgba(20, 22, 38, .9); border-radius: 3px; }
+  .look-neck.lanyard { top: 0; left: 50%; width: 5px; height: 26px; transform: translateX(-50%); background: var(--look-accent); }
+  .look-neck.lanyard::after { content: ''; position: absolute; left: 50%; bottom: -9px; width: 12px; height: 10px; transform: translateX(-50%); background: #f4f4ee; border: 2px solid #171a2c; }
+  .look-neck.whistle { top: 7px; right: 12px; width: 9px; height: 9px; border: 2px solid #171a2c; border-radius: 50%; background: var(--look-accent); }
+  .look-neck.whistle::after { content: ''; position: absolute; width: 2px; height: 15px; background: #171a2c; left: -6px; top: 5px; transform: rotate(28deg); transform-origin: top; }
+  .look-badge { position: absolute; z-index: 4; left: 7px; top: 14px; width: 11px; height: 8px; background: #f4f4ee; border: 2px solid #171a2c; border-radius: 1px; pointer-events: none; }
+  .pixel-avatar .pixel-body.build-broad { width: 66px; }
+  .pixel-avatar .pixel-body.build-slim { width: 50px; }
+  .battle-layout .enemy-fighter .pixel-avatar { filter: drop-shadow(0 14px 12px rgba(0, 0, 0, .32)); }
+
   .pixel-body {
     position: relative;
     z-index: 1;
@@ -4834,6 +4901,27 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     topColor: 'indigo' | 'coral' | 'cyan' | 'gold';
     bottomType: 'pants' | 'shorts' | 'skirt';
     shoes: 'dark' | 'white' | 'amber';
+    // Optional extended look. Only authored Challengers / friendly NPCs carry one (see
+    // CHARACTER_LOOKS); the player's own avatar never has it, so nothing about the
+    // player's customization, saved profile or Firestore data changes.
+    look?: CharacterLook;
+  };
+  type CharacterLook = {
+    hairStyle?: 'short' | 'long' | 'curly' | 'bald' | 'bun' | 'ponytail' | 'afro' | 'spiky' | 'sidepart' | 'buzz';
+    facial?: 'beard' | 'mustache' | 'goatee';
+    glasses?: 'round' | 'square' | 'goggles';
+    headwear?: 'cap' | 'beanie' | 'headband' | 'mortarboard';
+    neckwear?: 'tie' | 'bowtie' | 'scarf' | 'lanyard' | 'whistle';
+    badge?: boolean;
+    brows?: 'thin' | 'thick';
+    mouth?: 'smile' | 'neutral' | 'stern' | 'grin';
+    eyeColor?: string;
+    // Exact outfit colors (hex). They override the coarse topColor/bottomType palette.
+    topHex?: string; bottomHex?: string; shoeHex?: string;
+    // Color of the headwear / neckwear / badge accent.
+    accentHex?: string;
+    build?: 'slim' | 'average' | 'broad';
+    height?: number;
   };
   type Profile = { name: string; email: string; strand: string; avatar: AvatarConfig };
   type Quest = { id: string; title: string; meta: string; rewardXp: number; rewardCoins: number; done: boolean };
@@ -5550,26 +5638,40 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     const isCoachEnemy = variant === 'coach-enemy';
     const isDeanEnemy = variant === 'dean-enemy';
     const isEnemy = isTeacherEnemy || isResearcherEnemy || isCoachEnemy || isDeanEnemy;
+    // Authored Challenger / NPC characters carry a `look` (see CHARACTER_LOOKS). The player's own
+    // avatar has none, so every `look?.` branch below is skipped and it renders exactly as before.
+    const look = avatar.look;
+    const hairStyle = look?.hairStyle ?? avatar.hair;
+    const topBg = look?.topHex ?? `var(--outfit-${avatar.topColor})`;
+    const rootStyle = look ? ({ '--look-accent': look.accentHex ?? '#e0b13d', '--look-hair': avatar.hairColor } as CSSProperties) : undefined;
+    const buildClass = look?.build === 'slim' ? 'build-slim' : look?.build === 'broad' ? 'build-broad' : '';
     return (
-      <div className={`pixel-avatar ${size} ${isEnemy ? `${variant}-avatar` : ''}`} aria-label={`${initials} pixel avatar`}>
+      <div className={`pixel-avatar ${size} ${isEnemy ? `${variant}-avatar` : ''}`} style={rootStyle} aria-label={`${initials} pixel avatar`}>
         <div className="pixel-shadow" />
         <div className="pixel-head" style={{ background: avatar.skin }}>
-          {avatar.hair !== 'bald' && <div className={`pixel-hair ${avatar.hair}`} style={{ background: avatar.hairColor }} />}
-          <span className="pixel-eye left" /><span className="pixel-eye right" />
+          {hairStyle !== 'bald' && <div className={`pixel-hair ${hairStyle}`} style={{ background: avatar.hairColor }} />}
+          <span className="pixel-eye left" style={look?.eyeColor ? { background: look.eyeColor } : undefined} /><span className="pixel-eye right" style={look?.eyeColor ? { background: look.eyeColor } : undefined} />
+          {look?.brows && <><span className={`pixel-brow left ${look.brows}`} style={{ background: avatar.hairColor }} /><span className={`pixel-brow right ${look.brows}`} style={{ background: avatar.hairColor }} /></>}
+          {look?.mouth && <span className={`pixel-mouth ${look.mouth}`} />}
+          {look?.facial && <span className={`look-facial ${look.facial}`} style={{ background: avatar.hairColor }} />}
+          {look?.glasses && <span className={`look-glasses ${look.glasses}`} aria-hidden="true"><i /><i /></span>}
+          {look?.headwear && <span className={`look-headwear ${look.headwear}`} aria-hidden="true" />}
           {isTeacherEnemy && <span className="teacher-glasses" aria-hidden="true"><i /><i /></span>}
           {isResearcherEnemy && <span className="researcher-goggles" aria-hidden="true"><i /><i /></span>}
         </div>
-        <div className={`pixel-body ${avatar.gender} ${avatar.topType}`} style={{ background: `var(--outfit-${avatar.topColor})` }}>
+        <div className={`pixel-body ${avatar.gender} ${avatar.topType}${buildClass ? ` ${buildClass}` : ''}`} style={{ background: topBg }}>
           <span className="pixel-arm left" style={{ background: avatar.skin }} /><span className="pixel-arm right" style={{ background: avatar.skin }} />
+          {look?.neckwear && <span className={`look-neck ${look.neckwear}`} aria-hidden="true" />}
+          {look?.badge && <span className="look-badge" aria-hidden="true" />}
           {isTeacherEnemy && <span className="teacher-tie" aria-hidden="true" />}
           {isResearcherEnemy && <span className="researcher-badge" aria-hidden="true">+</span>}
           {isCoachEnemy && <span className="coach-whistle" aria-hidden="true" />}
           {isDeanEnemy && <span className="dean-bowtie" aria-hidden="true" />}
         </div>
         {avatar.bottomType === 'skirt'
-          ? <div className="pixel-skirt" style={{ background: `var(--outfit-${avatar.topColor})` }} />
-          : <div className={`pixel-legs ${avatar.bottomType}`}><span className="pixel-leg" /><span className="pixel-leg" /></div>}
-        <div className={`pixel-shoes ${avatar.shoes} ${avatar.bottomType === 'skirt' ? 'skirt-shoes' : ''}`}><span /><span /></div>
+          ? <div className="pixel-skirt" style={{ background: look?.bottomHex ?? topBg }} />
+          : <div className={`pixel-legs ${avatar.bottomType}`}><span className="pixel-leg" style={look?.bottomHex ? { background: look.bottomHex } : undefined} /><span className="pixel-leg" style={look?.bottomHex ? { background: look.bottomHex } : undefined} /></div>}
+        <div className={`pixel-shoes ${avatar.shoes} ${avatar.bottomType === 'skirt' ? 'skirt-shoes' : ''}`}><span style={look?.shoeHex ? { background: look.shoeHex } : undefined} /><span style={look?.shoeHex ? { background: look.shoeHex } : undefined} /></div>
         <span className="avatar-initials">{initials}</span>
       </div>
     );
@@ -6654,31 +6756,73 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     return hash;
   };
 
-  // Every quest has a deliberately authored enemy identity. The loadout is owned by the
-  // challenger, never by the player, so changing the player's profile can never change an
-  // enemy. Each quest uses a different silhouette/outfit/accessory combination.
-  const getChallengerAvatar = (challenger: Pick<CampusChallenger, 'id' | 'name' | 'style'>): AvatarConfig => {
-    const seed = hashSeed(`${challenger.id}:${challenger.name}`);
-    const skins = ['#f1c6a8', '#d59a78', '#8d5a42', '#6d4437'] as const;
-    const skin = skins[seed % skins.length];
-    switch (challenger.style) {
-      case 'researcher':
-        return { gender: 'neutral', skin, hair: 'short', hairColor: '#242033', topType: 'jacket', topColor: 'cyan', bottomType: 'pants', shoes: 'white' };
-      case 'professor':
-        return { gender: 'feminine', skin, hair: 'long', hairColor: '#3a2028', topType: 'jacket', topColor: 'coral', bottomType: 'skirt', shoes: 'dark' };
-      case 'coach':
-        return { gender: 'neutral', skin, hair: 'curly', hairColor: '#5b3a29', topType: 'hoodie', topColor: 'gold', bottomType: 'shorts', shoes: 'amber' };
-      case 'dean':
-      default:
-        return { gender: 'neutral', skin, hair: 'bald', hairColor: '#1c1c1c', topType: 'jacket', topColor: 'indigo', bottomType: 'pants', shoes: 'dark' };
-    }
+  // ---------------------------------------------------------------------------------
+  // Character appearances. Every Challenger and friendly NPC has ONE authored, stable look
+  // keyed by its permanent id — never random per render, never derived from the player.
+  // The same object feeds the 3D campus (makeHumanoid), the Quest Briefing and the Battle
+  // (AvatarFigure), so the character you meet is exactly the character you fight, on every
+  // encounter, retry and revisit. `auditCharacterAppearances` (below) flags any two
+  // characters that drift too close together.
+  // ---------------------------------------------------------------------------------
+  const av = (
+    gender: AvatarConfig['gender'], skin: string, hair: AvatarConfig['hair'], hairColor: string,
+    topType: AvatarConfig['topType'], topColor: AvatarConfig['topColor'], bottomType: AvatarConfig['bottomType'], shoes: AvatarConfig['shoes'],
+    look: CharacterLook,
+  ): AvatarConfig => ({ gender, skin, hair, hairColor, topType, topColor, bottomType, shoes, look });
+
+  const CHALLENGER_LOOKS: Record<string, AvatarConfig> = {
+    // Foundation
+    npc_1: av('neutral', '#c08460', 'short', '#d9d4cc', 'jacket', 'cyan', 'pants', 'dark', { hairStyle: 'sidepart', glasses: 'round', neckwear: 'tie', brows: 'thick', mouth: 'stern', eyeColor: '#5a3a24', topHex: '#e6ebee', bottomHex: '#23304a', accentHex: '#8a1f2e', build: 'average', height: 1.02 }),
+    npc_2: av('feminine', '#a56b49', 'long', '#16121a', 'hoodie', 'coral', 'pants', 'dark', { hairStyle: 'ponytail', glasses: 'square', neckwear: 'lanyard', badge: true, brows: 'thin', mouth: 'neutral', eyeColor: '#3b2a1f', topHex: '#d9684f', bottomHex: '#394867', accentHex: '#f2b84b', build: 'slim', height: 0.96 }),
+    npc_3: av('neutral', '#e0ac85', 'short', '#b7792f', 'hoodie', 'gold', 'shorts', 'white', { hairStyle: 'short', headwear: 'cap', neckwear: 'whistle', brows: 'thick', mouth: 'grin', eyeColor: '#2f7d5b', topHex: '#2f9e6b', bottomHex: '#2b3a55', shoeHex: '#f1f1ea', accentHex: '#d4a23a', build: 'average', height: 1.0 }),
+    npc_4: av('neutral', '#8d5a42', 'bald', '#1c1c1c', 'jacket', 'indigo', 'pants', 'dark', { hairStyle: 'bald', facial: 'mustache', headwear: 'mortarboard', neckwear: 'bowtie', brows: 'thick', mouth: 'stern', eyeColor: '#2a1a12', topHex: '#2c2f6b', bottomHex: '#1d1f2e', accentHex: '#e0b13d', build: 'broad', height: 1.04 }),
+    // Advanced
+    npc_5: av('neutral', '#f1c6a8', 'short', '#3b2a1f', 'tshirt', 'coral', 'shorts', 'amber', { hairStyle: 'buzz', headwear: 'headband', neckwear: 'whistle', brows: 'thick', mouth: 'grin', eyeColor: '#2b6cb0', topHex: '#c4412f', bottomHex: '#222a3a', accentHex: '#ffffff', build: 'broad', height: 1.05 }),
+    npc_6: av('feminine', '#f6d5bd', 'long', '#7a3b2e', 'jacket', 'cyan', 'pants', 'white', { hairStyle: 'bun', glasses: 'goggles', badge: true, brows: 'thin', mouth: 'smile', eyeColor: '#2f8f6b', topHex: '#2a8f86', bottomHex: '#2e3a46', accentHex: '#e7f6f7', build: 'slim', height: 0.97 }),
+    npc_7: av('neutral', '#e0ac85', 'short', '#5b3a29', 'jacket', 'gold', 'pants', 'dark', { hairStyle: 'sidepart', glasses: 'square', facial: 'beard', neckwear: 'tie', brows: 'thick', mouth: 'neutral', eyeColor: '#4a3a2a', topHex: '#6b3d2e', bottomHex: '#3b3b3b', accentHex: '#2d6a4f', build: 'average', height: 1.06 }),
+    npc_8: av('feminine', '#6d4437', 'curly', '#16121a', 'jacket', 'indigo', 'skirt', 'dark', { hairStyle: 'afro', glasses: 'round', neckwear: 'scarf', brows: 'thin', mouth: 'smile', eyeColor: '#2a1a12', topHex: '#5b2a86', bottomHex: '#2b2140', accentHex: '#d8b4fe', build: 'average', height: 1.0 }),
+    // Expert
+    npc_9: av('feminine', '#d59a78', 'curly', '#8a5a2b', 'hoodie', 'cyan', 'pants', 'amber', { hairStyle: 'curly', headwear: 'beanie', neckwear: 'lanyard', badge: true, brows: 'thin', mouth: 'smile', eyeColor: '#6b8e23', topHex: '#4f7a3a', bottomHex: '#4a3f2e', accentHex: '#d9a441', build: 'average', height: 0.98 }),
+    npc_10: av('neutral', '#4e3126', 'short', '#0f0d12', 'tshirt', 'indigo', 'shorts', 'white', { hairStyle: 'short', headwear: 'cap', facial: 'mustache', brows: 'thick', mouth: 'grin', eyeColor: '#1c1410', topHex: '#1e5fbf', bottomHex: '#161a24', shoeHex: '#f4f4f0', accentHex: '#0f2a5a', build: 'broad', height: 1.07 }),
+    npc_11: av('feminine', '#c08460', 'long', '#2d3a5c', 'jacket', 'coral', 'pants', 'dark', { hairStyle: 'long', glasses: 'square', neckwear: 'scarf', brows: 'thin', mouth: 'neutral', eyeColor: '#3b2f2f', topHex: '#7d2e46', bottomHex: '#2b2f3d', accentHex: '#e07a5f', build: 'average', height: 1.0 }),
+    npc_12: av('neutral', '#f6d5bd', 'short', '#d9d4cc', 'jacket', 'indigo', 'pants', 'dark', { hairStyle: 'short', glasses: 'square', facial: 'beard', neckwear: 'tie', badge: true, brows: 'thick', mouth: 'stern', eyeColor: '#6a7f8f', topHex: '#2b2b33', bottomHex: '#1b1b22', accentHex: '#111111', build: 'average', height: 1.03 }),
+    // Mastery
+    npc_13: av('feminine', '#e0ac85', 'long', '#cfcac2', 'jacket', 'gold', 'skirt', 'amber', { hairStyle: 'long', headwear: 'headband', badge: true, brows: 'thin', mouth: 'smile', eyeColor: '#4b7f9b', topHex: '#b8892b', bottomHex: '#3a2a14', accentHex: '#f6d365', build: 'slim', height: 1.01 }),
+    npc_14: av('neutral', '#a56b49', 'short', '#6b4a7a', 'jacket', 'indigo', 'pants', 'white', { hairStyle: 'spiky', glasses: 'goggles', badge: true, brows: 'thin', mouth: 'neutral', eyeColor: '#7a4bb0', topHex: '#3b2f63', bottomHex: '#1d1b2c', shoeHex: '#d8d3e8', accentHex: '#9b7bd6', build: 'slim', height: 1.06 }),
+    npc_15: av('neutral', '#f1c6a8', 'curly', '#c9a24a', 'hoodie', 'coral', 'shorts', 'amber', { hairStyle: 'curly', facial: 'goatee', headwear: 'headband', neckwear: 'whistle', brows: 'thick', mouth: 'grin', eyeColor: '#3a6b9a', topHex: '#9b2c2c', bottomHex: '#1f2937', accentHex: '#f1f1ea', build: 'broad', height: 1.03 }),
+    npc_16: av('neutral', '#d59a78', 'bald', '#d9d4cc', 'jacket', 'cyan', 'pants', 'dark', { hairStyle: 'bald', facial: 'beard', glasses: 'round', headwear: 'mortarboard', neckwear: 'bowtie', brows: 'thick', mouth: 'stern', eyeColor: '#4a4a4a', topHex: '#14323a', bottomHex: '#1c1c1c', accentHex: '#b02a37', build: 'average', height: 0.98 }),
   };
 
-  const getChallengerVariant = (challenger: Pick<CampusChallenger, 'style'>): 'default' | 'teacher-enemy' | 'researcher-enemy' | 'coach-enemy' | 'dean-enemy' => {
-    if (challenger.style === 'professor') return 'teacher-enemy';
-    if (challenger.style === 'researcher') return 'researcher-enemy';
-    if (challenger.style === 'coach') return 'coach-enemy';
-    return 'dean-enemy';
+  // Deterministic last resort for an id with no authored look (e.g. a Challenger added later
+  // and not yet given one). Seeded purely from the id, so it is still stable across renders.
+  const buildFallbackAvatar = (id: string, style?: ChallengerStyle): AvatarConfig => {
+    const seed = hashSeed(id);
+    const pick = <T,>(list: readonly T[], shift: number): T => list[Math.floor(seed / Math.pow(7, shift)) % list.length];
+    const skins = ['#f6d5bd', '#f1c6a8', '#e0ac85', '#d59a78', '#c08460', '#a56b49', '#8d5a42', '#6d4437', '#4e3126'] as const;
+    const hairs = ['#16121a', '#3a2028', '#5b3a29', '#8a5a2b', '#b7792f', '#c9a24a', '#d9d4cc', '#2d3a5c'] as const;
+    const tops = ['#5b2a86', '#2a8f86', '#c4412f', '#2c2f6b', '#4f7a3a', '#9b2c2c', '#b8892b', '#3b2f63'] as const;
+    const styles = ['short', 'long', 'curly', 'bun', 'ponytail', 'afro', 'spiky', 'sidepart', 'buzz'] as const;
+    const hairStyle = pick(styles, 3);
+    return {
+      gender: seed % 2 === 0 ? 'neutral' : 'feminine', skin: pick(skins, 0), hair: hairStyle === 'long' ? 'long' : hairStyle === 'curly' ? 'curly' : 'short', hairColor: pick(hairs, 1),
+      topType: 'jacket', topColor: 'indigo', bottomType: 'pants', shoes: 'dark',
+      look: {
+        hairStyle, brows: 'thick', mouth: 'stern', topHex: pick(tops, 2), bottomHex: '#252a38', build: 'average', height: 1,
+        glasses: style === 'professor' || style === 'researcher' ? 'round' : undefined,
+        neckwear: style === 'dean' ? 'bowtie' : style === 'coach' ? 'whistle' : 'tie', accentHex: '#e0b13d',
+      },
+    };
+  };
+
+  // One shared object per Challenger id: the campus, briefing and battle all receive the
+  // very same reference, so they can never diverge.
+  const challengerAvatarCache = new Map<string, AvatarConfig>();
+  const getChallengerAvatar = (challenger: Pick<CampusChallenger, 'id' | 'name' | 'style'>): AvatarConfig => {
+    const cached = challengerAvatarCache.get(challenger.id);
+    if (cached) return cached;
+    const avatar = CHALLENGER_LOOKS[challenger.id] ?? buildFallbackAvatar(challenger.id, challenger.style);
+    challengerAvatarCache.set(challenger.id, avatar);
+    return avatar;
   };
 
   // Quiz plan: every Challenger is bound to exactly ONE topic (QuizTopic) of the player's own
@@ -6846,26 +6990,173 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     { id: 'note_5', x: 13.5, y: 18.5, title: 'Crumpled Flyer', hint: 'Review tip: eliminate the two most extreme answer choices first on multiple choice.' },
   ];
 
-  // NPC guides: friendly, non-battle campus staff who drop context, rumors, and hints about the
-  // challengers and the sealed Mastery Citadel gate. Triggered once per visit, via an actual
-  // tap/click (see interactGuide()) — not proximity.
-  // Most just talk — but the Librarian actually hands over something (a small credit/XP bonus),
-  // so guides feel like real campus resources you'd want to seek out, not just lore triggers.
-  type CampusGuide = { id: string; x: number; y: number; dir: number; name: string; lines: string[]; reward?: { coins: number; xp: number } };
-  const CAMPUS_GUIDES: CampusGuide[] = [
-    { id: 'guide_1', x: 13.5, y: 8.5, dir: FACE_S, name: 'Campus Custodian Reyes', lines: [
-      "The Mastery Citadel gate won't budge till all three Districts are cleared.",
-      'I sweep these halls every night — still find lost notes tucked under the benches.',
-    ] },
-    { id: 'guide_2', x: 5.5, y: 19.5, dir: FACE_S, name: 'Peer Tutor Mira Santos', lines: [
-      'Teaching Fellow Owens runs the review sessions out in the Practice Wilds — south of here.',
-      'TA Priya Santos holds office hours in the Foundation District. Fundamentals-first questions, mostly.',
-    ] },
-    { id: 'guide_3', x: 20.5, y: 28.5, dir: FACE_W, name: 'Head Librarian Alderman', lines: [
-      "Here — every student who actually stops by gets a little something for it.",
-      "Dr. Reyes up in the Peaks has a reputation, but the material is fair if you've studied.",
-    ], reward: { coins: 25, xp: 15 } },
+  // Friendly NPCs — campus staff and tutors. This is a completely separate system from
+  // Challengers (CAMPUS_CHALLENGERS above): NPCs talk, tutor, review lessons, share hints,
+  // campus info and fun facts, and may hand out a small learning reward — but they never
+  // start a quest, briefing, quiz or battle, and Challengers never use this dialogue.
+  //  - ids use the `guide_*` namespace (kept as-is so existing players' saved
+  //    `discoveredGuideIds` still mark who they've already met); Challenger ids are `npc_*`.
+  //  - each NPC owns a fixed `avatar`, used in the 3D campus AND on the conversation screen.
+  //  - `tutorSlots` are the topic slots (see QUIZ_TOPICS) that NPC can tutor in the player's
+  //    own strand; an empty list means a non-tutoring NPC (campus info, facts only).
+  // The first conversation grants `reward` once (tracked by discoveredGuideIds); talking
+  // again is always free to repeat but never pays twice.
+  type CampusNpc = { id: string; x: number; y: number; dir: number; name: string; role: string; avatar: AvatarConfig; greeting: string; campusInfo: string[]; tutorSlots: number[]; reward?: { coins: number; xp: number } };
+  const CAMPUS_NPCS: CampusNpc[] = [
+    { id: 'guide_1', x: 13.5, y: 8.5, dir: FACE_S, name: 'Campus Custodian Reyes', role: 'Campus Custodian',
+      avatar: av('neutral', '#d59a78', 'short', '#8a8a8a', 'hoodie', 'indigo', 'pants', 'dark', { hairStyle: 'short', facial: 'mustache', headwear: 'cap', badge: true, brows: 'thick', mouth: 'smile', eyeColor: '#4a3a2a', topHex: '#3e6a8a', bottomHex: '#4b4f58', accentHex: '#2f6f73', build: 'broad', height: 0.99 }),
+      greeting: 'Mind the wet floor! I keep these halls tidy — and I know every corner of the campus. Anything you want to know?',
+      campusInfo: [
+        'The Mastery Citadel gate stays sealed until you have cleared Dr. Reyes, TA Priya Santos and Teaching Fellow Owens.',
+        'Past the Citadel, the Advanced Wing, Expert Enclave and Mastery Vault each open once you have cleared the hall before them.',
+        'The glowing purple shards on the floor are lost notes — each one holds a quick review tip. I still find them tucked under the benches.',
+        'The figures marked with a crossed-swords badge are Challengers. They run quests. Folks like me just talk!',
+      ],
+      tutorSlots: [] },
+    { id: 'guide_2', x: 22.5, y: 19.5, dir: FACE_S, name: 'Peer Tutor Mira Santos', role: 'Peer Tutor',
+      avatar: av('feminine', '#f1c6a8', 'curly', '#5b3a29', 'tshirt', 'cyan', 'shorts', 'white', { hairStyle: 'curly', glasses: 'round', headwear: 'headband', brows: 'thin', mouth: 'grin', eyeColor: '#3a6b4a', topHex: '#35a7b8', bottomHex: '#d9d2c3', accentHex: '#f4a261', build: 'slim', height: 0.95 }),
+      greeting: 'Hi! I tutor the fundamentals. Pick a lesson and I will walk you through it — no scores, no pressure.',
+      campusInfo: [
+        'The Foundation District, Practice Wilds and Challenge Peaks each have a Challenger waiting with a quiz on one topic.',
+        'Every Challenger quizzes exactly one lesson, so reviewing it with me first is a great warm-up.',
+        'Your results only count when you accept a Challenger’s quest — practicing with me never affects your record.',
+      ],
+      tutorSlots: [0, 1, 2, 3] },
+    // Stands inside the Library (east reading nook, clear of the shelves and the entrance aisle)
+    // instead of out on the walkway south of it.
+    { id: 'guide_3', x: 22.5, y: 25.5, dir: FACE_W, name: 'Head Librarian Alderman', role: 'Head Librarian',
+      avatar: av('neutral', '#8d5a42', 'bald', '#cfcac2', 'jacket', 'gold', 'pants', 'amber', { hairStyle: 'bald', facial: 'beard', glasses: 'round', neckwear: 'bowtie', brows: 'thick', mouth: 'smile', eyeColor: '#2a1a12', topHex: '#a67c3a', bottomHex: '#3d3326', accentHex: '#7a1f2e', build: 'average', height: 1.0 }),
+      greeting: 'Welcome to the stacks. Every student who stops by gets a little something for it — and I can help with the harder lessons, too.',
+      campusInfo: [
+        'The library keeps review notes for every strand — ask for a lesson and I will go over the key ideas.',
+        'Dr. Reyes up in the Challenge Peaks has a reputation, but the material is fair if you have studied.',
+        'Lessons in the Expert Enclave and Mastery Vault go deeper into the same topics — a good reason to review first.',
+      ],
+      tutorSlots: [4, 5, 6, 7], reward: { coins: 25, xp: 15 } },
+    // --- Staff placed in the buildings and walkways of the first campus area. They only
+    // talk, tutor (ungraded) and share campus info / facts: no rewards, no quests.
+    // Faculty offices (Administration Hall)
+    { id: 'guide_4', x: 9.5, y: 3.5, dir: FACE_S, name: 'Registrar Corazon Bautista', role: 'University Registrar',
+      avatar: av('feminine', '#e0ac85', 'long', '#2a2230', 'jacket', 'indigo', 'skirt', 'dark', { hairStyle: 'bun', glasses: 'square', neckwear: 'lanyard', badge: true, brows: 'thin', mouth: 'smile', eyeColor: '#4a3a2a', topHex: '#7a4a8a', bottomHex: '#33283d', accentHex: '#e9c46a', build: 'average', height: 0.99 }),
+      greeting: 'Administration Hall, records desk. Nobody gets a gold star from me for showing up, but I do keep the campus running. How can I help?',
+      campusInfo: [
+        'Each tier boundary has a sealed gate. It opens once every quest in the tier before it is cleared.',
+        'Challengers wear a crossed-swords badge and run quests. Everyone else here is happy to just talk.',
+        'The Laboratory is just south-west of the main entrance, and the Classroom and Library sit side by side further south.',
+      ],
+      tutorSlots: [] },
+    { id: 'guide_5', x: 17.5, y: 3.5, dir: FACE_S, name: 'Faculty Adviser Emil Navarro', role: 'Faculty Adviser',
+      avatar: av('neutral', '#c08460', 'short', '#3a2028', 'jacket', 'cyan', 'pants', 'amber', { hairStyle: 'sidepart', neckwear: 'tie', brows: 'thin', mouth: 'smile', eyeColor: '#3b2f2f', topHex: '#a8b5c4', bottomHex: '#4a4036', accentHex: '#2a7f62', build: 'average', height: 1.03 }),
+      greeting: 'Come in, come in. My door is always open to students who want to talk through the harder lessons.',
+      campusInfo: [
+        'Reviewing a lesson here never touches your quest record. Only an accepted Challenger quest counts.',
+        'Lost notes drift around the campus, and each one holds a quick review tip.',
+      ],
+      tutorSlots: [4, 5] },
+    // Laboratory
+    { id: 'guide_6', x: 8.5, y: 11.5, dir: FACE_S, name: 'Lab Technician Joaquin Lim', role: 'Lab Technician',
+      avatar: av('neutral', '#f6d5bd', 'short', '#16121a', 'jacket', 'cyan', 'pants', 'white', { hairStyle: 'spiky', glasses: 'goggles', badge: true, brows: 'thin', mouth: 'grin', eyeColor: '#2b6cb0', topHex: '#eef2f4', bottomHex: '#2c3b4d', accentHex: '#3fb6c4', build: 'slim', height: 1.0 }),
+      greeting: 'Goggles on! I keep the equipment running in here. Happy to talk through a lesson if you are curious.',
+      campusInfo: [
+        'The Foundation District Challenger is in the Laboratory, a good place to start if you are new.',
+        'Dimensional analysis catches unit errors before they catch you. Check the units first, always.',
+      ],
+      tutorSlots: [0, 1] },
+    // Classroom
+    { id: 'guide_7', x: 9.5, y: 25.5, dir: FACE_N, name: 'Class Adviser Teresa Ramos', role: 'Class Adviser',
+      avatar: av('feminine', '#a56b49', 'long', '#3a2028', 'jacket', 'gold', 'skirt', 'amber', { hairStyle: 'long', neckwear: 'scarf', brows: 'thin', mouth: 'smile', eyeColor: '#3b2a1f', topHex: '#3f7d4e', bottomHex: '#2f3b2f', accentHex: '#f2cc8f', build: 'average', height: 0.98 }),
+      greeting: 'Take a seat anywhere. This room is for review, not for tests. Which lesson shall we go over?',
+      campusInfo: [
+        'The Practice Wilds are all about repetition. The more sets you answer, the more automatic it gets.',
+        'A tough question is usually easier once you eliminate the answers that are clearly wrong.',
+      ],
+      tutorSlots: [2, 3] },
+    // Courtyard walkway
+    { id: 'guide_8', x: 4.5, y: 7.5, dir: FACE_E, name: 'Student Ambassador Kai Mendoza', role: 'Student Ambassador',
+      avatar: av('neutral', '#e0ac85', 'short', '#8a5a2b', 'hoodie', 'gold', 'shorts', 'white', { hairStyle: 'short', headwear: 'beanie', badge: true, brows: 'thin', mouth: 'grin', eyeColor: '#5a3a24', topHex: '#f2b84b', bottomHex: '#2b3a55', accentHex: '#e76f51', build: 'slim', height: 0.97 }),
+      greeting: 'Hey, new face! I show students around the courtyard. Ask me anything, or ask for a fun fact.',
+      campusInfo: [
+        'Straight ahead from the main entrance is the courtyard. The Laboratory is on the west side.',
+        'Challenge Peaks, the open pavilion on the east side, is where Dr. Reyes runs the Research Defense quest.',
+        'Walking over a glowing shard picks up a lost note with a quick study tip.',
+      ],
+      tutorSlots: [] },
   ];
+  // Short, verified fun facts for the "Tell me something interesting" choice, per strand.
+  const NPC_FUN_FACTS: Record<string, string[]> = {
+    STEM: [
+      'A day on Venus is longer than its year: it takes about 243 Earth days to spin once, but only about 225 to orbit the Sun.',
+      'Water is densest at about 4°C, which is why ice floats and lakes freeze from the top down.',
+      'Your body is made of roughly 37 trillion cells, each running its own tiny power plants called mitochondria.',
+    ],
+    ABM: [
+      'The Rule of 72: divide 72 by an interest rate to estimate how many years it takes money to double.',
+      'Luca Pacioli described double-entry bookkeeping in a book published in 1494 — the same method accountants use today.',
+      'The Bangko Sentral ng Pilipinas, the country’s central bank, was established in 1993.',
+    ],
+    HUMSS: [
+      'Noli Me Tangere was first published in Berlin in 1887.',
+      'Before the Spanish arrived, many Filipinos wrote using the Baybayin script.',
+      'Socrates never wrote down his philosophy; most of what we know of it comes from his student Plato.',
+    ],
+    'GENERAL KNOWLEDGE': [
+      'Octopuses have three hearts and blue blood.',
+      'The Philippines is made up of more than 7,000 islands.',
+      'Botanically, bananas are berries — but strawberries are not.',
+    ],
+  };
+
+  // Self-check that NPCs and Challengers stay separate: disjoint ids, no NPC standing inside a
+  // Challenger's interaction range (so the "nearest target" rule can never be ambiguous), and
+  // every NPC tutor slot pointing at a real topic in every strand.
+  const auditCharacterSeparation = () => {
+    const challengerIds = new Set(CAMPUS_CHALLENGERS.map((c) => c.id));
+    if (new Set(CAMPUS_NPCS.map((n) => n.id)).size !== CAMPUS_NPCS.length) console.error('[characters] duplicate NPC ids');
+    for (const npc of CAMPUS_NPCS) {
+      if (challengerIds.has(npc.id)) console.error(`[characters] ${npc.id} is both an NPC and a Challenger`);
+      for (const c of CAMPUS_CHALLENGERS) {
+        if (Math.hypot(npc.x - c.x, npc.y - c.y) < 6) console.error(`[characters] NPC ${npc.id} stands within 6 tiles of Challenger ${c.id}`);
+      }
+      for (const strandKey of STRAND_KEYS) {
+        for (const slot of npc.tutorSlots) if (!QUIZ_TOPICS[strandKey]?.[slot]) console.error(`[characters] ${npc.id} tutors missing ${strandKey} topic ${slot}`);
+        if (!NPC_FUN_FACTS[strandKey]?.length) console.error(`[characters] no fun facts for ${strandKey}`);
+      }
+    }
+  };
+  auditCharacterSeparation();
+
+  // Placement + appearance self-check (dev-console only, like the audit above): every character
+  // must stand on an open floor tile, friendly NPCs must not crowd each other, and no two
+  // characters (Challenger or NPC) may look alike. "Alike" = fewer than 5 differing traits out
+  // of the list below, so a recolor of the same outfit still counts as a duplicate.
+  const auditCharacterAppearances = () => {
+    const everyone: { id: string; x: number; y: number; avatar: AvatarConfig }[] = [
+      ...CAMPUS_CHALLENGERS.map((c) => ({ id: c.id, x: c.x, y: c.y, avatar: getChallengerAvatar(c) })),
+      ...CAMPUS_NPCS.map((n) => ({ id: n.id, x: n.x, y: n.y, avatar: n.avatar })),
+    ];
+    for (const c of everyone) {
+      if (CAMPUS_MAP[Math.floor(c.y)]?.[Math.floor(c.x)] !== 0) console.error(`[characters] ${c.id} is not standing on an open floor tile`);
+      if (!c.avatar.look) console.error(`[characters] ${c.id} has no authored look`);
+    }
+    for (let i = 0; i < CAMPUS_NPCS.length; i++) {
+      for (let j = i + 1; j < CAMPUS_NPCS.length; j++) {
+        const a = CAMPUS_NPCS[i], b = CAMPUS_NPCS[j];
+        if (Math.hypot(a.x - b.x, a.y - b.y) < 3) console.error(`[characters] NPCs ${a.id} and ${b.id} stand too close together`);
+      }
+    }
+    const traits = (a: AvatarConfig): (string | number | boolean | undefined)[] => {
+      const l = a.look ?? {};
+      return [a.gender, a.skin, l.hairStyle ?? a.hair, a.hairColor, l.topHex ?? a.topColor, l.bottomHex ?? a.bottomType, l.shoeHex ?? a.shoes, l.glasses, l.facial, l.headwear, l.neckwear, l.badge, l.eyeColor, l.build, l.brows, l.mouth];
+    };
+    for (let i = 0; i < everyone.length; i++) {
+      for (let j = i + 1; j < everyone.length; j++) {
+        const ta = traits(everyone[i].avatar), tb = traits(everyone[j].avatar);
+        const diff = ta.reduce<number>((n, v, k) => n + (v !== tb[k] ? 1 : 0), 0);
+        if (diff < 5) console.error(`[characters] ${everyone[i].id} and ${everyone[j].id} look too similar (${diff} differing traits)`);
+      }
+    }
+  };
+  auditCharacterAppearances();
 
   // Locked gate: a wall tile (5) that only opens once every id in requiredIds has been defeated.
   // It's the sole passage into the Mastery Citadel, so it gates real progress behind mastery
@@ -6995,7 +7286,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
   // foreshorten it by viewing angle. See the `signs.forEach` render pass below.
   const SIGN_NORMALS: Record<CampusSign['side'], [number, number]> = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] };
 
-  function CampusExplorer({ level, strand, avatar, defeatedIds, discoveredChallengerIds, discoveredNoteIds, discoveredGuideIds, initialPosition, savedPosition, onSavePosition, onChallengerFound, onExit, notify, soundEnabled, onReward, onDiscover, onReplayTutorial }: { level: number; strand: string; avatar: AvatarConfig; defeatedIds: string[]; discoveredChallengerIds: string[]; discoveredNoteIds: string[]; discoveredGuideIds: string[]; initialPosition?: CampusReturnPosition | null; savedPosition?: SavedCampusPosition | null; onSavePosition?: (pos: SavedCampusPosition) => void; onChallengerFound: (challenger: CampusChallenger, position: CampusReturnPosition) => void; onExit: () => void; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void; soundEnabled: boolean; onReward: (coins: number, xp: number) => void; onDiscover: (kind: 'challenger' | 'note' | 'guide', id: string) => void; onReplayTutorial: () => void }) {
+  function CampusExplorer({ level, strand, avatar, defeatedIds, discoveredChallengerIds, discoveredNoteIds, discoveredGuideIds, initialPosition, savedPosition, onSavePosition, onChallengerFound, onNpcTalk, onExit, notify, soundEnabled, onReward, onDiscover, onReplayTutorial }: { level: number; strand: string; avatar: AvatarConfig; defeatedIds: string[]; discoveredChallengerIds: string[]; discoveredNoteIds: string[]; discoveredGuideIds: string[]; initialPosition?: CampusReturnPosition | null; savedPosition?: SavedCampusPosition | null; onSavePosition?: (pos: SavedCampusPosition) => void; onChallengerFound: (challenger: CampusChallenger, position: CampusReturnPosition) => void; onNpcTalk: (npc: CampusNpc, position: CampusReturnPosition) => void; onExit: () => void; notify: (title: string, copy: string, tone?: ToastItem['tone']) => void; soundEnabled: boolean; onReward: (coins: number, xp: number) => void; onDiscover: (kind: 'challenger' | 'note' | 'guide', id: string) => void; onReplayTutorial: () => void }) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const worldRef = useRef<HTMLDivElement | null>(null);
     const promptRef = useRef<HTMLDivElement | null>(null);
@@ -7015,6 +7306,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     defeatedIdsRef.current = defeatedIds;
     const onFoundRef = useRef(onChallengerFound);
     onFoundRef.current = onChallengerFound;
+    const onNpcTalkRef = useRef(onNpcTalk);
+    onNpcTalkRef.current = onNpcTalk;
     const onSavePositionRef = useRef(onSavePosition);
     onSavePositionRef.current = onSavePosition;
     const notifyRef = useRef(notify);
@@ -7278,7 +7571,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           }
         }
 
-        guides.forEach((g) => dot(g.x, g.y, 2.8, '#67cdd1'));
+        friendlyNpcs.forEach((g) => dot(g.x, g.y, 2.8, '#67cdd1'));
         notes.forEach((n) => { if (!collectedNotes.has(n.id)) dot(n.x, n.y, 2.1, '#d8b4fe'); });
         gates.forEach((g) => { if (!g.open) dot(g.x, g.y, 3.1, '#fb7185', 'rgba(255,255,255,.7)'); });
 
@@ -7319,7 +7612,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
       const challengerAvatars = new Map(challengers.map((c) => [c.id, getChallengerAvatar(c)]));
       const notes = CAMPUS_NOTES.map((n) => ({ ...n }));
-      const guides = CAMPUS_GUIDES.map((g) => ({ ...g }));
+      const friendlyNpcs = CAMPUS_NPCS.map((n) => ({ ...n }));
       const props = CAMPUS_PROPS.map((p) => ({ ...p }));
       const signs = CAMPUS_SIGNS.map((s) => ({ ...s }));
       const gates = CAMPUS_GATES.map((g) => ({
@@ -7328,13 +7621,13 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       }));
       gates.forEach((gate) => { if (gate.open) map[gate.y][gate.x] = 0; });
       const collectedNotes = new Set<string>(discoveredNoteIds);
-      const triggeredGuides = new Set<string>(discoveredGuideIds);
+      const metNpcIds = new Set<string>(discoveredGuideIds);
       const signaledIds = new Set<string>(discoveredChallengerIds);
       let currentDistrictId: string | null = null;
       let lastProgressCount = -1;
       let lastMiniMapDrawAt = 0;
       const MINIMAP_REDRAW_INTERVAL_MS = 'ontouchstart' in window ? 50 : 33;
-      const totalDiscoverable = challengers.length + notes.length + guides.length;
+      const totalDiscoverable = challengers.length + notes.length + friendlyNpcs.length;
 
       const checkGateUnlock = () => {
         gates.forEach((gate) => {
@@ -7778,7 +8071,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // briefing/battle in progress) so a second click/tap/'E' press on the same or
       // another NPC while one is already resolving can never fire a duplicate
       // battle/quest trigger. Cleared the moment that interaction finishes (see
-      // dismissDiscovery and the tail of interactNpc below), which is also what lets
+      // dismissDiscovery and the tail of interactChallenger below), which is also what lets
       // roamingActive — and therefore clicking/tapping the NPC again — come back once
       // the player is eligible to interact again, instead of staying stuck off for
       // the rest of this mount.
@@ -8581,7 +8874,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // if no clear side exists, rather than risk placing one somewhere unsafe.
         const entityKeepClear: [number, number][] = [
           ...challengers.map((c) => [c.x, c.y] as [number, number]),
-          ...guides.map((g) => [g.x, g.y] as [number, number]),
+          ...friendlyNpcs.map((g) => [g.x, g.y] as [number, number]),
           ...notes.map((n) => [n.x, n.y] as [number, number]),
           ...props.map((p) => [p.x, p.y] as [number, number]),
           ...gates.map((g) => [g.x + 0.5, g.y + 0.5] as [number, number]),
@@ -9102,7 +9395,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       {
         const keepClearOf: [number, number][] = [
           ...challengers.map((c) => [c.x, c.y] as [number, number]),
-          ...guides.map((g) => [g.x, g.y] as [number, number]),
+          ...friendlyNpcs.map((g) => [g.x, g.y] as [number, number]),
           ...notes.map((n) => [n.x, n.y] as [number, number]),
           ...props.map((p) => [p.x, p.y] as [number, number]),
           ...gates.map((g) => [g.x + 0.5, g.y + 0.5] as [number, number]),
@@ -9162,7 +9455,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       {
         const keepClearOf: [number, number][] = [
           ...challengers.map((c) => [c.x, c.y] as [number, number]),
-          ...guides.map((g) => [g.x, g.y] as [number, number]),
+          ...friendlyNpcs.map((g) => [g.x, g.y] as [number, number]),
           ...notes.map((n) => [n.x, n.y] as [number, number]),
           ...props.map((p) => [p.x, p.y] as [number, number]),
           ...gates.map((g) => [g.x + 0.5, g.y + 0.5] as [number, number]),
@@ -9183,7 +9476,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       {
         const keepClearOf: [number, number][] = [
           ...challengers.map((c) => [c.x, c.y] as [number, number]),
-          ...guides.map((g) => [g.x, g.y] as [number, number]),
+          ...friendlyNpcs.map((g) => [g.x, g.y] as [number, number]),
           ...notes.map((n) => [n.x, n.y] as [number, number]),
           ...gates.map((g) => [g.x + 0.5, g.y + 0.5] as [number, number]),
         ];
@@ -9323,10 +9616,11 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       const SHOE_COLOR_HEX: Record<AvatarConfig['shoes'], number> = { dark: 0x1c1c22, white: 0xe8e4d8, amber: 0xb9782f };
       function makeHumanoid(cfg: AvatarConfig, accentEmissive?: number): THREE.Group {
         const g = new THREE.Group();
+        const look = cfg.look; // authored Challenger / NPC details; undefined for the player
         const skinMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(cfg.skin), roughness: 0.7 });
-        const topMat = new THREE.MeshStandardMaterial({ color: TOP_COLOR_HEX[cfg.topColor], roughness: 0.65, emissive: accentEmissive ?? 0x000000, emissiveIntensity: accentEmissive ? 0.25 : 0 });
-        const bottomMat = new THREE.MeshStandardMaterial({ color: BOTTOM_COLOR_HEX[cfg.bottomType], roughness: 0.75 });
-        const shoeMat = new THREE.MeshStandardMaterial({ color: SHOE_COLOR_HEX[cfg.shoes], roughness: 0.6 });
+        const topMat = new THREE.MeshStandardMaterial({ color: look?.topHex ? new THREE.Color(look.topHex) : TOP_COLOR_HEX[cfg.topColor], roughness: 0.65, emissive: accentEmissive ?? 0x000000, emissiveIntensity: accentEmissive ? 0.25 : 0 });
+        const bottomMat = new THREE.MeshStandardMaterial({ color: look?.bottomHex ? new THREE.Color(look.bottomHex) : BOTTOM_COLOR_HEX[cfg.bottomType], roughness: 0.75 });
+        const shoeMat = new THREE.MeshStandardMaterial({ color: look?.shoeHex ? new THREE.Color(look.shoeHex) : SHOE_COLOR_HEX[cfg.shoes], roughness: 0.6 });
         const hairMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(cfg.hairColor), roughness: 0.55 });
 
         const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.19, 0.42, 4, 8), topMat);
@@ -9336,7 +9630,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // independently below, stay exactly where the walk animation expects them) — a
         // plain uniform capsule reads as a soft cylinder; this gentle per-gender taper
         // reads as an actual ribcage/shoulder line instead.
-        torso.scale.set(cfg.gender === 'feminine' ? 1.02 : 1.1, 1, cfg.gender === 'feminine' ? 0.92 : 1);
+        const buildW = look?.build === 'broad' ? 1.12 : look?.build === 'slim' ? 0.9 : 1;
+        torso.scale.set((cfg.gender === 'feminine' ? 1.02 : 1.1) * buildW, 1, cfg.gender === 'feminine' ? 0.92 : 1);
         // Short neck so the head doesn't look like it's resting directly on the collar —
         // purely a fill piece between torso top (~1.38) and the head sphere below.
         const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.075, 0.12, 8), skinMat);
@@ -9350,17 +9645,51 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         // Two small eyes on the front (+Z) face of the head, so a standing NPC actually has
         // a legible "front" once it's rotated to face a given direction — previously the
         // whole body was rotationally symmetric and facing was invisible regardless of dir.
-        const eyeMat = new THREE.MeshStandardMaterial({ color: 0x241d1a, roughness: 0.4 });
+        const eyeMat = new THREE.MeshStandardMaterial({ color: look?.eyeColor ? new THREE.Color(look.eyeColor) : 0x241d1a, roughness: 0.4 });
         const eyeGeo = new THREE.SphereGeometry(0.016, 6, 6);
         const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.05, head.position.y + 0.01, 0.128);
         const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.05, head.position.y + 0.01, 0.128);
         g.add(eyeL, eyeR);
 
-        if (cfg.hair !== 'bald') {
-          const hair = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 10, 0, Math.PI * 2, 0, cfg.hair === 'long' ? 2.4 : 1.9), hairMat);
-          hair.position.y = head.position.y + 0.045;
-          if (cfg.hair === 'long') { const back = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.32, 4, 6), hairMat); back.position.y = 1.32; g.add(back); }
-          g.add(hair);
+        const hairStyle = look?.hairStyle ?? cfg.hair;
+        if (hairStyle !== 'bald') {
+          if (hairStyle === 'afro') {
+            const afro = new THREE.Mesh(new THREE.SphereGeometry(0.205, 14, 12, 0, Math.PI * 2, 0, 2.2), hairMat);
+            afro.position.y = head.position.y + 0.05;
+            g.add(afro);
+          } else {
+            const capAngle = hairStyle === 'long' ? 2.4 : hairStyle === 'buzz' ? 1.55 : 1.9;
+            const hair = new THREE.Mesh(new THREE.SphereGeometry(hairStyle === 'buzz' ? 0.146 : 0.15, 12, 10, 0, Math.PI * 2, 0, capAngle), hairMat);
+            hair.position.y = head.position.y + (hairStyle === 'buzz' ? 0.025 : 0.045);
+            if (hairStyle === 'long') { const back = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.32, 4, 6), hairMat); back.position.y = 1.32; g.add(back); }
+            if (hairStyle === 'ponytail') {
+              const tail = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.26, 4, 6), hairMat);
+              tail.position.set(0, head.position.y - 0.1, -0.17); tail.rotation.x = -0.25;
+              g.add(tail);
+            }
+            if (hairStyle === 'bun') {
+              const bun = new THREE.Mesh(new THREE.SphereGeometry(0.065, 10, 8), hairMat);
+              bun.position.set(0, head.position.y + 0.185, -0.03);
+              g.add(bun);
+            }
+            if (hairStyle === 'spiky') {
+              const spikeGeo = new THREE.ConeGeometry(0.03, 0.09, 5);
+              for (let i = 0; i < 7; i++) {
+                const a = (i / 7) * Math.PI * 2;
+                const spike = new THREE.Mesh(spikeGeo, hairMat);
+                const r = i === 0 ? 0 : 0.085;
+                spike.position.set(Math.cos(a) * r, head.position.y + 0.17 - (i === 0 ? 0 : 0.02), Math.sin(a) * r);
+                if (i !== 0) { spike.rotation.z = -Math.cos(a) * 0.5; spike.rotation.x = Math.sin(a) * 0.5; }
+                g.add(spike);
+              }
+            }
+            if (hairStyle === 'sidepart') {
+              const fringe = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.03, 0.06), hairMat);
+              fringe.position.set(-0.045, head.position.y + 0.1, 0.115); fringe.rotation.z = 0.35;
+              g.add(fringe);
+            }
+            g.add(hair);
+          }
         }
 
         // Legs and arms swing from real hip/shoulder pivots (empty Groups placed at the
@@ -9402,9 +9731,107 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           pivot.add(mesh);
           return { pivot, mesh };
         }
-        const armL = makeArm(-0.26);
-        const armR = makeArm(0.26);
+        const armL = makeArm(-0.26 * buildW);
+        const armR = makeArm(0.26 * buildW);
         g.add(armL.pivot, armR.pivot);
+
+        if (look) {
+          const dark = new THREE.MeshStandardMaterial({ color: 0x171a2c, roughness: 0.5 });
+          const accent = new THREE.MeshStandardMaterial({ color: new THREE.Color(look.accentHex ?? '#e0b13d'), roughness: 0.55 });
+          const hy = head.position.y;
+          const chestZ = 0.19 * (cfg.gender === 'feminine' ? 0.92 : 1) + 0.006;
+          // Brows + mouth: part of what makes each face read as a different person.
+          if (look.brows) {
+            const bh = look.brows === 'thick' ? 0.018 : 0.009;
+            for (const sx of [-1, 1]) { const brow = new THREE.Mesh(new THREE.BoxGeometry(0.05, bh, 0.01), hairMat); brow.position.set(sx * 0.05, hy + 0.05, 0.133); g.add(brow); }
+          }
+          if (look.mouth) {
+            let mouth: THREE.Mesh;
+            if (look.mouth === 'smile' || look.mouth === 'grin') {
+              mouth = new THREE.Mesh(new THREE.TorusGeometry(look.mouth === 'grin' ? 0.036 : 0.028, look.mouth === 'grin' ? 0.009 : 0.006, 5, 10, Math.PI), new THREE.MeshStandardMaterial({ color: look.mouth === 'grin' ? 0xf3ede0 : 0x4a2424, roughness: 0.5 }));
+              mouth.rotation.z = Math.PI; mouth.position.set(0, hy - 0.045, 0.128);
+            } else {
+              mouth = new THREE.Mesh(new THREE.BoxGeometry(look.mouth === 'stern' ? 0.06 : 0.04, look.mouth === 'stern' ? 0.011 : 0.008, 0.008), new THREE.MeshStandardMaterial({ color: 0x4a2424, roughness: 0.5 }));
+              mouth.position.set(0, hy - 0.06, 0.13);
+            }
+            g.add(mouth);
+          }
+          if (look.facial === 'beard') {
+            const beard = new THREE.Mesh(new THREE.SphereGeometry(0.146, 14, 10, 0, Math.PI * 2, 2.05, 0.85), hairMat);
+            beard.position.y = hy; g.add(beard);
+          } else if (look.facial === 'mustache') {
+            const stache = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.018, 0.02), hairMat);
+            stache.position.set(0, hy - 0.033, 0.131); g.add(stache);
+          } else if (look.facial === 'goatee') {
+            const goat = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8), hairMat);
+            goat.scale.set(1, 1.3, 0.8); goat.position.set(0, hy - 0.115, 0.1); g.add(goat);
+          }
+          if (look.glasses) {
+            if (look.glasses === 'goggles') {
+              const band = new THREE.Mesh(new THREE.TorusGeometry(0.143, 0.009, 6, 24), accent);
+              band.rotation.x = Math.PI / 2; band.position.y = hy + 0.012; g.add(band);
+            }
+            for (const sx of [-1, 1]) {
+              const rim = look.glasses === 'square'
+                ? new THREE.Mesh(new THREE.TorusGeometry(0.036, 0.006, 4, 4), dark)
+                : new THREE.Mesh(new THREE.TorusGeometry(0.033, look.glasses === 'goggles' ? 0.011 : 0.006, 6, 16), look.glasses === 'goggles' ? accent : dark);
+              if (look.glasses === 'square') rim.rotation.z = Math.PI / 4;
+              rim.position.set(sx * 0.052, hy + 0.012, 0.134); g.add(rim);
+            }
+            const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.006, 0.006), dark);
+            bridge.position.set(0, hy + 0.018, 0.138); g.add(bridge);
+          }
+          if (look.headwear === 'cap') {
+            const dome = new THREE.Mesh(new THREE.SphereGeometry(0.153, 14, 10, 0, Math.PI * 2, 0, 1.5), accent);
+            dome.position.y = hy + 0.03; g.add(dome);
+            const brim = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.012, 0.09), accent);
+            brim.position.set(0, hy + 0.045, 0.185); g.add(brim);
+          } else if (look.headwear === 'beanie') {
+            const dome = new THREE.Mesh(new THREE.SphereGeometry(0.157, 14, 10, 0, Math.PI * 2, 0, 1.75), accent);
+            dome.position.y = hy + 0.03; g.add(dome);
+            const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.153, 0.02, 6, 20), new THREE.MeshStandardMaterial({ color: 0xf2efe6, roughness: 0.8 }));
+            cuff.rotation.x = Math.PI / 2; cuff.position.y = hy + 0.005; g.add(cuff);
+          } else if (look.headwear === 'headband') {
+            const band = new THREE.Mesh(new THREE.TorusGeometry(0.126, 0.013, 6, 24), accent);
+            band.rotation.x = Math.PI / 2; band.position.y = hy + 0.075; g.add(band);
+          } else if (look.headwear === 'mortarboard') {
+            const base = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.11, 0.05, 10), dark);
+            base.position.y = hy + 0.14; g.add(base);
+            const board = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.016, 0.34), dark);
+            board.position.y = hy + 0.17; board.rotation.y = Math.PI / 4; g.add(board);
+            const tassel = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.11, 5), accent);
+            tassel.position.set(0.15, hy + 0.115, 0.15); g.add(tassel);
+          }
+          if (look.neckwear === 'tie') {
+            const tie = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.3, 0.012), accent);
+            tie.position.set(0, 1.03, chestZ + 0.004); g.add(tie);
+            const knot = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.04, 0.02), accent);
+            knot.position.set(0, 1.19, chestZ); g.add(knot);
+          } else if (look.neckwear === 'bowtie') {
+            for (const sx of [-1, 1]) { const wing = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.04, 0.02), accent); wing.position.set(sx * 0.038, 1.255, 0.18); wing.rotation.z = sx * 0.4; g.add(wing); }
+            const knot = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.035, 0.024), accent);
+            knot.position.set(0, 1.255, 0.182); g.add(knot);
+          } else if (look.neckwear === 'scarf') {
+            const scarf = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.034, 6, 18), accent);
+            scarf.rotation.x = Math.PI / 2; scarf.scale.set(1.1 * buildW, 0.95, 1); scarf.position.y = 1.3; g.add(scarf);
+          } else if (look.neckwear === 'lanyard') {
+            const strap = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.3, 0.008), accent);
+            strap.position.set(0, 1.04, chestZ); g.add(strap);
+            const card = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.07, 0.01), new THREE.MeshStandardMaterial({ color: 0xf4f4ee, roughness: 0.6 }));
+            card.position.set(0, 0.86, chestZ); g.add(card);
+          } else if (look.neckwear === 'whistle') {
+            const cord = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.24, 0.006), dark);
+            cord.position.set(0.03, 1.13, chestZ - 0.002); cord.rotation.z = 0.3; g.add(cord);
+            const whistle = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 8), accent);
+            whistle.position.set(0.07, 1.02, chestZ + 0.006); g.add(whistle);
+          }
+          if (look.badge) {
+            const badge = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.034, 0.008), new THREE.MeshStandardMaterial({ color: 0xf4f4ee, roughness: 0.6 }));
+            badge.position.set(-0.1 * buildW, 1.1, chestZ + 0.002); g.add(badge);
+          }
+          // Whole-figure height: scaling about the feet keeps them planted on the floor.
+          if (look.height && look.height !== 1) g.scale.setScalar(look.height);
+        }
 
         g.userData.legL = legPivotL; g.userData.legR = legPivotR;
         g.userData.armL = armL.mesh; g.userData.armR = armR.mesh;
@@ -9414,7 +9841,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       }
 
       // --- challengers -------------------------------------------------------------------
-      const npcMeshes = new Map<string, THREE.Group>();
+      const challengerMeshes = new Map<string, THREE.Group>();
       challengers.forEach((term) => {
         const cfg = challengerAvatars.get(term.id)!;
         const mesh = makeHumanoid(cfg, 0xff5555);
@@ -9431,21 +9858,20 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         const marker = new THREE.Sprite(new THREE.SpriteMaterial({ map: badgeTex, transparent: true }));
         marker.scale.set(0.32, 0.32, 1);
         marker.position.set(term.x, 1.95, term.y);
-        marker.userData.target = { kind: 'npc', data: term };
+        marker.userData.target = { kind: 'challenger', data: term };
         marker.userData.worldX = term.x; marker.userData.worldY = term.y;
         mesh.userData.target = marker.userData.target;
         mesh.userData.worldX = term.x; mesh.userData.worldY = term.y;
         mesh.userData.marker = marker;
         worldGroup.add(mesh, marker);
         interactiveObjects.push(mesh, marker);
-        npcMeshes.set(term.id, mesh);
+        challengerMeshes.set(term.id, mesh);
       });
 
       // --- guides --------------------------------------------------------------------------
-      const guideMeshes = new Map<string, THREE.Group>();
-      guides.forEach((guide) => {
-        const cfg: AvatarConfig = { gender: 'neutral', skin: '#e2b48c', hair: 'short', hairColor: '#2c2c2c', topType: 'jacket', topColor: 'cyan', bottomType: 'pants', shoes: 'dark' };
-        const mesh = makeHumanoid(cfg, 0x67cdd1);
+      const npcFigureMeshes = new Map<string, THREE.Group>();
+      friendlyNpcs.forEach((guide) => {
+        const mesh = makeHumanoid(guide.avatar, 0x67cdd1);
         mesh.position.set(guide.x, 0, guide.y);
         mesh.rotation.y = guide.dir;
         const bubbleTex = makeCanvasTexture((cctx, size) => {
@@ -9459,12 +9885,12 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         const marker = new THREE.Sprite(new THREE.SpriteMaterial({ map: bubbleTex, transparent: true }));
         marker.scale.set(0.3, 0.3, 1);
         marker.position.set(guide.x, 1.9, guide.y);
-        const target = { kind: 'guide' as const, data: guide };
+        const target = { kind: 'npc' as const, data: guide };
         marker.userData.target = target; marker.userData.worldX = guide.x; marker.userData.worldY = guide.y;
         mesh.userData.target = target; mesh.userData.worldX = guide.x; mesh.userData.worldY = guide.y;
         worldGroup.add(mesh, marker);
         interactiveObjects.push(mesh, marker);
-        guideMeshes.set(guide.id, mesh);
+        npcFigureMeshes.set(guide.id, mesh);
       });
 
       // --- lost notes: a small glowing pickup, dimmed once collected --------------------
@@ -9502,7 +9928,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           if (!t) return false;
           if (t.kind === 'gate' && t.data.open) return false;
           if (t.kind === 'note' && collectedNotes.has(t.data.id)) return false;
-          if (t.kind === 'guide' && triggeredGuides.has(t.data.id)) return false;
           return true;
         });
         const hits = raycaster.intersectObjects(live, true);
@@ -9514,9 +9939,9 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       }
 
       type InteractTarget =
-        | { kind: 'npc'; data: (typeof challengers)[number] }
+        | { kind: 'challenger'; data: (typeof challengers)[number] }
         | { kind: 'note'; data: (typeof notes)[number] }
-        | { kind: 'guide'; data: (typeof guides)[number] }
+        | { kind: 'npc'; data: (typeof friendlyNpcs)[number] }
         | { kind: 'gate'; data: (typeof gates)[number] };
       const INTERACT_RANGE = 4.5;
       // Screen-projected "hint" badge (the floating tap icon shown above whichever
@@ -9585,7 +10010,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         canvas.style.cursor = inRange ? 'pointer' : 'default';
       };
 
-      const interactNpc = (target: (typeof challengers)[number]) => {
+      const interactChallenger = (target: (typeof challengers)[number]) => {
         if (!target.active) return;
         // An interaction (card up, or already handing off to the briefing/battle
         // screen) is already in flight — ignore this click/tap/'E' rather than
@@ -9648,17 +10073,17 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         pushDiscovery({ title: `✦ HINT — ${note.title}`, body: note.hint, duration: 4500 });
       };
 
-      const interactGuide = (guide: (typeof guides)[number]) => {
-        if (triggeredGuides.has(guide.id)) return;
-        triggeredGuides.add(guide.id);
-        onDiscoverRef.current('guide', guide.id);
-        const line = guide.lines[Math.floor(Math.random() * guide.lines.length)];
-        if (guide.reward) {
-          onRewardRef.current(guide.reward.coins, guide.reward.xp);
-          pushDiscovery({ title: `✦ ${guide.name}`, body: `${line} (+${guide.reward.coins} credits, +${guide.reward.xp} XP)`, duration: 5000 });
-        } else {
-          pushDiscovery({ title: `✦ ${guide.name}`, body: line, duration: 4500 });
-        }
+      // Friendly NPC: opens the separate conversation screen (see NpcConversation). It never
+      // touches the challenger discovery/briefing/battle hand-off (onFoundRef), and unlike a
+      // Challenger it can be talked to again and again.
+      const interactFriendlyNpc = (npc: (typeof friendlyNpcs)[number]) => {
+        if (interactionActive) return;
+        interactionActive = true;
+        roamingActive = false;
+        hideFieldUi();
+        if (document.pointerLockElement === canvas) document.exitPointerLock();
+        metNpcIds.add(npc.id);
+        onNpcTalkRef.current(npc, { x: playerX, y: playerY, angle: playerAngle });
       };
 
       const interactGate = (gate: (typeof gates)[number]) => {
@@ -9671,9 +10096,9 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         const distSq = (playerX - worldX) ** 2 + (playerY - worldY) ** 2;
         if (distSq > INTERACT_RANGE * INTERACT_RANGE) return;
         switch (target.kind) {
-          case 'npc': interactNpc(target.data); break;
+          case 'challenger': interactChallenger(target.data); break;
           case 'note': interactNote(target.data); break;
-          case 'guide': interactGuide(target.data); break;
+          case 'npc': interactFriendlyNpc(target.data); break;
           case 'gate': interactGate(target.data); break;
         }
       };
@@ -9691,7 +10116,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           if (!t) continue;
           if (t.kind === 'gate' && t.data.open) continue;
           if (t.kind === 'note' && collectedNotes.has(t.data.id)) continue;
-          if (t.kind === 'guide' && triggeredGuides.has(t.data.id)) continue;
           const wx = obj.userData.worldX as number;
           const wy = obj.userData.worldY as number;
           const distSq = (playerX - wx) ** 2 + (playerY - wy) ** 2;
@@ -9700,9 +10124,9 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
         return best;
       };
 
-      // Matches each target kind's actual in-world icon height (npc's ⚔ badge, guide's
+      // Matches each target kind's actual in-world icon height (challenger's ⚔ badge, NPC's
       // 💬 bubble, etc.) so the DOM hint badge lines up with the icon it's standing in for.
-      const HINT_ICON_HEIGHT: Record<InteractTarget['kind'], number> = { npc: 1.95, guide: 1.9, note: 0.85, gate: 1.4 };
+      const HINT_ICON_HEIGHT: Record<InteractTarget['kind'], number> = { challenger: 1.95, npc: 1.9, note: 0.85, gate: 1.4 };
 
       const projectHintPoint = (gx: number, gy: number, height: number): { x: number; y: number } | null => {
         camera.getWorldDirection(hintCamDir);
@@ -9721,8 +10145,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // whatever's nearest as the player walks around, and — critically — comes right
       // back the moment the player is back in range of the same or a different
       // NPC/guide. Nothing here ever marks a target as "used up"; only the underlying
-      // interact()/interactNpc()/interactGuide() calls do that, and only for guides
-      // (one-time) — the hint itself never permanently disables.
+      // interact()/interactChallenger()/interactFriendlyNpc() calls do that, and the
+      // hint itself never permanently disables.
       const updateInteractHint = () => {
         if (!roamingActive || interactionActive) {
           currentHintTarget = null;
@@ -10097,7 +10521,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           if (defeatedIdsRef.current.includes(term.id)) continue;
           if (Math.hypot(nx - term.x, ny - term.y) < NPC_MIN_SEPARATION) return true;
         }
-        for (const guide of guides) {
+        for (const guide of friendlyNpcs) {
           if (Math.hypot(nx - guide.x, ny - guide.y) < NPC_MIN_SEPARATION) return true;
         }
         return false;
@@ -10317,7 +10741,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
 
         // NPC/guide idle animation + walk bob for retreating challengers.
         challengers.forEach((term) => {
-          const mesh = npcMeshes.get(term.id);
+          const mesh = challengerMeshes.get(term.id);
           if (!mesh) return;
           mesh.position.set(term.x, 0, term.y);
           const bob = Math.sin(now / 260 + seedOf(term.id)) * 0.02;
@@ -10329,8 +10753,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             marker.position.set(term.x, 1.95 + bob, term.y);
           }
         });
-        guides.forEach((guide) => {
-          const mesh = guideMeshes.get(guide.id);
+        friendlyNpcs.forEach((guide) => {
+          const mesh = npcFigureMeshes.get(guide.id);
           if (!mesh) return;
           const bob = Math.sin(now / 300 + seedOf(guide.id)) * 0.02;
           mesh.position.y = bob;
@@ -10401,7 +10825,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
           }
         }
 
-        const discoveredCount = signaledIds.size + collectedNotes.size + triggeredGuides.size;
+        const discoveredCount = signaledIds.size + collectedNotes.size + metNpcIds.size;
         if (discoveredCount !== lastProgressCount) {
           lastProgressCount = discoveredCount;
           if (progressChipRef.current) progressChipRef.current.textContent = `🧭 ${discoveredCount}/${totalDiscoverable} DISCOVERED`;
@@ -10431,8 +10855,8 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       // markers, the player, swaying props) and their ancestors stay auto-updating.
       {
         const animatedRoots = new Set<THREE.Object3D>([playerMesh]);
-        npcMeshes.forEach((m) => { animatedRoots.add(m); const mk = m.userData.marker as THREE.Object3D | undefined; if (mk) animatedRoots.add(mk); });
-        guideMeshes.forEach((m) => animatedRoots.add(m));
+        challengerMeshes.forEach((m) => { animatedRoots.add(m); const mk = m.userData.marker as THREE.Object3D | undefined; if (mk) animatedRoots.add(mk); });
+        npcFigureMeshes.forEach((m) => animatedRoots.add(m));
         noteMeshes.forEach((m) => animatedRoots.add(m));
         worldGroup.children.forEach((c) => { if (c.userData?.sway || c.type === 'Sprite') animatedRoots.add(c); });
         const keep = new Set<THREE.Object3D>();
@@ -10753,6 +11177,119 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
             <button className="btn-primary" onClick={onAccept} disabled={questionCount === 0}><Swords size={15} /> Accept quest</button>
             <button className="btn-secondary" onClick={onLeave}>Skip</button>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Conversation screen for friendly NPCs (campus staff / tutors). Entirely separate from
+  // QuestBriefing + Battle: it has no quest, no timer, no scoring, no question history, and
+  // it can only ever return the player to the campus. "Practice" prompts here are ungraded
+  // tutoring: a hint, then the answer and the explanation — nothing is recorded.
+  function NpcConversation({ npc, strand, firstVisit, onClose }: { npc: CampusNpc; strand: string; firstVisit: boolean; onClose: () => void }) {
+    type View = { kind: 'root' } | { kind: 'topics' } | { kind: 'lesson'; slot: number } | { kind: 'campus' } | { kind: 'fact' };
+    const [view, setView] = useState<View>({ kind: 'root' });
+    const [factIndex, setFactIndex] = useState(0);
+    const [infoIndex, setInfoIndex] = useState(0);
+    const [hintsShown, setHintsShown] = useState<Record<number, boolean>>({});
+    const [answersShown, setAnswersShown] = useState<Record<number, boolean>>({});
+    const strandKey = resolveStrandKey(strand);
+    const strandLabel = strandKey === 'GENERAL KNOWLEDGE' ? 'General Knowledge' : strandKey;
+    const topics = npc.tutorSlots.map((slot) => ({ slot, topic: QUIZ_TOPICS[strandKey]?.[slot] })).filter((entry): entry is { slot: number; topic: QuizTopic } => !!entry.topic);
+    const facts = NPC_FUN_FACTS[strandKey] ?? NPC_FUN_FACTS['GENERAL KNOWLEDGE'];
+    const lesson = view.kind === 'lesson' ? QUIZ_TOPICS[strandKey]?.[view.slot] ?? null : null;
+    const goTo = (next: View) => { setView(next); setHintsShown({}); setAnswersShown({}); };
+    const initials = getInitials(npc.name);
+    return (
+      <div className="holo-briefing-backdrop">
+        <div className="holo-briefing-panel npc-dialogue-panel" style={{ position: 'relative' }} role="dialog" aria-label={`Conversation with ${npc.name}`}>
+          <button className="btn-secondary holo-briefing-close" onClick={onClose} aria-label="End conversation"><X size={14} /></button>
+          <div className="eyebrow npc-dialogue-eyebrow">💬 CAMPUS CONVERSATION</div>
+          <div className="npc-dialogue-head">
+            <AvatarFigure avatar={npc.avatar} initials={initials} size="small" />
+            <div>
+              <h1 className="page-title" style={{ fontSize: 'clamp(19px, 4.6vw, 26px)', margin: 0 }}>{npc.name}</h1>
+              <div className="muted text-sm">{npc.role}</div>
+            </div>
+          </div>
+
+          {view.kind === 'root' && (
+            <>
+              <p className="npc-dialogue-line">{npc.greeting}</p>
+              {firstVisit && npc.reward && (
+                <p className="npc-dialogue-reward"><Gem size={12} className="inline mr-1" />First visit bonus: +{npc.reward.coins} credits, +{npc.reward.xp} XP</p>
+              )}
+              <div className="npc-dialogue-choices">
+                {topics.length > 0 && <button className="btn-secondary" onClick={() => goTo({ kind: 'topics' })}><BookOpen size={14} /> Help me review a lesson</button>}
+                <button className="btn-secondary" onClick={() => { setInfoIndex(0); goTo({ kind: 'campus' }); }}><MapPin size={14} /> Tell me about the campus</button>
+                <button className="btn-secondary" onClick={() => { setFactIndex((value) => (value + 1) % facts.length); goTo({ kind: 'fact' }); }}><Sparkles size={14} /> Tell me something interesting</button>
+                <button className="btn-primary" onClick={onClose}>Goodbye</button>
+              </div>
+            </>
+          )}
+
+          {view.kind === 'topics' && (
+            <>
+              <p className="npc-dialogue-line">Which {strandLabel} lesson should we go over?</p>
+              <div className="npc-dialogue-choices">
+                {topics.map(({ slot, topic }) => (
+                  <button key={topic.id} className="btn-secondary" onClick={() => goTo({ kind: 'lesson', slot })}>
+                    <BookOpen size={14} /> {topic.subject} <span className="muted text-xs">· {topic.topic}</span>
+                  </button>
+                ))}
+                <button className="btn-primary" onClick={() => goTo({ kind: 'root' })}>Back</button>
+              </div>
+            </>
+          )}
+
+          {view.kind === 'lesson' && lesson && (
+            <>
+              <p className="npc-dialogue-line">Let’s review <strong>{lesson.subject}</strong> — {lesson.topic}. Think it through, ask for a hint if you like, then check the answer. This is practice only: nothing here is scored.</p>
+              <div className="npc-lesson-list">
+                {lesson.questions.map((q, i) => (
+                  <div className="npc-lesson-card" key={q.question}>
+                    <div className="npc-lesson-q">{i + 1}. {q.question}</div>
+                    {hintsShown[i] && <div className="npc-lesson-hint">💡 Hint: {q.hint}</div>}
+                    {answersShown[i] && (
+                      <div className="npc-lesson-answer">
+                        <strong>{q.options[q.answer]}</strong> — {q.explanation}
+                      </div>
+                    )}
+                    {!answersShown[i] && (
+                      <div className="npc-lesson-actions">
+                        {!hintsShown[i] && <button className="btn-secondary" onClick={() => setHintsShown((value) => ({ ...value, [i]: true }))}>Give me a hint</button>}
+                        <button className="btn-secondary" onClick={() => setAnswersShown((value) => ({ ...value, [i]: true }))}>Show answer</button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="npc-dialogue-choices">
+                <button className="btn-secondary" onClick={() => goTo({ kind: 'topics' })}>Pick another lesson</button>
+                <button className="btn-primary" onClick={() => goTo({ kind: 'root' })}>Back</button>
+              </div>
+            </>
+          )}
+
+          {view.kind === 'campus' && (
+            <>
+              <p className="npc-dialogue-line">{npc.campusInfo[infoIndex % npc.campusInfo.length]}</p>
+              <div className="npc-dialogue-choices">
+                {npc.campusInfo.length > 1 && <button className="btn-secondary" onClick={() => setInfoIndex((value) => value + 1)}>Tell me more</button>}
+                <button className="btn-primary" onClick={() => goTo({ kind: 'root' })}>Back</button>
+              </div>
+            </>
+          )}
+
+          {view.kind === 'fact' && (
+            <>
+              <p className="npc-dialogue-line">{facts[factIndex % facts.length]}</p>
+              <div className="npc-dialogue-choices">
+                <button className="btn-secondary" onClick={() => setFactIndex((value) => (value + 1) % facts.length)}>Another one</button>
+                <button className="btn-primary" onClick={() => goTo({ kind: 'root' })}>Back</button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     );
@@ -11320,7 +11857,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     // back to a generic id so the arena never renders with a missing/blank fighter.
     const opponentData = opponent ?? { id: 'unknown-challenger', name: opponentName, style: 'professor' as ChallengerStyle };
     const opponentAvatar = getChallengerAvatar(opponentData);
-    const opponentVariant = getChallengerVariant(opponentData);
     // Seconds allowed for the question currently on screen (see getQuestionTimeLimit).
     const timeLimitSec = current ? getQuestionTimeLimit(opponent, current) : 0;
     // Live countdown: remaining ms is kept in a ref (not state) so the 100ms tick doesn't
@@ -11549,7 +12085,6 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                     avatar={opponentAvatar}
                     initials={opponentInitial}
                     size="large"
-                    variant="teacher-enemy"
                   />
                 </div>
               </div>
@@ -12371,7 +12906,7 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
     }, [authUser]);
 
     const [screen, setScreen] = useState<Screen>('dashboard');
-    const [questStage, setQuestStage] = useState<'list' | 'roaming' | 'briefing' | 'battle'>('list');
+    const [questStage, setQuestStage] = useState<'list' | 'roaming' | 'briefing' | 'battle' | 'conversation'>('list');
 
     // True for every stage of the "Enter battle" flow past the quest list (roaming the
     // campus, the pre-battle briefing, and the battle itself). Used to hide the sidebar
@@ -12387,6 +12922,10 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
       mainAreaRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
     }, [screen, questStage]);
     const [foundChallenger, setFoundChallenger] = useState<CampusChallenger | null>(null);
+    // Friendly-NPC conversation state — deliberately separate from foundChallenger so talking
+    // to an NPC can never set up, reuse or clear a Challenger encounter.
+    const [talkingNpc, setTalkingNpc] = useState<CampusNpc | null>(null);
+    const [npcFirstVisit, setNpcFirstVisit] = useState(false);
     const [questReturnPosition, setQuestReturnPosition] = useState<CampusReturnPosition | null>(null);
 
     // ---------------------------------------------------------------------------------
@@ -13067,7 +13606,19 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                   discoveredChallengerIds={game.discoveredChallengerIds ?? []}
                   discoveredNoteIds={game.discoveredNoteIds ?? []}
                   discoveredGuideIds={game.discoveredGuideIds ?? []}
-                  onChallengerFound={(challenger, position) => { setFoundChallenger(challenger); setQuestReturnPosition(position); setQuestStage('briefing'); }}
+                  onChallengerFound={(challenger, position) => { setTalkingNpc(null); setFoundChallenger(challenger); setQuestReturnPosition(position); setQuestStage('briefing'); }}
+                  onNpcTalk={(npc, position) => {
+                    const first = !(game.discoveredGuideIds ?? []).includes(npc.id);
+                    if (first) {
+                      // One-time first-visit record (+ the NPC's small learning reward, if any).
+                      updateAccountData((acc) => {
+                        const met = acc.game.discoveredGuideIds ?? [];
+                        if (met.includes(npc.id)) return acc;
+                        return { ...acc, game: { ...acc.game, discoveredGuideIds: [...met, npc.id], coins: acc.game.coins + (npc.reward?.coins ?? 0), xp: acc.game.xp + (npc.reward?.xp ?? 0) } };
+                      });
+                    }
+                    setNpcFirstVisit(first); setFoundChallenger(null); setTalkingNpc(npc); setQuestReturnPosition(position); setQuestStage('conversation');
+                  }}
                   onExit={() => { setQuestReturnPosition(null); setQuestStage('list'); }}
                   notify={notify}
                   soundEnabled={game.preferences.sound}
@@ -13081,6 +13632,9 @@ if (typeof document !== 'undefined' && !document.getElementById('derioux-font-pr
                   })}
                   onReplayTutorial={resetTutorial}
                 />
+              )}
+              {screen === 'quests' && questStage === 'conversation' && talkingNpc && (
+                <NpcConversation npc={talkingNpc} strand={profile.strand} firstVisit={npcFirstVisit} onClose={() => { setTalkingNpc(null); setQuestStage('roaming'); }} />
               )}
               {screen === 'quests' && questStage === 'briefing' && foundChallenger && (
                 <QuestBriefing challenger={foundChallenger} playerLevel={getLevelInfo(game.xp).level} strand={profile.strand} bestScore={(game.challengerScores ?? {})[foundChallenger.id]} onAccept={() => setQuestStage('battle')} onLeave={() => { setFoundChallenger(null); setQuestStage('roaming'); }} />
